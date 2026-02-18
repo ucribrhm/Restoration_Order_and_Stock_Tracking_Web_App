@@ -1,0 +1,64 @@
+# =========================
+# .NET / Visual Studio
+# =========================
+ 
+## Build results
+bin/
+obj/
+ 
+## User-specific files
+*.user
+*.rsuser
+*.suo
+*.userosscache
+*.sln.docstates
+ 
+## Visual Studio cache
+.vs/
+ 
+## Rider
+.idea/
+ 
+## VS Code
+.vscode/
+ 
+# =========================
+# ASP.NET Core
+# =========================
+ 
+## app settings (environment specific)
+appsettings.Development.json
+appsettings.Production.json
+ 
+## Secrets
+secrets.json
+ 
+# =========================
+# EF Core
+# =========================
+ 
+## Local databases
+*.mdf
+*.ldf
+*.sqlite
+*.db
+ 
+## Migration temp files
+*.tmp
+ 
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+ 
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+ 
+# =========================
+# Publish output
+# =========================
+publish/
