@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using Restoration_Order_and_Stock_Tracking_Web_App.MVC.Data;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
 using System.Data;
 
-namespace Restoration_Order_and_Stock_Tracking_Web_App.MVC
+namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
 {
     public class Program
     {

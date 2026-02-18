@@ -4,7 +4,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace Restoration_Order_and_Stock_Tracking_Web_App.MVC.Migrations
+namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Migrations
 {
     /// <inheritdoc />
     public partial class InitializeMG1 : Migration

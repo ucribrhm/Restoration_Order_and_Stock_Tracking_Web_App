@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Restoration_Order_and_Stock_Tracking_Web_App.MVC.Models;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
 
-namespace Restoration_Order_and_Stock_Tracking_Web_App.MVC.Data
+namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
 {
     public class RestaurantDbContext : DbContext
     {

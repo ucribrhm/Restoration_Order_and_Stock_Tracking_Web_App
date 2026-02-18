@@ -2,18 +2,21 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
-using Restoration_Order_and_Stock_Tracking_Web_App.MVC.Data;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
 
 #nullable disable
 
-namespace Restoration_Order_and_Stock_Tracking_Web_App.MVC.Migrations
+namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Migrations
 {
     [DbContext(typeof(RestaurantDbContext))]
-    partial class RestaurantDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260218122829_Initialize-MG1")]
+    partial class InitializeMG1
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -22,7 +25,7 @@ namespace Restoration_Order_and_Stock_Tracking_Web_App.MVC.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Restoration_Order_and_Stock_Tracking_Web_App.MVC.Models.Table", b =>
+            modelBuilder.Entity("Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models.Table", b =>
                 {
                     b.Property<int>("TableId")
                         .ValueGeneratedOnAdd()
