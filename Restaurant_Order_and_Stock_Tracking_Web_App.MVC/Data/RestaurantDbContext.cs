@@ -8,6 +8,13 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
         public DbSet<Table> Tables { get; set; }
         public DbSet<Category> Categories { get; set; }
 
+        public DbSet<Order> Orders { get; set; }
+
+        public DbSet<MenuItem> MenuItems { get; set; }
+
+        public DbSet<Order> OrderItems { get; set; }
+
+        public DbSet<Payment> Payments { get; set; }
         public RestaurantDbContext(DbContextOptions options) : base(options)
         {
         }
@@ -173,7 +180,42 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
 
             });
 
-        }  
+            modelBuilder.Entity<Payment>(entity =>
+            {
+                entity.ToTable("payments");
+                entity.HasKey(p => p.PaymentId);
+
+                entity.Property(p => p.PaymentsMethod)
+               .IsRequired()
+               .HasDefaultValue(0);
+
+
+                entity.Property(p => p.PaymentsAmount)
+                .HasDefaultValue(0)
+                .HasPrecision(10, 2)
+                .IsRequired();
+
+                entity.Property(p => p.PaymentsChangeGiven)
+                .HasDefaultValue(0)
+                .HasPrecision(10, 2)
+                .IsRequired();
+
+
+                entity.Property(p => p.PaymentsPaidAt)
+               .HasDefaultValueSql("NOW()")
+               .IsRequired();
+
+                entity.Property(p => p.PaymentsNote)
+                .IsRequired()
+                .HasColumnType("text");
+
+                entity.HasOne(o => o.Order)
+                .WithMany(p => p.Payments)
+                .HasForeignKey(o => o.OrderId)
+                .OnDelete(DeleteBehavior.Restrict);
+            });
+
+        }
 
     }
 }
