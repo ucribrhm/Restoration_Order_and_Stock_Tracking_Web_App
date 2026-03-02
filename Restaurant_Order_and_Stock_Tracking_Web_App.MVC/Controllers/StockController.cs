@@ -1,6 +1,9 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Dtos.Stock;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
@@ -251,6 +254,191 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                 statusPill = GetStatusPillClass(item),
                 message = item.TrackStock ? "Stok takibi aktif edildi." : "Stok takibi kapatıldı."
             });
+        }
+
+        // ── GET: /Stock/GenerateStockPdfReport ───────────────────────
+        [HttpGet]
+        public async Task<IActionResult> GenerateStockPdfReport(
+            string? search = null,
+            string? category = null,
+            string? status = null,
+            bool showAll = false)
+        {
+            QuestPDF.Settings.License = LicenseType.Community;
+
+            var query = _context.MenuItems
+                .Where(m => !m.IsDeleted)
+                .Include(m => m.Category)
+                .AsQueryable();
+
+            if (!showAll)
+                query = query.Where(m => m.TrackStock);
+
+            var allItems = await query
+                .OrderBy(m => m.Category.CategorySortOrder)
+                .ThenBy(m => m.MenuItemName)
+                .ToListAsync();
+
+            // Filtrele
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var sq = search.ToLower();
+                allItems = allItems.Where(m =>
+                    m.MenuItemName.ToLower().Contains(sq) ||
+                    $"SKU-{m.MenuItemId:D4}".ToLower().Contains(sq)).ToList();
+            }
+
+            if (!string.IsNullOrWhiteSpace(category))
+                allItems = allItems.Where(m => m.Category.CategoryName == category).ToList();
+
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                allItems = status switch
+                {
+                    "Critical" => allItems.Where(m => IsCritical(m)).ToList(),
+                    "Low" => allItems.Where(m => IsLow(m)).ToList(),
+                    "OK" => allItems.Where(m => m.TrackStock && !IsLow(m) && !IsCritical(m)).ToList(),
+                    "NotTracked" => allItems.Where(m => !m.TrackStock).ToList(),
+                    _ => allItems
+                };
+            }
+
+            var reportDate = DateTime.Now;
+            var restaurantName = "Restoran Stok Raporu";
+
+            // Renk sabitleri
+            var headerBg = "#1e293b";
+            var rowEven = "#f8fafc";
+            var rowOdd = "#ffffff";
+            var criticalClr = "#ef4444";
+            var lowClr = "#f59e0b";
+            var okClr = "#22c55e";
+            var grayClr = "#94a3b8";
+            var borderClr = "#e2e8f0";
+
+            var pdfBytes = Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4.Landscape());
+                    page.Margin(28);
+                    page.DefaultTextStyle(x => x.FontSize(9).FontFamily("Arial"));
+
+                    // ── HEADER ──────────────────────────────────────────────
+                    page.Header().Column(col =>
+                    {
+                        col.Item().Row(row =>
+                        {
+                            row.RelativeItem().Column(c =>
+                            {
+                                c.Item().Text(restaurantName)
+                                    .FontSize(18).Bold().FontColor("#1e293b");
+                                c.Item().Text($"Stok Durum Raporu — {reportDate:dd MMMM yyyy, HH:mm}")
+                                    .FontSize(9).FontColor("#64748b");
+                            });
+                            row.ConstantItem(160).AlignRight().Column(c =>
+                            {
+                                c.Item().Text($"Toplam: {allItems.Count} ürün")
+                                    .FontSize(9).FontColor("#64748b").AlignRight();
+                                c.Item().Text($"Kritik: {allItems.Count(IsCritical)}  |  Düşük: {allItems.Count(IsLow)}")
+                                    .FontSize(9).FontColor("#64748b").AlignRight();
+                            });
+                        });
+
+                        col.Item().PaddingTop(6).LineHorizontal(1.5f).LineColor("#1e293b");
+                        col.Item().PaddingBottom(6);
+                    });
+
+                    // ── FOOTER ──────────────────────────────────────────────
+                    page.Footer().AlignCenter().Text(text =>
+                    {
+                        text.Span("Sayfa ").FontSize(8).FontColor("#94a3b8");
+                        text.CurrentPageNumber().FontSize(8).FontColor("#94a3b8");
+                        text.Span(" / ").FontSize(8).FontColor("#94a3b8");
+                        text.TotalPages().FontSize(8).FontColor("#94a3b8");
+                        text.Span($"   •   Oluşturulma: {reportDate:dd.MM.yyyy HH:mm}")
+                            .FontSize(8).FontColor("#94a3b8");
+                    });
+
+                    // ── CONTENT ─────────────────────────────────────────────
+                    page.Content().Table(table =>
+                    {
+                        // Sütun genişlikleri
+                        table.ColumnsDefinition(cols =>
+                        {
+                            cols.RelativeColumn(3.5f); // Ürün Adı
+                            cols.RelativeColumn(1.5f); // SKU
+                            cols.RelativeColumn(2f);   // Kategori
+                            cols.RelativeColumn(1.5f); // Güncel Stok
+                            cols.RelativeColumn(1.5f); // Uyarı Eşiği
+                            cols.RelativeColumn(1.5f); // Kritik Eşik
+                            cols.RelativeColumn(2f);   // Durum
+                        });
+
+                        // Başlık satırı
+                        static IContainer HeaderCell(IContainer c) =>
+                            c.Background("#1e293b").Padding(7).AlignMiddle();
+
+                        table.Header(header =>
+                        {
+                            header.Cell().Element(HeaderCell)
+                                .Text("Ürün Adı").Bold().FontColor(Colors.White).FontSize(9);
+                            header.Cell().Element(HeaderCell)
+                                .Text("SKU").Bold().FontColor(Colors.White).FontSize(9);
+                            header.Cell().Element(HeaderCell)
+                                .Text("Kategori").Bold().FontColor(Colors.White).FontSize(9);
+                            header.Cell().Element(HeaderCell)
+                                .Text("Güncel Stok").Bold().FontColor(Colors.White).FontSize(9);
+                            header.Cell().Element(HeaderCell)
+                                .Text("Uyarı Eşiği").Bold().FontColor(Colors.White).FontSize(9);
+                            header.Cell().Element(HeaderCell)
+                                .Text("Kritik Eşiği").Bold().FontColor(Colors.White).FontSize(9);
+                            header.Cell().Element(HeaderCell)
+                                .Text("Stok Durumu").Bold().FontColor(Colors.White).FontSize(9);
+                        });
+
+                        // Veri satırları (zebra striping)
+                        for (int i = 0; i < allItems.Count; i++)
+                        {
+                            var item = allItems[i];
+                            var bg = i % 2 == 0 ? rowEven : rowOdd;
+                            var statusStr = GetStatusString(item);
+                            var (statusLabel, statusColor) = statusStr switch
+                            {
+                                "Critical" => ("🚨 Kritik", criticalClr),
+                                "Low" => ("⚡ Düşük", lowClr),
+                                "NotTracked" => ("— Takip Dışı", grayClr),
+                                _ => ("✓ Yeterli", okClr)
+                            };
+
+                            IContainer DataCell(IContainer c) =>
+                                c.Background(bg).BorderBottom(0.5f).BorderColor(borderClr)
+                                 .Padding(6).AlignMiddle();
+
+                            table.Cell().Element(DataCell)
+                                .Text(item.MenuItemName).FontSize(9);
+                            table.Cell().Element(DataCell)
+                                .Text($"SKU-{item.MenuItemId:D4}").FontSize(8).FontColor("#64748b");
+                            table.Cell().Element(DataCell)
+                                .Text(item.Category?.CategoryName ?? "—").FontSize(9);
+                            table.Cell().Element(DataCell)
+                                .Text(item.StockQuantity.ToString())
+                                .FontSize(9).Bold().AlignCenter();
+                            table.Cell().Element(DataCell)
+                                .Text(item.AlertThreshold > 0 ? item.AlertThreshold.ToString() : "—")
+                                .FontSize(9).FontColor("#64748b").AlignCenter();
+                            table.Cell().Element(DataCell)
+                                .Text(item.CriticalThreshold > 0 ? item.CriticalThreshold.ToString() : "—")
+                                .FontSize(9).FontColor("#64748b").AlignCenter();
+                            table.Cell().Element(DataCell)
+                                .Text(statusLabel).FontSize(9).Bold().FontColor(statusColor).AlignCenter();
+                        }
+                    });
+                });
+            }).GeneratePdf();
+
+            var fileName = $"stok_raporu_{reportDate:yyyyMMdd_HHmm}.pdf";
+            return File(pdfBytes, "application/pdf", fileName);
         }
 
         // ── Private helpers ───────────────────────────────────────────

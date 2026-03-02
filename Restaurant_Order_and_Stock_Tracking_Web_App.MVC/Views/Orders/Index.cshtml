@@ -79,7 +79,7 @@
             🔥 Aktif <span class="tab-count">@allActiveOrders.Count</span>
         </button>
         <button class="tab-btn js-tab-btn @(activeTab == "past" ? "active" : "")" data-tab="past">
-            📋 Geçmiş <span class="tab-count">@pastOrders.Count</span>
+            📋 Geçmiş <span class="tab-count">@pastOrders.Count(o => o.OrderTotalAmount != 0)</span>
         </button>
     </div>
 

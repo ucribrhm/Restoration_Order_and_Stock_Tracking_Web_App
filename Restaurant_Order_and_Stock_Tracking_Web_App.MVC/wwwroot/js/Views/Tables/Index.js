@@ -78,6 +78,9 @@ async function submitCreateTable() {
 async function submitReserve() {
     if (!validateReserveForm()) return;
 
+    const submitBtn = document.querySelector('#reserveModal .btn-primary');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '⏳ Kaydediliyor…'; }
+
     // TableReserveDto ile eşleşen payload
     const payload = {
         tableId: parseInt(document.getElementById('res-tableId').value),
@@ -92,13 +95,62 @@ async function submitReserve() {
 
         if (data.success) {
             window.location.href = data.redirectUrl || window.location.href;
+        } else if (data.isDuplicate) {
+            // ── Çakışma uyarısı ─────────────────────────────────────────
+            closeModal('reserveModal');
+            showDuplicateReservationAlert(data.message);
         } else {
             alert('Hata: ' + (data.message || 'Bilinmeyen hata'));
         }
     } catch (e) {
         if (e.message !== 'Unauthorized')
             alert('İstek gönderilemedi.');
+    } finally {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Rezerve Et'; }
     }
+}
+
+// ── Çakışma Uyarı Modalı ───────────────────────────────────────
+function showDuplicateReservationAlert(message) {
+    // Varsa öncekini kaldır
+    document.getElementById('dupAlertOverlay')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'dupAlertOverlay';
+    overlay.style.cssText = `
+        position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.55);
+        display:flex; align-items:center; justify-content:center;
+        animation: fadeIn .2s ease;
+    `;
+    overlay.innerHTML = `
+        <div style="
+            background:#fff; border-radius:16px; padding:32px 28px; max-width:420px; width:90%;
+            box-shadow:0 20px 60px rgba(0,0,0,.25); text-align:center; position:relative;
+            animation: slideUp .25s ease;
+        ">
+            <div style="font-size:52px; margin-bottom:12px; line-height:1;">⚠️</div>
+            <div style="font-size:17px; font-weight:700; color:#1e293b; margin-bottom:10px;">
+                Çakışan Rezervasyon
+            </div>
+            <div style="font-size:14px; color:#475569; line-height:1.6; margin-bottom:24px;">
+                ${message}
+            </div>
+            <button onclick="document.getElementById('dupAlertOverlay').remove()" style="
+                background:linear-gradient(135deg,#ef4444,#dc2626); color:#fff; border:none;
+                border-radius:10px; padding:10px 28px; font-size:14px; font-weight:600;
+                cursor:pointer; transition:opacity .2s;
+            " onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+                Tamam, Anladım
+            </button>
+        </div>
+        <style>
+            @keyframes fadeIn  { from { opacity:0; } to { opacity:1; } }
+            @keyframes slideUp { from { transform:translateY(30px); opacity:0; } to { transform:translateY(0); opacity:1; } }
+        </style>
+    `;
+    // Overlay dışına tıklayınca kapat
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
 }
 
 // ── Rezervasyon İptal — Fetch ─────────────────────────────────

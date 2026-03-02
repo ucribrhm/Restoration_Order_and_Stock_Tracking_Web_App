@@ -171,12 +171,12 @@
                             {
                                 <button type="button" class="sflow-btn sflow-btn-cancel"
                                         onclick="openCancelModal(
-                                                                                                                                @item.OrderItemId,
-                                                                                                                                '@Html.Raw(item.MenuItem?.MenuItemName?.Replace("'", "&#39;") ?? "")',
-                                                                                                                                @item.OrderItemUnitPrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
-                                                                                                                                @cancelable,
-                                                                                                                                @(item.MenuItem?.TrackStock == true ? "true" : "false")
-                                                                                                                            )">
+                                                @item.OrderItemId,
+                                               '@Html.Raw(item.MenuItem?.MenuItemName?.Replace("'", "&#39;") ?? "")',
+                                                @item.OrderItemUnitPrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
+                                                @cancelable,
+                                                @(item.MenuItem?.TrackStock == true ? "true" : "false")
+                                                 )">
                                     ✕ İptal
                                 </button>
                             }

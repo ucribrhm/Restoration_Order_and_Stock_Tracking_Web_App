@@ -14,13 +14,13 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
     public class TablesController : Controller
     {
         private readonly RestaurantDbContext _db;
-           private readonly IHubContext<RestaurantHub> _hub;  
-        
-           public TablesController(RestaurantDbContext db, IHubContext<RestaurantHub> hub)
-           {
-               _db  = db;
-               _hub = hub;
-           }
+        private readonly IHubContext<RestaurantHub> _hub;
+
+        public TablesController(RestaurantDbContext db, IHubContext<RestaurantHub> hub)
+        {
+            _db = db;
+            _hub = hub;
+        }
         // ── GET /Tables ───────────────────────────────────────────────
         public async Task<IActionResult> Index()
         {
@@ -127,13 +127,46 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             if (reservationLocal < localNow.AddMinutes(-5))
                 return Json(new { success = false, message = "Rezervasyon saati geçmiş bir saat olamaz." });
 
+            var reservationUtc = DateTime.SpecifyKind(reservationLocal, DateTimeKind.Local).ToUniversalTime();
+
+            // ── ÇELİŞME KONTROLÜ: Aynı müşteri, aynı gün + aynı saat ──────────────
+            // Sadece Pending (TableStatus == 2) rezervasyonlar kontrol edilir.
+            // İptal edilmiş (TableStatus == 0) masalardaki geçmiş rezervasyonlar kapsam dışı.
+            var sameDayStart = reservationUtc.Date;
+            var sameDayEnd = sameDayStart.AddDays(1);
+            var normalizedPhone = dto.ReservationPhone.Trim();
+            var normalizedName = dto.ReservationName.Trim();
+
+            // ReservationTime aynı saat olup olmadığını UTC bazında karşılaştır (dakika hassasiyeti)
+            var reservationHourMinute = new TimeSpan(reservationUtc.Hour, reservationUtc.Minute, 0);
+
+            var isDuplicate = await _db.Tables.AnyAsync(t =>
+                t.TableStatus == 2 &&                                    // Sadece aktif rezervasyonlar
+                t.TableId != dto.TableId &&                              // Farklı masa olabilir
+                t.ReservationPhone == normalizedPhone &&
+                
+                t.ReservationTime.HasValue &&
+                t.ReservationTime.Value >= sameDayStart &&
+                t.ReservationTime.Value < sameDayEnd &&
+                t.ReservationTime.Value.Hour == reservationUtc.Hour &&
+                t.ReservationTime.Value.Minute == reservationUtc.Minute);
+
+            if (isDuplicate)
+                return Json(new
+                {
+                    success = false,
+                    isDuplicate = true,
+                    message = "Bu telefon numarasıyla seçtiğiniz tarih ve saat için zaten adınıza kayıtlı bir rezervasyon bulunmaktadır."
+                });
+            // ──────────────────────────────────────────────────────────────────────
+
             try
             {
                 table.TableStatus = 2;
-                table.ReservationName = dto.ReservationName.Trim();
-                table.ReservationPhone = dto.ReservationPhone.Trim();
+                table.ReservationName = normalizedName;
+                table.ReservationPhone = normalizedPhone;
                 table.ReservationGuestCount = dto.ReservationGuestCount;
-                table.ReservationTime = DateTime.SpecifyKind(reservationLocal, DateTimeKind.Local).ToUniversalTime();
+                table.ReservationTime = reservationUtc;
 
                 await _db.SaveChangesAsync();
                 return Json(new { success = true, message = $"'{table.TableName}' — {dto.ReservationName} adına rezerve edildi.", redirectUrl = Url.Action(nameof(Index)) });
@@ -287,7 +320,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
         }
 
 
-        
+
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> DismissWaiter([FromBody] DismissWaiterDto dto)
         {

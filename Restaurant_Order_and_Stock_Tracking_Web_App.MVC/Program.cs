@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using QuestPDF.Infrastructure;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Hubs;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
@@ -11,6 +12,9 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
     {
         public static async Task Main(string[] args)
         {
+            // ── QuestPDF Community License ───────────────────────────────
+            QuestPDF.Settings.License = LicenseType.Community;
+
             var builder = WebApplication.CreateBuilder(args);
 
             // ── DbContext ────────────────────────────────────────────────

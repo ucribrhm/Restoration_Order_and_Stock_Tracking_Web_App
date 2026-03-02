@@ -145,11 +145,15 @@ const StockUpdateModal = {
         document.getElementById('upd_title').textContent = name;
         document.getElementById('upd_sku').textContent = sku;
         document.getElementById('upd_direct').value = stock;
-        //document.getElementById('upd_threshold').value = threshold > 0 ? threshold : '';
+        document.getElementById('upd_threshold').value = threshold > 0 ? threshold : '';
         document.getElementById('upd_qty').value = '';
         document.getElementById('upd_note').value = '';
         document.getElementById('upd_fire_qty').value = '';
         document.getElementById('upd_fire_note').value = '';
+
+        // Modal ilk açıldığında eşiği her zaman görünür yapıyoruz (çünkü "direct" sekmesiyle açılıyor)
+        const thresholdSection = document.getElementById('thresholdSection');
+        if (thresholdSection) thresholdSection.style.display = 'block';
 
         this.switchTab('direct', document.querySelectorAll('.tab-btn')[0]);
         this.setDirection('in');
@@ -163,6 +167,12 @@ const StockUpdateModal = {
         if (btnEl) btnEl.classList.add('active');
         const panel = document.getElementById(`tab-${tab}`);
         if (panel) panel.classList.add('active');
+
+        // 🔥 Sekmeye göre Uyarı Eşiğini gizle/göster
+        const thresholdSection = document.getElementById('thresholdSection');
+        if (thresholdSection) {
+            thresholdSection.style.display = tab === 'fire' ? 'none' : 'block';
+        }
     },
 
     setDirection(dir) {
@@ -371,3 +381,90 @@ document.querySelectorAll('.track-toggle').forEach(chk => {
 document.addEventListener('DOMContentLoaded', () => {
     StockSparkline.drawAll();
 });
+
+// ══════════════════════════════════════════════════════════════
+//  StockPdf — Mevcut filtreleri alıp backend'den PDF indirir
+// ══════════════════════════════════════════════════════════════
+const StockPdf = {
+    download() {
+        const btn = document.getElementById('pdfDownloadBtn');
+
+        // Aktif filtreleri oku
+        const search = document.getElementById('searchInput')?.value.trim() ?? '';
+        const catEl = document.getElementById('catFilter');
+        const statusEl = document.getElementById('statusFilter');
+        const category = catEl?.options[catEl.selectedIndex]?.text ?? '';   // kategori adı
+        const status = statusEl?.value ?? '';
+        const showAll = new URLSearchParams(window.location.search).get('showAll') === 'true';
+
+        // URL oluştur
+        const params = new URLSearchParams();
+        if (search) params.append('search', search);
+        // Kategori değeri select'te data-name ya da text olabilir, hem value hem text gönder
+        const catValue = catEl?.value ?? '';
+        if (catValue) params.append('category', catValue === category ? catValue : category || catValue);
+        if (status) params.append('status', status);
+        if (showAll) params.append('showAll', 'true');
+
+        const url = '/Stock/GenerateStockPdfReport?' + params.toString();
+
+        // Butonu yükleniyor moduna al
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `
+                <svg style="width:16px;height:16px;fill:currentColor;animation:spin 1s linear infinite" viewBox="0 0 24 24">
+                    <path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/>
+                </svg>
+                Hazırlanıyor…`;
+        }
+
+        // İndirme — window.open ile tarayıcı PDF handler'ı devreye girer
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `stok_raporu_${new Date().toISOString().slice(0, 10)}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // Butonu 3 saniye sonra sıfırla
+        setTimeout(() => {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = `
+                    <svg style="width:16px;height:16px;fill:currentColor" viewBox="0 0 24 24">
+                        <path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm10 5.5h1v-3h-1v3z"/>
+                    </svg>
+                    PDF İndir`;
+            }
+        }, 3000);
+    }
+};
+
+// Spin animasyon stili (PDF buton için)
+(function injectPdfStyles() {
+    if (document.getElementById('pdf-btn-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'pdf-btn-styles';
+    style.textContent = `
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .btn-pdf {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background .2s, transform .1s, box-shadow .2s;
+            box-shadow: 0 1px 3px rgba(220,38,38,.3);
+        }
+        .btn-pdf:hover  { background: linear-gradient(135deg, #b91c1c, #991b1b); box-shadow: 0 4px 12px rgba(220,38,38,.35); transform: translateY(-1px); }
+        .btn-pdf:active { transform: translateY(0); }
+        .btn-pdf:disabled { opacity: .65; cursor: not-allowed; transform: none; }
+    `;
+    document.head.appendChild(style);
+})();

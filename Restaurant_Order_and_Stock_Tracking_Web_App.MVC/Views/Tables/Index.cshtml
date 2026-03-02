@@ -157,7 +157,7 @@ else
                                 onclick="cancelReserve(@table.TableId)">Rezervasyonu İptal Et</button>
                     }
 
-                    @if (table.TableStatus != 1)
+                    @if (table.TableStatus != 1&&User.IsInRole("Admin"))
                     {
                         <button type="button" class="card-btn danger"
                                 onclick="deleteTable(@table.TableId, '@Html.Raw(table.TableName.Replace("'", "\\'"))')">Sil</button>
