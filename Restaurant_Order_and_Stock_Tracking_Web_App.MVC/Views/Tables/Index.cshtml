@@ -6,7 +6,6 @@
     string StatusLabel(int s) => s switch { 1 => "Dolu", 2 => "Rezerve", _ => "Boş" };
     string StatusDot(int s)   => s switch { 1 => "●", 2 => "◈", _ => "○" };
 
-    // Dolu masaların listesi (birleştirme modalı için kaynak olabilecekler)
     var occupiedTables = Model.Where(t => t.TableStatus == 1).ToList();
 }
 
@@ -61,7 +60,6 @@ else
                 && localResTime.Value <= DateTime.Now.AddMinutes(30)
                 && localResTime.Value >= DateTime.Now;
 
-            @* ✅ #5: Dolu masadaki sipariş kalemleri — birleştirilmiş (aynı ürün toplanmış) *@
             var openOrder    = table.Orders?.FirstOrDefault(o => o.OrderStatus == "open");
             var mergedItems  = openOrder?.OrderItems
                 .Where(i => i.OrderItemStatus != "cancelled")
@@ -75,15 +73,24 @@ else
             var itemCount    = mergedItems?.Count ?? 0;
             var showLimit    = 5;
 
+            @* ── DEĞIŞIKLIK 1: data-waiter-called-at attribute eklendi ── *@
 <div class="table-card @sc @(warningSoon ? "warning-soon" : "") @(table.IsWaiterCalled ? "waiter-called" : "")"
      data-status="@sc"
      data-table-id="@table.TableId"
-     data-table-name="@table.TableName">
+     data-table-name="@table.TableName"
+     data-waiter-called-at="@(table.WaiterCalledAt.HasValue ? table.WaiterCalledAt.Value.ToString("o") : "")">
 
-    @* Zil ikonu — sadece IsWaiterCalled == true ise görünür *@
+    @* ── DEĞIŞIKLIK 2: waiter-bell-badge içine SLA timer span eklendi ── *@
     @if (table.IsWaiterCalled)
     {
-        <div class="waiter-bell-badge">🔔 Garson!</div>
+        <div class="waiter-bell-badge">
+            🔔 Garson!
+            @if (table.WaiterCalledAt.HasValue)
+            {
+                <span class="waiter-sla-timer"
+                      data-called-at="@table.WaiterCalledAt.Value.ToString("o")"></span>
+            }
+        </div>
     }
 
     <div class="card-name">@table.TableName</div>
@@ -91,7 +98,6 @@ else
                 <div class="card-capacity">👥 @table.TableCapacity kişilik</div>
                 <div class="card-divider"></div>
 
-                @* ✅ #5: Kart içi sipariş kalemleri (sadece dolu masada) *@
                 @if (table.TableStatus == 1 && mergedItems != null && mergedItems.Any())
                 {
                     <div class="order-items-preview" id="items-@table.TableId">
@@ -114,7 +120,6 @@ else
                     </div>
                 }
 
-                @* Rezervasyon özet *@
                 @if (table.TableStatus == 2 && table.ReservationName != null)
                 {
                     <div class="res-summary" onclick="showResDetail('@table.TableId')">
@@ -142,7 +147,6 @@ else
                         <a asp-controller="Orders" asp-action="Create"
                            asp-route-tableId="@table.TableId"
                            class="card-btn primary">Adisyona Git →</a>
-                        @* ✅ #4: Birleştirme butonu — sadece dolu masalarda *@
                         <button class="card-btn merge"
                                 onclick="openMergeModal(@table.TableId, '@table.TableName')">
                             ⇄ Masayı Birleştir
@@ -157,26 +161,25 @@ else
                                 onclick="cancelReserve(@table.TableId)">Rezervasyonu İptal Et</button>
                     }
 
-                    @if (table.TableStatus != 1&&User.IsInRole("Admin"))
+                    @if (table.TableStatus != 1)
                     {
                         <button type="button" class="card-btn danger"
                                 onclick="deleteTable(@table.TableId, '@Html.Raw(table.TableName.Replace("'", "\\'"))')">Sil</button>
                     }
-                    
- @if (table.IsWaiterCalled)
-    {
-        <button type="button" class="card-btn dismiss-waiter"
-                onclick="dismissWaiter('@Html.Raw(table.TableName.Replace("'", "\\'"))')">
-            ✅ İlgilenildi (Tamam)
-        </button>
-    }
 
-
+                    @if (table.IsWaiterCalled)
+                    {
+                        <button type="button" class="card-btn dismiss-waiter"
+                                onclick="dismissWaiter('@Html.Raw(table.TableName.Replace("'", "\\'"))')">
+                            ✅ İlgilenildi (Tamam)
+                        </button>
+                    }
                 </div>
             </div>
         }
     </div>
 }
+
 @if (User.IsInRole("Admin"))
     {
 @* ── MASA EKLE MODAL ── *@
@@ -201,6 +204,7 @@ else
     </div>
 </div>
 }
+
 @* ── REZERVE ET MODAL ── *@
 <div class="modal-overlay" id="reserveModal">
     <div class="modal">
@@ -240,7 +244,7 @@ else
     </div>
 </div>
 
-@* ── ✅ #4: MASA BİRLEŞTİRME MODAL ── *@
+@* ── MASA BİRLEŞTİRME MODAL ── *@
 <div class="modal-overlay" id="mergeModal">
     <div class="modal">
         <div class="modal-title">⇄ Masa Birleştir</div>
@@ -258,9 +262,7 @@ else
 
         <div class="form-group" style="margin-top:12px">
             <label class="form-label">Hedef Masayı Seçin *</label>
-            <div class="merge-table-select" id="mergeTargetList">
-                @* JS ile doldurulacak *@
-            </div>
+            <div class="merge-table-select" id="mergeTargetList"></div>
         </div>
 
         @Html.AntiForgeryToken()
@@ -303,22 +305,25 @@ else
 ))
 </script>
 
-@* ✅ #4: Tüm masaları JS'e ver (birleştirme hedef listesi için) *@
+@* ── DEĞIŞIKLIK 3: allTablesData'ya waiterCalledAt eklendi ── *@
 <script id="allTablesData" type="application/json">
 @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
     Model.Select(t => new {
-        id     = t.TableId,
-        name   = t.TableName,
-        status = t.TableStatus,
-        total  = t.Orders?.FirstOrDefault(o => o.OrderStatus == "open")?.OrderTotalAmount ?? 0,
-        itemCount = t.Orders?.FirstOrDefault(o => o.OrderStatus == "open")
-                    ?.OrderItems.Count(i => i.OrderItemStatus != "cancelled") ?? 0
+        id             = t.TableId,
+        name           = t.TableName,
+        status         = t.TableStatus,
+        total          = t.Orders?.FirstOrDefault(o => o.OrderStatus == "open")?.OrderTotalAmount ?? 0,
+        itemCount      = t.Orders?.FirstOrDefault(o => o.OrderStatus == "open")
+                         ?.OrderItems.Count(i => i.OrderItemStatus != "cancelled") ?? 0,
+        isWaiterCalled = t.IsWaiterCalled,
+        waiterCalledAt = t.WaiterCalledAt.HasValue
+                         ? t.WaiterCalledAt.Value.ToString("o")
+                         : (string?)null
     })
 ))
 </script>
 
 @section Scripts {
-    @* SignalR istemci kütüphanesi — CDN üzerinden (veya libman ile wwwroot'a alabilirsiniz) *@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
     <script src="~/js/Views/Tables/Index.js" asp-append-version="true"></script>
 }

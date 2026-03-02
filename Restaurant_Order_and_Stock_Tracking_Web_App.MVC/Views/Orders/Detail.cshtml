@@ -8,33 +8,23 @@
     var totalPaid = Model.Payments?.Sum(p => p.PaymentsAmount) ?? 0;
     var remaining = Model.OrderTotalAmount - totalPaid;
 
-    // Tamamen iptal edilmemiş (kısmen iptal edilenler dahil) aktif kalemler
     var activeItems = Model.OrderItems.Where(i => i.OrderItemStatus != "cancelled").ToList();
-    // Ödenecek: aktif AND (ödenmemiş adet > 0)
     var unpaidItems = activeItems.Where(i => i.RemainingQuantity > 0).ToList();
-    // Ödendi: aktif AND tüm aktif adet ödendi
     var paidItems = activeItems.Where(i => i.RemainingQuantity <= 0 && i.ActiveQuantity > 0).ToList();
-    // İptal edildi: en az 1 adet iptal edilmiş TÜM kalemler (tamamen iptal edilenler dahil)
     var cancelledItems = Model.OrderItems.Where(i => i.CancelledQuantity > 0).ToList();
     var paidTotal = activeItems.Sum(i => i.PaidLineTotal);
 
-    // ── Sıfır tutarlı kapatma mantığı ──────────────────────────────
-    // Tüm kalemlerin aktif adedi 0 ise (hepsi iptal edilmişse) kapatılabilir
     bool allItemsCancelled = !Model.OrderItems.Any() ||
         Model.OrderItems.All(oi =>
             oi.OrderItemStatus == "cancelled" ||
             (oi.OrderItemQuantity - oi.CancelledQuantity) <= 0);
-    // Buton görünür şartı: açık adisyon + tutar sıfır + tüm kalemler iptal
+
     bool canCloseZero = isOpen && Model.OrderTotalAmount <= 0.001m && allItemsCancelled;
 
-    // ── HATA 2 DÜZELTMESİ ──────────────────────────────────────────
-    // "Ödeme alındı + iptal sonrası kalan sıfırlandı" senaryosu:
-    // OrderTotalAmount düştü, alınan ödemeler onu karşılıyor → otomatik kapat.
     bool canCloseByPay = isOpen
         && !canCloseZero
         && totalPaid > 0
         && (Model.OrderTotalAmount - totalPaid) <= 0.001m;
-    // ─────────────────────────────────────────────────────────────────
 
     int StatusOrder(string s) => s switch { "preparing" => 1, "served" => 2, "cancelled" => 99, _ => 0 };
     string StatusClass(string s) => s switch { "preparing" => "s-preparing", "served" => "s-served", "cancelled" => "s-cancelled", _ => "s-pending" };
@@ -46,10 +36,9 @@
     <link href="~/css/Views/Orders/Detail.css" rel="stylesheet" asp-append-version="true" />
 }
 
-@* ── SAYFA İSKELETİ (Geri Yüklenen Kısım) ── *@
 <div class="detail-layout">
 
-    @* ── SOL PANEL (Bilgiler ve Kalemler) ── *@
+    @* ── SOL PANEL ── *@
     <div class="left-panel">
 
         <div class="info-card">
@@ -80,7 +69,6 @@
             </div>
         }
 
-        @* ── Sipariş Kalemleri ── *@
         <div class="panel">
             <div class="panel-head">
                 <span class="panel-title">Sipariş Kalemleri</span>
@@ -101,7 +89,6 @@
                 </div>
             </div>
 
-            @* ── Ödenecek kalemler ── *@
             @if (!unpaidItems.Any() && isOpen)
             {
                 <div style="padding:18px 16px;text-align:center;color:#22c55e;font-size:13px;font-weight:600;">
@@ -130,7 +117,6 @@
                             </div>
                         }
                     </div>
-                    @* Ödenecek adet göster *@
                     <div class="item-qty remaining">×@item.RemainingQuantity</div>
                     <div class="item-price-col">
                         @if (isPartial)
@@ -163,7 +149,6 @@
                                     Servis Et ✓
                                 </button>
                             }
-                            @* ── İptal Et butonu — tüm aktif kalemler için ── *@
                             @{
                                 int cancelable = item.RemainingQuantity;
                             }
@@ -171,12 +156,12 @@
                             {
                                 <button type="button" class="sflow-btn sflow-btn-cancel"
                                         onclick="openCancelModal(
-                                                @item.OrderItemId,
-                                               '@Html.Raw(item.MenuItem?.MenuItemName?.Replace("'", "&#39;") ?? "")',
-                                                @item.OrderItemUnitPrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
-                                                @cancelable,
-                                                @(item.MenuItem?.TrackStock == true ? "true" : "false")
-                                                 )">
+                                                        @item.OrderItemId,
+                                                        '@Html.Raw(item.MenuItem?.MenuItemName?.Replace("'", "&#39;") ?? "")',
+                                                        @item.OrderItemUnitPrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
+                                                        @cancelable,
+                                                        @(item.MenuItem?.TrackStock == true ? "true" : "false")
+                                                    )">
                                     ✕ İptal
                                 </button>
                             }
@@ -184,13 +169,11 @@
                     }
                     else
                     {
-
                         <span class="status-badge @StatusClass(item.OrderItemStatus)">@StatusLabel(item.OrderItemStatus)</span>
                     }
                 </div>
             }
 
-            @* ── Ödendi bölümü ── *@
             @if (paidItems.Any())
             {
                 <div class="section-divider">
@@ -214,7 +197,6 @@
                 }
             }
 
-            @* Alt özet *@
             @if (isOpen && totalPaid > 0)
             {
                 <div style="padding:10px 16px;background:var(--surface2);border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:13px;">
@@ -224,14 +206,11 @@
             }
         </div>
 
-        @* ── İptal Edilen Ürünler ── *@
         @if (cancelledItems.Any())
         {
             <div class="cancel-panel">
                 <div class="cancel-panel-head">
-                    <div class="cancel-panel-title">
-                        ✕ İptal Edilen Ürünler
-                    </div>
+                    <div class="cancel-panel-title">✕ İptal Edilen Ürünler</div>
                     <span class="cancel-panel-count">@cancelledItems.Count kalem</span>
                 </div>
 
@@ -278,10 +257,9 @@
                 }
             </div>
         }
-    </div> @* sol panel kapanış *@
+    </div>
 
     @* ── SAĞ PANEL ── *@
-
     @if (User.IsInRole("Admin") || User.IsInRole("Kasiyer"))
     {
         <div class="pay-panel">
@@ -316,14 +294,11 @@
                 {
                     @if (canCloseZero)
                     {
-                        @* Tüm ürünler iptal, tutar 0 → özel kapatma akışı *@
                         <div class="zero-order-banner">
                             <span class="zero-order-icon">⚠️</span>
                             <div class="zero-order-text">
                                 <div class="zero-order-title">Ödenecek tutar bulunmuyor</div>
-                                <div class="zero-order-desc">
-                                    Adisyondaki tüm ürünler iptal edildi. Masayı ödeme almadan kapatabilirsiniz.
-                                </div>
+                                <div class="zero-order-desc">Adisyondaki tüm ürünler iptal edildi. Masayı ödeme almadan kapatabilirsiniz.</div>
                             </div>
                         </div>
                         <button type="button" class="btn-close-zero" onclick="submitCloseZero()">
@@ -332,31 +307,24 @@
                     }
                     else if (Model.OrderTotalAmount <= 0.001m && !allItemsCancelled)
                     {
-                        @* Tutar 0 ama hâlâ aktif ürün var — uyarı göster, normal ödeme butonu gizli *@
                         <div class="zero-order-banner">
                             <span class="zero-order-icon">ℹ️</span>
                             <div class="zero-order-text">
                                 <div class="zero-order-title">Tutar sıfır ama aktif ürünler var</div>
-                                <div class="zero-order-desc">
-                                    Kapatmadan önce tüm kalemleri iptal edin.
-                                </div>
+                                <div class="zero-order-desc">Kapatmadan önce tüm kalemleri iptal edin.</div>
                             </div>
                         </div>
-                        <button class="btn-close-zero" disabled
-                                style="opacity:.45;cursor:not-allowed;transform:none;">
+                        <button class="btn-close-zero" disabled style="opacity:.45;cursor:not-allowed;transform:none;">
                             ✕ Adisyonu Sonlandır (aktif ürünler var)
                         </button>
                     }
                     else if (canCloseByPay)
                     {
-                        @* HATA 2 DÜZELTMESİ: Ödeme alındı + iptal → kalan sıfırlandı → kapat butonu *@
                         <div class="zero-order-banner">
                             <span class="zero-order-icon">✅</span>
                             <div class="zero-order-text">
                                 <div class="zero-order-title">Tüm tutar ödendi</div>
-                                <div class="zero-order-desc">
-                                    İptal edilen ürünler sonrası kalan tutar sıfırlandı. Adisyonu kapatabilirsiniz.
-                                </div>
+                                <div class="zero-order-desc">İptal edilen ürünler sonrası kalan tutar sıfırlandı. Adisyonu kapatabilirsiniz.</div>
                             </div>
                         </div>
                         <form asp-controller="Orders" asp-action="CloseZero" method="post">
@@ -370,7 +338,6 @@
                     }
                     else
                     {
-                        @* Normal ödeme akışı *@
                         <button class="btn-pay" onclick="openModal('payModal')">💳 Ödeme Al</button>
                     }
                 }
@@ -380,21 +347,19 @@
                 }
             </div>
         </div>
-
     }
 
-</div> @* *@
+</div>
 
 
-@* ═══════════════════════════════════════════════
-    MODALLAR (YENİ AIM MODALI VE ÖDEME MODALI)
-═══════════════════════════════════════════════ *@
+@* ══════════════════════════════════════════════════════
+    MODALLAR
+═══════════════════════════════════════════════════════ *@
 
-@* ── ÜRÜN EKLE MODAL (Yeni Gelişmiş Tasarım) ── *@
+@* ── ÜRÜN EKLE MODAL ── *@
 <div class="modal-overlay" id="addItemModal">
     <div class="aim-overlay-inner">
 
-        @* ── Sol: Menü Seçici ── *@
         <div class="aim-left">
             <div class="aim-left-top">
                 <div class="aim-heading">Ürün Seç</div>
@@ -459,17 +424,14 @@
             </div>
         </div>
 
-        @* ── Sağ: Form + Mini Sepet ── *@
         <div class="aim-right">
             <button type="button" class="aim-close" onclick="closeModal('addItemModal')">×</button>
 
-            @* Placeholder *@
             <div class="aim-ph" id="aimPh">
                 <div class="aim-ph-arrow">←</div>
                 <div class="aim-ph-txt">Soldan bir ürün seçin</div>
             </div>
 
-            @* Ürün detay formu (gizli başlar) *@
             <div class="aim-form" id="aimForm" style="display:none">
                 <div class="aim-sel-name" id="aimSelName">—</div>
                 <div class="aim-sel-unit" id="aimSelUnit"></div>
@@ -489,33 +451,24 @@
                        placeholder="Az pişmiş, acısız, soğuk..." maxlength="200" />
 
                 <div class="aim-btns">
-                    <button type="button" class="aim-btn-cancel"
-                            onclick="closeModal('addItemModal')">
-                        İptal
-                    </button>
-                    <button type="button" class="aim-btn-add-to-basket" id="aimAddBtn"
-                            onclick="aimAddToBasket()">
+                    <button type="button" class="aim-btn-cancel" onclick="closeModal('addItemModal')">İptal</button>
+                    <button type="button" class="aim-btn-add-to-basket" id="aimAddBtn" onclick="aimAddToBasket()">
                         + Sepete Ekle
                     </button>
                 </div>
             </div>
 
-            @* ── Mini Sepet ── *@
             <div class="aim-basket-wrap" id="aimBasketWrap">
                 <div class="aim-basket-head">
                     <div class="aim-basket-title">
                         🛒 Eklenecekler
                         <span class="aim-basket-count" id="aimBasketCount">0</span>
                     </div>
-                    <button type="button" class="aim-basket-clear" onclick="aimClearBasket()">
-                        Temizle
-                    </button>
+                    <button type="button" class="aim-basket-clear" onclick="aimClearBasket()">Temizle</button>
                 </div>
 
                 <div class="aim-basket-list" id="aimBasketList">
-                    <div class="aim-basket-empty" id="aimBasketEmpty">
-                        Henüz ürün eklenmedi
-                    </div>
+                    <div class="aim-basket-empty" id="aimBasketEmpty">Henüz ürün eklenmedi</div>
                 </div>
 
                 <div class="aim-basket-footer">
@@ -551,7 +504,6 @@
             @Html.AntiForgeryToken()
             <input type="hidden" id="cimIsWastedHidden" value="false" />
 
-            @* Adet *@
             <div class="cim-field">
                 <label class="cim-label">İptal Edilecek Adet</label>
                 <div class="cim-qty-ctrl">
@@ -566,20 +518,17 @@
                 </div>
             </div>
 
-            @* Sebep *@
             <div class="cim-field">
                 <label class="cim-label">İptal Sebebi (opsiyonel)</label>
                 <input class="cim-reason-input" type="text" name="cancelReason" id="cimReason"
                        placeholder="Müşteri vazgeçti, yanlış girildi..." maxlength="300" />
             </div>
 
-            @* Fire sorusu — sadece stok takibi aktifse gösterilir *@
             <div class="cim-field" id="cimWasteField" style="display:none">
                 <label class="cim-label">Ürün Ne Oldu?</label>
                 <div class="cim-waste-group">
                     <label class="cim-waste-opt">
-                        <input type="radio" name="_wasteChoice" value="true"
-                               onchange="cimWasteChange(true)" />
+                        <input type="radio" name="_wasteChoice" value="true" onchange="cimWasteChange(true)" />
                         <div class="cim-waste-card">
                             <span class="cim-waste-icon">🔥</span>
                             <span class="cim-waste-label">Kullanıldı / Zayi</span>
@@ -587,8 +536,7 @@
                         </div>
                     </label>
                     <label class="cim-waste-opt">
-                        <input type="radio" name="_wasteChoice" value="false"
-                               onchange="cimWasteChange(false)" checked />
+                        <input type="radio" name="_wasteChoice" value="false" onchange="cimWasteChange(false)" checked />
                         <div class="cim-waste-card">
                             <span class="cim-waste-icon">↩</span>
                             <span class="cim-waste-label">Kullanılmadı / İade</span>
@@ -599,12 +547,8 @@
             </div>
 
             <div class="cim-actions">
-                <button type="button" class="cim-btn-cancel-op"
-                        onclick="closeModal('cancelItemModal')">
-                    Vazgeç
-                </button>
-                <button type="button" class="cim-btn-confirm" id="cimConfirmBtn"
-                        onclick="submitCancelItem()">
+                <button type="button" class="cim-btn-cancel-op" onclick="closeModal('cancelItemModal')">Vazgeç</button>
+                <button type="button" class="cim-btn-confirm" id="cimConfirmBtn" onclick="submitCancelItem()">
                     ✕ İptal Et
                 </button>
             </div>
@@ -612,7 +556,7 @@
     </div>
 </div>
 
-@* ── ÖDEME MODAL — YATAY ── *@
+@* ── ÖDEME MODAL ── *@
 <div class="modal-overlay" id="payModal">
     <div class="pay-modal-wide">
 
@@ -663,16 +607,17 @@
             <div class="pm-form-col">
                 <div class="pm-summary-box">
                     <div class="pm-sum-row"><span style="color:var(--text-muted)">Adisyon Toplamı</span><span>₺@Model.OrderTotalAmount.ToString("N2")</span></div>
-                    <div class="pm-sum-row" id="pm-disc-row" style="display:none"><span style="color:#22c55e">İndirim</span><span id="pm-disc-val" style="color:#22c55e">−₺0,00</span></div>
+                    <div class="pm-sum-row" id="pm-disc-row" style="display:none">
+                        <span style="color:#22c55e">İndirim</span>
+                        <span id="pm-disc-val" style="color:#22c55e">−₺0,00</span>
+                    </div>
                     <div class="pm-sum-div"></div>
                     <div class="pm-sum-row"><span style="color:var(--text-muted)">Daha önce ödenen</span><span style="color:#22c55e">₺@totalPaid.ToString("N2")</span></div>
                     <div class="pm-sum-row"><span style="font-weight:700">Kalan</span><span class="pm-sum-total" id="pm-remaining">₺@remaining.ToString("N2")</span></div>
                 </div>
 
-                @* payForm artık fetch gönderir — hidden inputlara gerek yok *@
                 <div id="payForm">
                     @Html.AntiForgeryToken()
-                    @* selectedMethod JS state için korunuyor *@
                     <input type="hidden" id="selectedMethod" value="cash" />
 
                     <div class="form-group">
@@ -690,19 +635,48 @@
                         </div>
                     </div>
 
+                    @* ═══════════════════════════════════════════════════════
+                       YENİ: İndirim alanı — Tutar (₺) veya Yüzde (%) seçimi
+                    ═══════════════════════════════════════════════════════ *@
                     <div class="form-group">
-                        <label class="form-label">İndirim Tutarı</label>
-                        <div class="discount-row">
-                            <input class="form-control" id="discountDisplay" type="text" inputmode="decimal" placeholder="0" oninput="updateRemaining()" />
-                            <span class="discount-label" id="disc-lbl" style="display:none">Net: ₺<span id="net-amount">0</span></span>
+                        <label class="form-label">İndirim</label>
+
+                        @* Radio butonlar: indirim tipi seçimi *@
+                        <div class="discount-type-row" style="display:flex;gap:16px;margin-bottom:8px;">
+                            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
+                                <input type="radio" name="discountType" value="amount" checked
+                                       onchange="onDiscountTypeChange()" />
+                                Tutar (₺)
+                            </label>
+                            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
+                                <input type="radio" name="discountType" value="percent"
+                                       onchange="onDiscountTypeChange()" />
+                                Yüzde (%)
+                            </label>
+                        </div>
+
+                        <div class="discount-row" style="display:flex;align-items:center;gap:8px;">
+                            <input class="form-control" id="discountDisplay" type="text"
+                                   inputmode="decimal" placeholder="0"
+                                   oninput="updateRemaining()" />
+                            <span id="disc-unit-badge"
+                                  style="font-size:13px;font-weight:700;color:var(--text-muted);min-width:20px;">₺</span>
+                        </div>
+
+                        @* Anlık hesaplama sonucu *@
+                        <div id="disc-preview" style="display:none;margin-top:6px;font-size:12px;
+                             background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);
+                             border-radius:8px;padding:6px 10px;color:#22c55e;">
+                            İndirim: <strong>₺<span id="disc-computed-amount">0</span></strong>
+                            → Net Toplam: <strong>₺<span id="net-amount">0</span></strong>
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Ödeme Tutarı *</label>
-                        <input class="form-control" id="payAmountDisplay" type="text" inputmode="decimal" placeholder="0,00" oninput="updateChange()" />
+                        <input class="form-control" id="payAmountDisplay" type="text"
+                               inputmode="decimal" placeholder="0,00" oninput="updateChange()" />
                         <span class="form-error" id="err-amount">Geçerli bir tutar giriniz.</span>
-                        @* Kalan tutarı doldur — belirgin buton *@
                         <button type="button" class="fill-remaining-btn" onclick="fillRemaining()">
                             ↙ Kalan tutarı doldur &nbsp;
                             <span class="fill-amount" id="fillAmountLabel">₺@remaining.ToString("N2")</span>
@@ -711,7 +685,10 @@
 
                     <div id="changeRow" class="form-group" style="display:none">
                         <label class="form-label">Para Üstü</label>
-                        <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#22c55e;padding:4px 0" id="changeDisplay">₺0,00</div>
+                        <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#22c55e;padding:4px 0"
+                             id="changeDisplay">
+                            ₺0,00
+                        </div>
                     </div>
                 </div>
             </div>
@@ -724,14 +701,15 @@
         </div>
     </div>
 </div>
+
 <script id="orderConfigData" type="application/json">
     {
-        "orderTotal": @Model.OrderTotalAmount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
+        "orderTotal":  @Model.OrderTotalAmount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
         "alreadyPaid": @totalPaid.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
-        "orderId": @Model.OrderId
+        "orderId":     @Model.OrderId
     }
 </script>
-@* ── Toast Container (stok uyarıları için) ── *@
+
 <div id="detailToastContainer" class="aim-toast-container"></div>
 
 @section Scripts {

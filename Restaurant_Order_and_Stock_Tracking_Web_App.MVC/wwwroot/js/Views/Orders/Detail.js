@@ -29,7 +29,6 @@
             body: JSON.stringify(payload)
         });
 
-        // Oturum sona erdi kontrolü
         const ct = res.headers.get('content-type') || '';
         if (res.status === 401 || (!ct.includes('application/json') && !res.ok)) {
             alert('Oturumunuz sona erdi. Giriş sayfasına yönlendiriliyorsunuz.');
@@ -59,8 +58,6 @@
     // ═══════════════════════════════════════════════════════════
     // DURUM GÜNCELLEME — UpdateItemStatus
     // ═══════════════════════════════════════════════════════════
-    // View'daki submit butonlarına tıklandığında bu fonksiyon çağrılır.
-    // View'da form submit="return false" yerine onclick="updateStatus(...)" kullanılır.
     window.updateItemStatus = async function (orderItemId, newStatus) {
         try {
             const data = await postJson('/Orders/UpdateItemStatus', {
@@ -69,19 +66,15 @@
                 orderId
             });
 
-            if (data.success) {
-                location.reload();
-            } else {
-                alert('Hata: ' + (data.message || 'Bilinmeyen hata'));
-            }
+            if (data.success) { location.reload(); }
+            else { alert('Hata: ' + (data.message || 'Bilinmeyen hata')); }
         } catch (e) {
-            if (e.message !== 'Unauthorized')
-                alert('İstek gönderilemedi.');
+            if (e.message !== 'Unauthorized') alert('İstek gönderilemedi.');
         }
     };
 
     // ═══════════════════════════════════════════════════════════
-    // AIM — Çoklu Ürün Ekleme (Mini Sepet) — mevcut mantık korundu
+    // AIM — Çoklu Ürün Ekleme
     // ═══════════════════════════════════════════════════════════
     let aimPrice = 0;
     let aimQty = 1;
@@ -89,16 +82,12 @@
     let aimCurName = '';
     let aimCatActive = 'all';
     let aimBasket = [];
-    // ── Stok sınırı state (4 iş kuralı için) ────────────────────
-    let aimMaxStock = 0;     // seçili ürünün mevcut stoğu (TrackStock=false → Infinity)
-    let aimTrackStock = false; // seçili ürün stok takibi altında mı?
+    let aimMaxStock = 0;
+    let aimTrackStock = false;
 
     window.aimPick = function (id) {
         const row = document.getElementById('arow-' + id);
         if (!row) return;
-
-        // KAPAK 1 — CSS pointer-events:none aim-row-disabled kartı zaten bloke eder.
-        // Bu JS guard ikinci güvencedir (CSS atlatılma senaryosuna karşı).
         if (row.classList.contains('aim-row-disabled')) return;
 
         document.querySelectorAll('.aim-row.picked').forEach(r => r.classList.remove('picked'));
@@ -109,9 +98,6 @@
         aimPrice = parseFloat(row.dataset.price);
         aimQty = 1;
 
-        // KAPAK 2 — NaN-güvenli stok okuma
-        // data-track yoksa/false → sınırsız (Infinity)
-        // data-stock yoksa/NaN  → sınırsız (Infinity)
         aimTrackStock = (row.dataset.track ?? 'false') === 'true';
         const rawStock = parseInt(row.dataset.stock ?? '', 10);
         aimMaxStock = (aimTrackStock && Number.isInteger(rawStock) && rawStock >= 0)
@@ -131,7 +117,6 @@
     window.aimDelta = function (d) {
         const newQty = aimQty + d;
 
-        // Stok sınırı — yalnızca: takip açık VE maxStock sonlu bir sayıysa
         if (aimTrackStock && Number.isFinite(aimMaxStock) && newQty > aimMaxStock) {
             showAimToast(`Ürün stoğu = ${aimMaxStock} kadar ekleme yapabilirsiniz.`, 'warning');
             aimQty = aimMaxStock;
@@ -139,7 +124,6 @@
             return;
         }
 
-        // Takip kapalıysa üst sınır 99 (Infinity ile Math.min patlama riski yok)
         const upperBound = (aimTrackStock && Number.isFinite(aimMaxStock)) ? aimMaxStock : 99;
         aimQty = Math.max(1, Math.min(upperBound, newQty));
         aimRefresh();
@@ -151,7 +135,6 @@
         document.getElementById('aimAddBtn').textContent =
             '+ Sepete Ekle (' + aimQty + ' adet — ' + fmt(aimPrice * aimQty) + ')';
 
-        // ── Stok bilgi etiketi ────────────────────────────────────
         let stockLbl = document.getElementById('aimStockHint');
         if (aimTrackStock && Number.isFinite(aimMaxStock)) {
             if (!stockLbl) {
@@ -172,7 +155,6 @@
         if (!aimCurId) return;
         const note = (document.getElementById('aimNoteInp').value || '').trim();
 
-        // ── Kural 1: Sepetteki mevcut miktarla birlikte stok kontrolü ──
         if (aimTrackStock && Number.isFinite(aimMaxStock)) {
             const alreadyInBasket = aimBasket
                 .filter(i => i.id === aimCurId)
@@ -192,7 +174,6 @@
 
         const existing = aimBasket.find(i => i.id === aimCurId && i.note === note);
         if (existing) {
-            // Yalnızca stok takibindeyse ve maxStock sonluysa sınırla
             const cap = (aimTrackStock && Number.isFinite(aimMaxStock)) ? aimMaxStock : 999;
             existing.qty = Math.min(cap, existing.qty + aimQty);
         } else {
@@ -222,9 +203,7 @@
         const totalEl = document.getElementById('aimBasketTotalVal');
         const sendBtn = document.getElementById('aimSendBtn');
 
-        Array.from(list.children).forEach(child => {
-            if (child !== empty) child.remove();
-        });
+        Array.from(list.children).forEach(child => { if (child !== empty) child.remove(); });
 
         if (!aimBasket.length) {
             empty.style.display = '';
@@ -273,8 +252,6 @@
         aimRenderBasket();
     };
 
-    // ── Toast Bildirimi (sağ alt köşe, kural 2) ───────────────────────────────
-    // Projedeki diğer sayfalardaki (Category/Stock) showToast ile aynı pattern.
     function showAimToast(message, type = 'success') {
         const container = document.getElementById('detailToastContainer');
         if (!container) return;
@@ -285,7 +262,6 @@
         toast.innerHTML = `<span>${icons[type] || '⚠️'}</span><span>${message}</span>`;
         container.appendChild(toast);
 
-        // Animasyon: fade-in anında, 3.5sn sonra fade-out & kaldır
         requestAnimationFrame(() => toast.classList.add('aim-toast-show'));
         setTimeout(() => {
             toast.classList.remove('aim-toast-show');
@@ -293,10 +269,7 @@
         }, 3500);
     }
 
-    // ── Stok Hata Mesajı (styled banner) ─────────────────────────────────────
-    // Backend'den gelen stok uyarısını alert() yerine modal içinde gösterir.
     function showStockError(msg) {
-        // Önceki varsa kaldır
         const prev = document.getElementById('aim-stock-error');
         if (prev) prev.remove();
 
@@ -314,16 +287,13 @@
         ].join(';');
         banner.textContent = '⚠️ ' + msg;
 
-        // Sepet listesinin üstüne yerleştir
         const basket = document.getElementById('aimBasketList') ?? document.getElementById('aimSendBtn')?.parentElement;
         if (basket) basket.insertAdjacentElement('beforebegin', banner);
         else document.getElementById('addItemModal')?.querySelector('.modal-body')?.prepend(banner);
 
-        // 6 saniye sonra otomatik kapat
         setTimeout(() => banner.remove(), 6000);
     }
 
-    // ── Tümünü gönder (Bulk) — AddItemBulk ──
     window.aimSendAll = async function () {
         if (!aimBasket.length) return;
 
@@ -331,7 +301,6 @@
         btn.disabled = true;
         btn.textContent = '⏳ Gönderiliyor...';
 
-        // BulkAddDto ile eşleşen payload
         const payload = {
             orderId,
             items: aimBasket.map(i => ({
@@ -350,7 +319,6 @@
             } else {
                 btn.disabled = false;
                 btn.textContent = '✓ Tümünü Adisyona Gönder';
-                // Backend stok hatası → toast (kural 2)
                 showAimToast(data.message || 'Bilinmeyen hata', 'warning');
             }
         } catch (e) {
@@ -362,7 +330,6 @@
         }
     };
 
-    // ── Kategori tab ──
     window.aimCat = function (catKey, btn) {
         aimCatActive = catKey;
         document.querySelectorAll('.aim-ctab').forEach(b => b.classList.remove('on'));
@@ -376,7 +343,6 @@
         document.getElementById('aimNoRes').classList.remove('on');
     };
 
-    // ── Arama ──
     window.aimSearch = function (q) {
         q = (q || '').toLowerCase().trim();
         const lbl = document.getElementById('aimLbl');
@@ -401,7 +367,6 @@
         document.getElementById('aimNoRes').classList.toggle('on', n === 0);
     };
 
-    // ── Modal açıldığında reset ──
     const _origOpenModal = window.openModal;
     window.openModal = function (id) {
         _origOpenModal(id);
@@ -473,37 +438,93 @@
         window.updateChange();
     };
 
-    window.updateRemaining = function () {
-        const disc = parseLD(document.getElementById('discountDisplay').value);
-        const net = Math.max(0, orderTotal - disc - alreadyPaid);
-        const netFull = Math.max(0, orderTotal - disc);
+    // ═══════════════════════════════════════════════════════════
+    // YENİ: İndirim tipi değişince badge ve placeholder güncelle
+    // ═══════════════════════════════════════════════════════════
+    window.onDiscountTypeChange = function () {
+        const isPercent = getDiscountType() === 'percent';
+        document.getElementById('disc-unit-badge').textContent = isPercent ? '%' : '₺';
+        document.getElementById('discountDisplay').placeholder = isPercent ? '10' : '0';
+        document.getElementById('discountDisplay').value = '';
+        // Önizlemeyi ve kalan tutarı sıfırla
+        document.getElementById('disc-preview').style.display = 'none';
+        document.getElementById('pm-disc-row').style.display = 'none';
+        updateRemainingUI(0);
+        window.updateChange();
+    };
+
+    function getDiscountType() {
+        const checked = document.querySelector('input[name="discountType"]:checked');
+        return checked ? checked.value : 'amount';
+    }
+
+    /**
+     * Girilen indirim değerini, seçilen tipe göre TL tutarına çevirir.
+     * Tutarın toplam adisyon tutarını aşmamasını garanti eder.
+     */
+    function computeDiscountTL() {
+        const raw = parseLD(document.getElementById('discountDisplay').value);
+        const type = getDiscountType();
+        let disc;
+
+        if (type === 'percent') {
+            // Yüzdeyi 0–100 ile sınırla, sonra TL'ye çevir
+            const pct = Math.min(100, Math.max(0, raw));
+            disc = Math.round((orderTotal * pct / 100) * 100) / 100;
+        } else {
+            disc = Math.max(0, raw);
+        }
+
+        // Adisyon toplamından büyük olamaz
+        return Math.min(disc, orderTotal);
+    }
+
+    function updateRemainingUI(discTL) {
+        const net = Math.max(0, orderTotal - discTL - alreadyPaid);
         document.getElementById('pm-remaining').textContent = fmt(net);
         document.getElementById('fillAmountLabel').textContent = fmt(net);
+    }
+
+    // ── Ana indirim hesap fonksiyonu (oninput'tan tetiklenir) ──
+    window.updateRemaining = function () {
+        const discTL = computeDiscountTL();
+        const netFull = Math.max(0, orderTotal - discTL); // ödenmesi gereken toplam
+        const rawInput = parseLD(document.getElementById('discountDisplay').value);
+
+        // Özet kutu satırı
         const dr = document.getElementById('pm-disc-row');
-        const dl = document.getElementById('disc-lbl');
-        if (disc > 0) {
+        if (discTL > 0) {
             dr.style.display = 'flex';
-            dl.style.display = 'inline';
-            document.getElementById('pm-disc-val').textContent = '−' + fmt(disc);
-            document.getElementById('net-amount').textContent = netFull.toFixed(2).replace('.', ',');
+            document.getElementById('pm-disc-val').textContent = '−' + fmt(discTL);
         } else {
             dr.style.display = 'none';
-            dl.style.display = 'none';
         }
+
+        // Anlık hesap önizlemesi
+        const preview = document.getElementById('disc-preview');
+        if (rawInput > 0) {
+            preview.style.display = 'block';
+            document.getElementById('disc-computed-amount').textContent = discTL.toFixed(2).replace('.', ',');
+            document.getElementById('net-amount').textContent = netFull.toFixed(2).replace('.', ',');
+        } else {
+            preview.style.display = 'none';
+        }
+
+        updateRemainingUI(discTL);
         window.updateChange();
     };
 
     window.fillRemaining = function () {
-        const disc = parseLD(document.getElementById('discountDisplay').value);
-        const rem = Math.max(0, orderTotal - disc - alreadyPaid);
+        const discTL = computeDiscountTL();
+        const rem = Math.max(0, orderTotal - discTL - alreadyPaid);
         document.getElementById('payAmountDisplay').value = rem.toFixed(2).replace('.', ',');
         window.updateChange();
     };
 
     window.updateChange = function () {
         if (currentMethod !== 'cash') return;
-        const disc = parseLD(document.getElementById('discountDisplay').value);
-        const rem = Math.max(0, orderTotal - disc - alreadyPaid);
+        const discTL = computeDiscountTL();
+        const rem = Math.max(0, orderTotal - discTL - alreadyPaid);
         const entered = parseLD(document.getElementById('payAmountDisplay').value);
         const change = Math.max(0, entered - rem);
         document.getElementById('changeDisplay').textContent = fmt(change);
@@ -512,7 +533,8 @@
     // ── Ödeme gönder — AddPayment ──
     window.submitPayment = async function () {
         const payVal = parseLD(document.getElementById('payAmountDisplay').value);
-        const discVal = parseLD(document.getElementById('discountDisplay').value);
+        const rawDisc = parseLD(document.getElementById('discountDisplay').value);
+        const discType = getDiscountType();
         const err = document.getElementById('err-amount');
 
         if (payVal <= 0) { err.style.display = 'block'; return; }
@@ -521,18 +543,19 @@
         const payerName = document.getElementById('payerNameInput')?.value || '';
         const method = document.getElementById('selectedMethod').value;
 
-        // piselState'den seçilen kalemleri nesne listesine çevir
         const paidItems = Object.entries(piselState)
             .filter(([, s]) => s.selected > 0)
             .map(([id, s]) => ({ orderItemId: parseInt(id), quantity: s.selected }));
 
-        // OrderPaymentDto ile eşleşen payload
+        // ── YENİ payload: discountType + discountValue ──
         const payload = {
             orderId,
             payerName: payerName.trim() || null,
             paymentMethod: method,
             paymentAmount: payVal,
-            discountAmount: discVal,
+            discountType: discType,          // "amount" veya "percent"
+            discountValue: rawDisc,           // Kullanıcının girdiği ham değer
+            discountAmount: 0,               // Backend hesaplar, burası artık kullanılmıyor
             paidItems: paidItems.length > 0 ? paidItems : null
         };
 
@@ -565,20 +588,14 @@
     window.submitCloseZero = async function () {
         if (!confirm('Adisyon iptal edilmiş sayılacak ve masa boşaltılacak. Devam edilsin mi?')) return;
 
-        // OrderCloseDto ile eşleşen payload (sadece orderId yeterli)
         const payload = { orderId, paymentMethod: 'cash', paymentAmount: 0 };
 
         try {
             const data = await postJson('/Orders/CloseZero', payload);
-
-            if (data.success) {
-                window.location.href = data.redirectUrl;
-            } else {
-                alert('Hata: ' + (data.message || 'Bilinmeyen hata'));
-            }
+            if (data.success) { window.location.href = data.redirectUrl; }
+            else { alert('Hata: ' + (data.message || 'Bilinmeyen hata')); }
         } catch (e) {
-            if (e.message !== 'Unauthorized')
-                alert('İstek gönderilemedi.');
+            if (e.message !== 'Unauthorized') alert('İstek gönderilemedi.');
         }
     };
 
@@ -623,16 +640,13 @@
     }
 
     window.cimWasteChange = function (isWasted) {
-        // değer radio'dan okunur, sadece işaret için state tutulabilir
         document.getElementById('cimIsWastedHidden').value = isWasted ? 'true' : 'false';
     };
 
-    // ── İptal onayla — CancelItem ──
     window.submitCancelItem = async function () {
         const cancelReason = document.getElementById('cimReason').value.trim() || null;
         const isWastedVal = document.getElementById('cimIsWastedHidden').value === 'true';
 
-        // OrderItemCancelDto ile eşleşen payload
         const payload = {
             orderItemId: cimCurrentItemId,
             orderId,

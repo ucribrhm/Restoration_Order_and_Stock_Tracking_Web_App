@@ -54,7 +54,6 @@ function openReserveModal(tableId, tableName, maxCap) {
 async function submitCreateTable() {
     if (!validateForm()) return;
 
-    // TableCreateDto ile eşleşen payload
     const payload = {
         tableName: document.getElementById('add-name').value.trim(),
         tableCapacity: parseInt(document.getElementById('add-cap').value)
@@ -62,15 +61,13 @@ async function submitCreateTable() {
 
     try {
         const data = await postJson('/Tables/Create', payload);
-
         if (data.success) {
             window.location.href = data.redirectUrl || window.location.href;
         } else {
             alert('Hata: ' + (data.message || 'Bilinmeyen hata'));
         }
     } catch (e) {
-        if (e.message !== 'Unauthorized')
-            alert('İstek gönderilemedi.');
+        if (e.message !== 'Unauthorized') alert('İstek gönderilemedi.');
     }
 }
 
@@ -78,10 +75,6 @@ async function submitCreateTable() {
 async function submitReserve() {
     if (!validateReserveForm()) return;
 
-    const submitBtn = document.querySelector('#reserveModal .btn-primary');
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '⏳ Kaydediliyor…'; }
-
-    // TableReserveDto ile eşleşen payload
     const payload = {
         tableId: parseInt(document.getElementById('res-tableId').value),
         reservationName: document.getElementById('res-name').value.trim(),
@@ -92,83 +85,26 @@ async function submitReserve() {
 
     try {
         const data = await postJson('/Tables/Reserve', payload);
-
         if (data.success) {
             window.location.href = data.redirectUrl || window.location.href;
-        } else if (data.isDuplicate) {
-            // ── Çakışma uyarısı ─────────────────────────────────────────
-            closeModal('reserveModal');
-            showDuplicateReservationAlert(data.message);
         } else {
             alert('Hata: ' + (data.message || 'Bilinmeyen hata'));
         }
     } catch (e) {
-        if (e.message !== 'Unauthorized')
-            alert('İstek gönderilemedi.');
-    } finally {
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Rezerve Et'; }
+        if (e.message !== 'Unauthorized') alert('İstek gönderilemedi.');
     }
-}
-
-// ── Çakışma Uyarı Modalı ───────────────────────────────────────
-function showDuplicateReservationAlert(message) {
-    // Varsa öncekini kaldır
-    document.getElementById('dupAlertOverlay')?.remove();
-
-    const overlay = document.createElement('div');
-    overlay.id = 'dupAlertOverlay';
-    overlay.style.cssText = `
-        position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.55);
-        display:flex; align-items:center; justify-content:center;
-        animation: fadeIn .2s ease;
-    `;
-    overlay.innerHTML = `
-        <div style="
-            background:#fff; border-radius:16px; padding:32px 28px; max-width:420px; width:90%;
-            box-shadow:0 20px 60px rgba(0,0,0,.25); text-align:center; position:relative;
-            animation: slideUp .25s ease;
-        ">
-            <div style="font-size:52px; margin-bottom:12px; line-height:1;">⚠️</div>
-            <div style="font-size:17px; font-weight:700; color:#1e293b; margin-bottom:10px;">
-                Çakışan Rezervasyon
-            </div>
-            <div style="font-size:14px; color:#475569; line-height:1.6; margin-bottom:24px;">
-                ${message}
-            </div>
-            <button onclick="document.getElementById('dupAlertOverlay').remove()" style="
-                background:linear-gradient(135deg,#ef4444,#dc2626); color:#fff; border:none;
-                border-radius:10px; padding:10px 28px; font-size:14px; font-weight:600;
-                cursor:pointer; transition:opacity .2s;
-            " onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
-                Tamam, Anladım
-            </button>
-        </div>
-        <style>
-            @keyframes fadeIn  { from { opacity:0; } to { opacity:1; } }
-            @keyframes slideUp { from { transform:translateY(30px); opacity:0; } to { transform:translateY(0); opacity:1; } }
-        </style>
-    `;
-    // Overlay dışına tıklayınca kapat
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-    document.body.appendChild(overlay);
 }
 
 // ── Rezervasyon İptal — Fetch ─────────────────────────────────
 async function cancelReserve(tableId) {
     if (!confirm('Rezervasyon iptal edilsin mi?')) return;
 
-    // TableCancelReserveDto ile eşleşen payload
     try {
         const data = await postJson('/Tables/CancelReserve', { tableId });
-
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('Hata: ' + (data.message || 'Bilinmeyen hata'));
-        }
+        if (data.success) { location.reload(); }
+        else { alert('Hata: ' + (data.message || 'Bilinmeyen hata')); }
     } catch (e) {
-        if (e.message !== 'Unauthorized')
-            alert('İstek gönderilemedi.');
+        if (e.message !== 'Unauthorized') alert('İstek gönderilemedi.');
     }
 }
 
@@ -176,18 +112,12 @@ async function cancelReserve(tableId) {
 async function deleteTable(tableId, tableName) {
     if (!confirm(`'${tableName}' silinsin mi?`)) return;
 
-    // TableDeleteDto ile eşleşen payload
     try {
         const data = await postJson('/Tables/Delete', { tableId });
-
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('Hata: ' + (data.message || 'Bilinmeyen hata'));
-        }
+        if (data.success) { location.reload(); }
+        else { alert('Hata: ' + (data.message || 'Bilinmeyen hata')); }
     } catch (e) {
-        if (e.message !== 'Unauthorized')
-            alert('İstek gönderilemedi.');
+        if (e.message !== 'Unauthorized') alert('İstek gönderilemedi.');
     }
 }
 
@@ -260,7 +190,6 @@ async function submitMerge() {
     submitBtn.disabled = true;
     submitBtn.textContent = '⏳ Birleştiriliyor...';
 
-    // TableMergeOrderDto ile eşleşen payload
     try {
         const data = await postJson('/Tables/MergeOrder', {
             sourceTableId: mergeSourceId,
@@ -268,11 +197,8 @@ async function submitMerge() {
         });
 
         if (data.success) {
-            if (data.redirectUrl) {
-                window.location.href = data.redirectUrl;
-            } else {
-                location.reload();
-            }
+            if (data.redirectUrl) { window.location.href = data.redirectUrl; }
+            else { location.reload(); }
         } else {
             alert('Hata: ' + (data.message || 'Bilinmeyen hata'));
             submitBtn.disabled = false;
@@ -299,17 +225,13 @@ function toggleItems(tableId, total, limit) {
         btn.textContent = `+${total - limit} kalem daha...`;
         btn.dataset.expanded = 'false';
     } else {
-        container.querySelectorAll('[data-item-index]').forEach(el => {
-            el.style.display = 'flex';
-        });
+        container.querySelectorAll('[data-item-index]').forEach(el => { el.style.display = 'flex'; });
         btn.textContent = '▲ Daralt';
         btn.dataset.expanded = 'true';
     }
 }
 
-document.querySelectorAll('.order-items-hidden').forEach(el => {
-    el.style.display = 'none';
-});
+document.querySelectorAll('.order-items-hidden').forEach(el => { el.style.display = 'none'; });
 
 // ── Rezervasyon detay ──────────────────────────────────────────
 function showResDetail(tableId) {
@@ -324,7 +246,7 @@ function showResDetail(tableId) {
     openModal('resDetailModal');
 }
 
-// ── Validasyon (UI için korundu) ───────────────────────────────
+// ── Validasyon ─────────────────────────────────────────────────
 function validateForm() {
     let ok = true;
     const name = document.getElementById('add-name');
@@ -432,6 +354,58 @@ checkReservationWarnings();
 setInterval(checkReservationWarnings, 60000);
 
 
+// ══════════════════════════════════════════════════════════════
+// ── YENİ: Garson SLA Timer ───────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Geçen saniyeyi "X sn önce / X dk önce / X sa X dk önce" formatına çevirir.
+ */
+function formatElapsed(totalSeconds) {
+    if (totalSeconds < 60) return `${totalSeconds} sn önce`;
+    if (totalSeconds < 3600) return `${Math.floor(totalSeconds / 60)} dk önce`;
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    return `${h} sa ${m} dk önce`;
+}
+
+/**
+ * Sayfadaki tüm .waiter-sla-timer span'larını tarar, içeriğini günceller.
+ * 10 dakika = 600 sn üzerinde → kırmızı + sla-violated class
+ */
+function tickSlaTimers() {
+    const now = Date.now();
+
+    document.querySelectorAll('.waiter-sla-timer[data-called-at]').forEach(span => {
+        const calledAt = new Date(span.dataset.calledAt).getTime();
+        if (isNaN(calledAt)) return;
+
+        const elapsed = Math.floor((now - calledAt) / 1000); // saniye cinsinden
+        const elapsedMin = elapsed / 60;
+
+        span.textContent = ` (${formatElapsed(elapsed)})`;
+
+        const card = span.closest('.table-card');
+
+        if (elapsedMin > 10) {
+            // SLA İHLALİ — kırmızı
+            span.style.color = '#ef4444';
+            span.style.fontWeight = '700';
+            if (card) card.classList.add('sla-violated');
+        } else {
+            // Normal uyarı — sarı
+            span.style.color = '#fbbf24';
+            span.style.fontWeight = '600';
+            if (card) card.classList.remove('sla-violated');
+        }
+    });
+}
+
+// Sayfa yüklenir yüklenmez çalıştır, sonra her 15 saniyede bir güncelle
+tickSlaTimers();
+setInterval(tickSlaTimers, 15000);
+
+
 // ── Garson Çağrısını Onayla (Garson → DismissWaiter) ────────────────────
 async function dismissWaiter(tableName) {
     try {
@@ -445,6 +419,7 @@ async function dismissWaiter(tableName) {
     }
 }
 
+
 // ── SignalR Bağlantısı ───────────────────────────────────────────────────
 (function initSignalR() {
     const connection = new signalR.HubConnectionBuilder()
@@ -454,19 +429,35 @@ async function dismissWaiter(tableName) {
         .build();
 
     // ── WaiterCalled: Müşteri garson çağırdı ────────────────────────────
+    // YENİ: payload artık calledAtUtc de içeriyor — SLA timer için kullanıyoruz
     connection.on("WaiterCalled", function (payload) {
-        // data-table-name attribute'ü üzerinden kartı bul
-        console.log("Sunucuya giden masa adı: ", payload.tableName);
         const card = document.querySelector(`.table-card[data-table-name="${payload.tableName}"]`);
         if (!card) return;
 
         card.classList.add('waiter-called');
 
+        // data attribute'ü güncelle (sonraki tickSlaTimers çağrısı bunu okur)
+        if (payload.calledAtUtc) {
+            card.dataset.waiterCalledAt = payload.calledAtUtc;
+        }
+
         if (!card.querySelector('.waiter-bell-badge')) {
             const badge = document.createElement('div');
             badge.className = 'waiter-bell-badge';
-            badge.textContent = '🔔 Garson!';
+
+            // "🔔 Garson!" metni
+            badge.appendChild(document.createTextNode('🔔 Garson!'));
+
+            // SLA timer span
+            if (payload.calledAtUtc) {
+                const timerSpan = document.createElement('span');
+                timerSpan.className = 'waiter-sla-timer';
+                timerSpan.dataset.calledAt = payload.calledAtUtc;
+                badge.appendChild(timerSpan);
+            }
+
             card.prepend(badge);
+            tickSlaTimers(); // yeni eklenen timer'ı anında hesapla
         }
 
         const actions = card.querySelector('.card-actions');
@@ -486,6 +477,8 @@ async function dismissWaiter(tableName) {
         if (!card) return;
 
         card.classList.remove('waiter-called');
+        card.classList.remove('sla-violated');
+        card.removeAttribute('data-waiter-called-at');
         card.querySelector('.waiter-bell-badge')?.remove();
         card.querySelector('.dismiss-waiter')?.remove();
     });

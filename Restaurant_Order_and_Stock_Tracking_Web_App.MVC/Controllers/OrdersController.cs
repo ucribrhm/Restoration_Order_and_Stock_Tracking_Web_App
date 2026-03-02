@@ -92,12 +92,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
 
             var categories = await _db.Categories
                 .Where(c => c.IsActive).OrderBy(c => c.CategorySortOrder)
-                // Gösterilecek ürün koşulları (VEYA):
-                //  A) IsAvailable=true (normal aktif ürünler, stok takibinden bağımsız)
-                //  B) TrackStock=true VE StockQuantity<=0 (stok takibi aktif, stoğu bitti → disabled gösterilir)
-                // DIŞLANANLAR:
-                //  - IsDeleted=true ürünler her zaman
-                //  - TrackStock=false VE IsAvailable=false (yönetici tarafından elle kapatılmış)
                 .Include(c => c.MenuItems.Where(m =>
                     !m.IsDeleted &&
                     (m.IsAvailable || (m.TrackStock == true && m.StockQuantity <= 0))
@@ -128,17 +122,11 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             if (table == null)
                 return Json(new { success = false, message = "Masa bulunamadı." });
 
-            // ── KURAL 3: Backend Stok Validasyonu (Güvenlik) ──────────────────
-            // Frontend JS'i aşan istekleri burada kesin engelle.
-            // Yalnızca TrackStock == true olan ürünlerde stok kontrolü yapılır.
-            // TrackStock == false ürünler (sınırsız) bu kontrolü tamamen atlar.
             foreach (var line in dto.Items)
             {
                 if (line.Quantity < 1) continue;
                 var miCheck = await _db.MenuItems.FindAsync(line.MenuItemId);
-                // null ürün → zaten sonraki foreach'te continue edilecek, sessizce geç
                 if (miCheck == null) continue;
-                // Stok takibi AÇIK ve yeterli stok YOK ise reddet
                 if (miCheck.TrackStock == true && miCheck.StockQuantity < line.Quantity)
                     return Json(new
                     {
@@ -146,13 +134,11 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                         stockQty = miCheck.StockQuantity,
                         message = $"Ürün stoğu = {miCheck.StockQuantity} kadar ekleme yapabilirsiniz. ({miCheck.MenuItemName})"
                     });
-                // TrackStock == false → stok sınırı yok, devam et
             }
 
             using var tx = await _db.Database.BeginTransactionAsync();
             try
             {
-                // FIX 1: "new Order {" — object initializer açma parantezi eksikti
                 var order = new Order
                 {
                     TableId = dto.TableId,
@@ -162,7 +148,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                     OrderTotalAmount = 0,
                     OrderOpenedAt = DateTime.UtcNow
                 };
-                // FIX 2: Aşağıdaki satırlar try bloğu içinde doğru girintide
                 _db.Orders.Add(order);
                 await _db.SaveChangesAsync();
 
@@ -275,7 +260,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
 
             if (dto.Quantity < 1) dto.Quantity = 1;
 
-            // ── STOK KONTROLÜ ─────────────────────────────────────────────────
             if (mi.TrackStock && mi.StockQuantity < dto.Quantity)
                 return Json(new
                 {
@@ -366,7 +350,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                     var mi = await _db.MenuItems.FindAsync(line.MenuItemId);
                     if (mi == null) continue;
 
-                    // ── STOK KONTROLÜ ─────────────────────────────────────────
                     if (mi.TrackStock && mi.StockQuantity < line.Quantity)
                     {
                         await tx.RollbackAsync();
@@ -432,7 +415,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
         }
 
         // ─────────────────────────────────────────────────────────────
-        // POST /Orders/AddPayment
+        // POST /Orders/AddPayment   ← GÜNCELLENDI
         // ─────────────────────────────────────────────────────────────
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> AddPayment([FromBody] OrderPaymentDto dto)
@@ -440,8 +423,12 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             if (dto.PaymentAmount <= 0)
                 return Json(new { success = false, message = "Geçerli bir ödeme tutarı giriniz." });
 
-            if (dto.DiscountAmount < 0)
-                return Json(new { success = false, message = "İndirim tutarı negatif olamaz." });
+            if (dto.DiscountValue < 0)
+                return Json(new { success = false, message = "İndirim değeri negatif olamaz." });
+
+            // Yüzde indirimde 0–100 aralığı zorla
+            if (dto.DiscountType == "percent" && dto.DiscountValue > 100)
+                return Json(new { success = false, message = "Yüzde indirim 0–100 arasında olmalıdır." });
 
             var order = await _db.Orders
                 .Include(o => o.Payments)
@@ -454,7 +441,24 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             if (order.OrderStatus != "open")
                 return Json(new { success = false, message = "Bu adisyon zaten kapatılmış." });
 
-            var netTotal = order.OrderTotalAmount - dto.DiscountAmount;
+            // ── İndirim tutarını backend'de hesapla ve doğrula ────────
+            decimal discountAmount;
+            if (dto.DiscountType == "percent")
+            {
+                // Yüzde → TL: toplam * (yüzde / 100)
+                discountAmount = Math.Round(order.OrderTotalAmount * (dto.DiscountValue / 100m), 2);
+            }
+            else
+            {
+                // Sabit TL tutarı
+                discountAmount = Math.Round(dto.DiscountValue, 2);
+            }
+
+            // İndirim tutarı adisyon toplamını aşamaz → net tutar 0'ın altına düşemez
+            discountAmount = Math.Min(discountAmount, order.OrderTotalAmount);
+            discountAmount = Math.Max(discountAmount, 0);
+
+            var netTotal = order.OrderTotalAmount - discountAmount;
             var alreadyPaid = order.Payments.Sum(p => p.PaymentsAmount);
             var remaining = netTotal - alreadyPaid;
 

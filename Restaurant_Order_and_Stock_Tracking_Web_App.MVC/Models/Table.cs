@@ -19,6 +19,13 @@
         /// </summary>
         public bool IsWaiterCalled { get; set; } = false;
 
+        /// <summary>
+        /// Garson çağrısının başladığı UTC zaman damgası.
+        /// DismissWaiter çağrıldığında null'a döner.
+        /// SLA takibi (10 dk ihlal) için kullanılır.
+        /// </summary>
+        public DateTime? WaiterCalledAt { get; set; }   // ← YENİ
+
         public virtual ICollection<Order> Orders { get; set; }
     }
 }

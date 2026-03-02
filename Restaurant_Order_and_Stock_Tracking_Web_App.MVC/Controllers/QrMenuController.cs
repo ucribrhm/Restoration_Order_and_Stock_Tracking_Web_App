@@ -9,10 +9,8 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
 {
     /// <summary>
     /// Müşterilerin QR kod ile açtığı Fine-Dining menü ekranı.
-    /// Kimlik doğrulama gerektirmez — [AllowAnonymous] davranışı varsayılandır
-    /// (sınıf düzeyinde [Authorize] yoktur).
+    /// Kimlik doğrulama gerektirmez — [AllowAnonymous] davranışı varsayılandır.
     /// URL örneği: /QrMenu/Index/Masa-1
-    ///             /QrMenu/Index/Teras%201   (boşluk URL-encoded)
     /// </summary>
     public class QrMenuController : Controller
     {
@@ -30,22 +28,14 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
         [Route("QrMenu/Index/{tableName}")]
         public async Task<IActionResult> Index(string tableName)
         {
-            // URL-encode karakterleri çöz (ör. "Teras%201" → "Teras 1")
             var decodedName = Uri.UnescapeDataString(tableName);
 
-            // Masa doğrulama
             var table = await _context.Tables
                 .FirstOrDefaultAsync(t => t.TableName == decodedName);
 
             if (table == null)
                 return NotFound("Bu QR koda ait masa bulunamadı.");
 
-            // ── Dinamik menü verisi ───────────────────────────────────────────
-            // Kategoriler: CategorySortOrder'a göre sıralı, yalnızca aktif olanlar.
-            // Her kategorinin altındaki ürünler:
-            //   - IsDeleted = false
-            //   - IsAvailable = true  VEYA  (TrackStock = true ve StockQuantity > 0)
-            //   - Ekleniş zamanına göre sıralı (MenuItemCreatedTime ASC)
             var categories = await _context.Categories
                 .Where(c => c.IsActive)
                 .OrderBy(c => c.CategorySortOrder)
@@ -58,7 +48,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                 )
                 .ToListAsync();
 
-            // Ürün içermeyen kategorileri filtrele (arayüzde boş blok gözükmesin)
             categories = categories
                 .Where(c => c.MenuItems != null && c.MenuItems.Any())
                 .ToList();
@@ -71,11 +60,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
         }
 
         // ── POST /QrMenu/CallWaiter ────────────────────────────────────────────
-        /// <summary>
-        /// Müşteri "Garson Çağır" butonuna basınca çağrılır.
-        /// Payload: { "TableName": "Masa 1" }
-        /// SignalR ile tüm bağlı admin/garson ekranlarına anlık bildirim gönderir.
-        /// </summary>
         [HttpPost]
         [IgnoreAntiforgeryToken]
         [Route("QrMenu/CallWaiter")]
@@ -95,12 +79,15 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                 return Ok(new { success = true, alreadyCalled = true, message = "Garson zaten çağrıldı." });
 
             table.IsWaiterCalled = true;
+            table.WaiterCalledAt = DateTime.UtcNow;   // ← YENİ: SLA saatini kaydet
             await _context.SaveChangesAsync();
 
             // SignalR: Tüm bağlı garson / admin ekranlarına anlık bildir
+            // calledAtUtc alanını da iletiyoruz — Tables/Index.js SLA timer için kullanır
             await _hub.Clients.All.SendAsync("WaiterCalled", new
             {
-                tableName = table.TableName
+                tableName = table.TableName,
+                calledAtUtc = table.WaiterCalledAt!.Value.ToString("o") // ISO 8601
             });
 
             return Ok(new { success = true, alreadyCalled = false, message = "Garson çağrıldı." });
