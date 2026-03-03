@@ -193,7 +193,8 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                     OrderOpenedBy = openedBy.Trim(),
                     OrderNote = string.IsNullOrWhiteSpace(dto.OrderNote) ? null : dto.OrderNote.Trim(),
                     OrderTotalAmount = 0,
-                    OrderOpenedAt = DateTime.UtcNow
+                    OrderOpenedAt = DateTime.UtcNow,
+                    TenantId = _tenantService.TenantId!
                 };
                 _db.Orders.Add(order);
                 await _db.SaveChangesAsync();

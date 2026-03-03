@@ -132,42 +132,58 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
             app.MapHub<NotificationHub>("/notificationHub");
 
             // ════════════════════════════════════════════════════════════════
-            //  Rol & Admin Seed
+
+            // ════════════════════════════════════════════════════════════════
+            //  Rol, Tenant & Admin Seed
+            //  [MT] Tenant olmadan FK kısıtı ihlal oluyor.
+            //  Bu blok her başlangıçta idempotent çalışır (AnyAsync kontrolü).
             // ════════════════════════════════════════════════════════════════
             using (var scope = app.Services.CreateScope())
             {
                 var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
                 var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+                var db = scope.ServiceProvider.GetRequiredService<RestaurantDbContext>();
 
-                // ── Roller (değişmedi) ────────────────────────────────────
+                // ── Roller ───────────────────────────────────────────────
                 foreach (var roleName in new[] { "Admin", "Garson", "Kasiyer" })
                 {
                     if (!await roleManager.RoleExistsAsync(roleName))
                         await roleManager.CreateAsync(new IdentityRole(roleName));
                 }
 
-                // ── Admin Kullanıcı Seed ──────────────────────────────────
-                //
-                //  [GÜV-3] ÖNCE (tehlikeli):
-                //    await userManager.CreateAsync(adminUser, "Admin123");
-                //    → şifre kaynak koduna gömülü; git geçmişinde sonsuza dek görünür.
-                //
-                //  SONRA (güvenli):
-                //    Şifre ADMIN_INITIAL_PASSWORD ortam değişkeninden okunur.
-                //    Değişken tanımsızsa uygulama başlamaz — eksik konfigürasyon
-                //    sessizce geçilmek yerine açıkça patlayarak bildirilir.
-                //
-                //  Ortam değişkenini ayarlama örnekleri:
-                //    Linux/macOS  : export ADMIN_INITIAL_PASSWORD="İlkGüvenliŞifre2024!"
-                //    Windows CMD  : set    ADMIN_INITIAL_PASSWORD=İlkGüvenliŞifre2024!
-                //    Docker       : -e ADMIN_INITIAL_PASSWORD=İlkGüvenliŞifre2024!
-                //    .env (docker-compose) : ADMIN_INITIAL_PASSWORD=İlkGüvenliŞifre2024!
-                //    appsettings.Development.json (ASLA git'e commit edilmemeli!):
-                //      { "ADMIN_INITIAL_PASSWORD": "İlkGüvenliŞifre2024!" }
-                // ─────────────────────────────────────────────────────────
+                // ── [MT] Varsayılan Tenant Seed ──────────────────────────
+                //  FK_tables_tenants_TenantId hatasının kök sebebi:
+                //  tenants tablosunda kayıt yok → masa eklenemez.
+                //  Bu blok ilk çalışmada tenant'ı oluşturur, sonrakilerde atlar.
+                const string defaultTenantId = "varsayilan-restoran";
+
+                if (!await db.Tenants.AnyAsync(t => t.TenantId == defaultTenantId))
+                {
+                    db.Tenants.Add(new Tenant
+                    {
+                        TenantId = defaultTenantId,
+                        Name = "Varsayılan Restoran",
+                        Subdomain = "varsayilan",
+                        PlanType = "trial",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow,
+                        TrialEndsAt = DateTime.UtcNow.AddDays(30),
+                        RestaurantType = RestaurantType.CasualDining,
+                        Config = new TenantConfig
+                        {
+                            TenantId = defaultTenantId,
+                            EnableKitchenDisplay = true,
+                            EnableReservations = true,
+                            EnableDiscounts = true,
+                            CurrencyCode = "TRY"
+                        }
+                    });
+                    await db.SaveChangesAsync();
+                }
+
+                // ── Admin Kullanıcı Seed ─────────────────────────────────
                 if ((await userManager.GetUsersInRoleAsync("Admin")).Count == 0)
                 {
-                    // [GÜV-3] Şifre env-var'dan okunuyor; eksikse uygulama başlamıyor.
                     var adminPassword = builder.Configuration["ADMIN_INITIAL_PASSWORD"]
                         ?? throw new InvalidOperationException(
                             "Kritik Konfigürasyon Eksik: 'ADMIN_INITIAL_PASSWORD' ortam değişkeni " +
@@ -179,12 +195,24 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
                         UserName = "admin",
                         FullName = "Sistem Yöneticisi",
                         EmailConfirmed = true,
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = DateTime.UtcNow,
+                        TenantId = defaultTenantId   // [MT] FK için zorunlu
                     };
 
                     var createResult = await userManager.CreateAsync(adminUser, adminPassword);
                     if (createResult.Succeeded)
                         await userManager.AddToRoleAsync(adminUser, "Admin");
+                }
+                else
+                {
+                    // Mevcut admin'in TenantId'si null ise ata
+                    // (eski DB'den geçiş — bu satır olmadan Claims boş kalır)
+                    var admins = await userManager.GetUsersInRoleAsync("Admin");
+                    foreach (var a in admins.Where(a => a.TenantId == null))
+                    {
+                        a.TenantId = defaultTenantId;
+                        await userManager.UpdateAsync(a);
+                    }
                 }
             }
 

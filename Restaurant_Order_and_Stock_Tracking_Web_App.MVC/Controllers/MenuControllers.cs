@@ -5,6 +5,7 @@ using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Dtos.Menu;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
 using System.Globalization;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
 {
@@ -13,15 +14,18 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
     {
         private readonly RestaurantDbContext _context;
         private readonly IWebHostEnvironment _env;
+        private readonly ITenantService _tenantService;
 
         private static readonly HashSet<string> _allowedExtensions =
             new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
         private const long MaxFileSizeBytes = 5 * 1024 * 1024; // 5 MB
 
-        public MenuController(RestaurantDbContext context, IWebHostEnvironment env)
+        public MenuController(RestaurantDbContext context, IWebHostEnvironment env,
+            ITenantService tenantService)
         {
             _context = context;
             _env = env;
+            _tenantService = tenantService;
         }
 
         // ── GET: /Menu ──────────────────────────────────────────────────
@@ -117,7 +121,8 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                 IsAvailable = dto.IsAvailable,
                 IsDeleted = false,
                 ImagePath = imagePath,
-                MenuItemCreatedTime = DateTime.UtcNow
+                MenuItemCreatedTime = DateTime.UtcNow,
+                TenantId = _tenantService.TenantId!
             };
 
             _context.MenuItems.Add(item);

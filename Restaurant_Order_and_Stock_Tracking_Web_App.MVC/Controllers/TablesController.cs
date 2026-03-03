@@ -3,10 +3,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Dtos.Tables;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Hubs;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
-using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;
 using System.Text.RegularExpressions;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
@@ -16,7 +16,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
     {
         private readonly RestaurantDbContext _db;
         private readonly IHubContext<RestaurantHub> _hub;
-        private readonly ITenantService _tenantService; // [SIG]
+        private readonly ITenantService _tenantService;
 
         public TablesController(RestaurantDbContext db, IHubContext<RestaurantHub> hub,
             ITenantService tenantService)
@@ -97,7 +97,8 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                     TableName = dto.TableName.Trim(),
                     TableCapacity = dto.TableCapacity,
                     TableStatus = 0,
-                    TableCreatedAt = DateTime.UtcNow
+                    TableCreatedAt = DateTime.UtcNow,
+                    TenantId = _tenantService.TenantId!
                 });
                 await _db.SaveChangesAsync();
 

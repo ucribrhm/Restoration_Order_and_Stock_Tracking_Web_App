@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Dtos.Category;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
 
@@ -11,10 +12,13 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
     public class CategoryController : Controller
     {
         private readonly RestaurantDbContext _context;
+        private readonly ITenantService _tenantService;
 
-        public CategoryController(RestaurantDbContext context)
+        public CategoryController(RestaurantDbContext context,
+            ITenantService tenantService)
         {
             _context = context;
+            _tenantService = tenantService;
         }
 
         // ── GET: /Category ───────────────────────────────────────────────
@@ -73,6 +77,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             var category = new Category
             {
                 CategoryName = dto.CategoryName.Trim(),
+                TenantId = _tenantService.TenantId!,
                 NameEn = string.IsNullOrWhiteSpace(dto.NameEn) ? null : dto.NameEn.Trim(),
                 NameAr = string.IsNullOrWhiteSpace(dto.NameAr) ? null : dto.NameAr.Trim(),
                 NameRu = string.IsNullOrWhiteSpace(dto.NameRu) ? null : dto.NameRu.Trim(),
