@@ -9,6 +9,7 @@
 //           değişken eksikse uygulama InvalidOperationException fırlatarak durur.
 // ════════════════════════════════════════════════════════════════════════════
 
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Infrastructure;
@@ -91,6 +92,16 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
             });
 
             builder.Services.AddHostedService<ReservationCleanupService>();
+
+            // ── [MT] Multi-Tenancy Servisleri ─────────────────────────────────────
+            // IHttpContextAccessor: HttpContextTenantService için HTTP bağlamına erişim
+            builder.Services.AddHttpContextAccessor();
+            // ITenantService: Global Query Filter'ın TenantId'yi okuduğu servis
+            builder.Services.AddScoped<ITenantService, HttpContextTenantService>();
+            // IClaimsTransformation: Login sırasında TenantId'yi Claims'e yazar
+            // Döngüsel bağımlılığı önleyen mekanizmanın kalbi
+            builder.Services.AddScoped<IClaimsTransformation, TenantClaimsTransformation>();
+            // ────────────────────────────────────────────────────────────────────────
 
             builder.Services.AddControllersWithViews();
 
