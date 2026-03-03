@@ -1,19 +1,23 @@
 ﻿// ============================================================================
 //  Data/RestaurantDbContext.cs
 //  DEĞİŞİKLİK — FAZ 1 ADIM 2: Multi-Tenancy
+//  DÜZELTME — EF Core Global Query Filter uyarıları giderildi
 //
-//  EKLENENLER:
-//    [MT-1] ITenantService constructor injection
-//    [MT-2] DbSet<Tenant> ve DbSet<TenantConfig>
-//    [MT-3] Tenant + TenantConfig EF konfigürasyonu
-//    [MT-4] Global Query Filter'lar (Table, Order, MenuItem, Category)
-//    [MT-5] ApplicationUser → Tenant FK ilişkisi
-//    [MT-6] Category unique index: global → (TenantId, CategoryName) scoped
-//    [MT-7] TenantId FK'ları tüm izole tablolara eklendi
+//  UYARI KAYNAKLARI VE ÇÖZÜMLERİ:
+//  ─────────────────────────────────────────────────────────────────────────
+//  [WARN-1] MenuItem (filtered) → OrderItem (unfiltered) ilişkisi
+//           Çözüm: OrderItem'a MenuItem üzerinden eşleşen filtre eklendi.
 //
-//  KORUNANLAR:
-//    Tüm mevcut entity konfigürasyonları (ToTable, Property, Index, FK'lar)
-//    birebir korundu. Yalnızca yukarıdaki [MT-x] etiketli satırlar eklendi.
+//  [WARN-2] Order (filtered) → Payment (unfiltered) ilişkisi
+//           Çözüm: Payment'a Order üzerinden eşleşen filtre eklendi.
+//
+//  [WARN-3] MenuItem (filtered) → StockLog (unfiltered) ilişkisi
+//           Çözüm: StockLog'a MenuItem üzerinden eşleşen filtre eklendi.
+//
+//  [WARN-4] RestaurantType enum için sentinel değer uyarısı
+//           Çözüm: HasDefaultValue kaldırıldı, CLR default (FastFood=0) korundu.
+//           Sentinel sorununu önlemek için CasualDining varsayılan değeri
+//           model seviyesinde (Tenant.cs) set edilir.
 // ============================================================================
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -24,7 +28,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
 {
     public class RestaurantDbContext : IdentityDbContext<ApplicationUser>
     {
-        // ── Mevcut DbSet'ler (değişmedi) ─────────────────────────────────────
+        // ── Mevcut DbSet'ler ─────────────────────────────────────────────────
         public DbSet<Table> Tables { get; set; }
         public DbSet<Category> Categories { get; set; }
         public DbSet<Order> Orders { get; set; }
@@ -33,25 +37,16 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
         public DbSet<Payment> Payments { get; set; }
         public DbSet<StockLog> StockLogs { get; set; }
 
-        // ── [MT-2] Yeni SaaS DbSet'leri ─────────────────────────────────────
+        // ── Yeni SaaS DbSet'leri ─────────────────────────────────────────────
         public DbSet<Tenant> Tenants { get; set; }
         public DbSet<TenantConfig> TenantConfigs { get; set; }
 
-        // ── [MT-1] ITenantService injection ─────────────────────────────────
+        // ── ITenantService ───────────────────────────────────────────────────
         private readonly ITenantService _tenantService;
 
-        /// <summary>
-        /// Constructor: ITenantService EF Core runtime'da inject edilir.
-        ///
-        /// Design-time (migration) senaryosu:
-        ///   EF Tools bu constructor'ı bulamazsa IDesignTimeDbContextFactory
-        ///   arar. Biz bunun yerine ITenantService'i null-safe tasarladık:
-        ///   TenantId null döndüğünde Global Query Filter devredışı kalır,
-        ///   migration'lar tüm veriyi görebilir.
-        /// </summary>
         public RestaurantDbContext(
             DbContextOptions options,
-            ITenantService tenantService)   // [MT-1]
+            ITenantService tenantService)
             : base(options)
         {
             _tenantService = tenantService;
@@ -59,12 +54,11 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            base.OnModelCreating(modelBuilder); // Identity tablolarını oluşturur — MUTLAKA OLMALI
+            base.OnModelCreating(modelBuilder);
 
             // ════════════════════════════════════════════════════════════════
-            //  [MT-3] Tenant & TenantConfig konfigürasyonu
+            //  Tenant & TenantConfig
             // ════════════════════════════════════════════════════════════════
-
             modelBuilder.Entity<Tenant>(entity =>
             {
                 entity.ToTable("tenants");
@@ -76,17 +70,17 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                 entity.Property(t => t.IsActive).HasDefaultValue(true).IsRequired();
                 entity.Property(t => t.CreatedAt).HasDefaultValueSql("NOW()").IsRequired();
                 entity.Property(t => t.TrialEndsAt);
+
+                // [WARN-4 DÜZELTME] HasDefaultValue kaldırıldı — sentinel çakışması önlendi.
+                // Varsayılan değer (CasualDining) Tenant.cs'teki property initializer'da set edilir.
                 entity.Property(t => t.RestaurantType)
                     .HasConversion<int>()
-                    .HasDefaultValue(RestaurantType.CasualDining)
                     .IsRequired();
 
-                // Subdomain benzersiz olmalı
                 entity.HasIndex(t => t.Subdomain)
                     .IsUnique()
                     .HasDatabaseName("uq_tenants_subdomain");
 
-                // 1-1 ilişki: Tenant → TenantConfig
                 entity.HasOne(t => t.Config)
                     .WithOne(c => c.Tenant)
                     .HasForeignKey<TenantConfig>(c => c.TenantId)
@@ -103,8 +97,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                 entity.Property(c => c.LogoPath).HasMaxLength(500);
                 entity.Property(c => c.PrimaryColor).HasMaxLength(7);
                 entity.Property(c => c.RestaurantDisplayName).HasMaxLength(200);
-
-                // Feature flag default'ları
                 entity.Property(c => c.EnableKitchenDisplay).HasDefaultValue(true).IsRequired();
                 entity.Property(c => c.EnableTableMerge).HasDefaultValue(false).IsRequired();
                 entity.Property(c => c.EnableSelfOrderQr).HasDefaultValue(false).IsRequired();
@@ -117,7 +109,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
             });
 
             // ════════════════════════════════════════════════════════════════
-            //  [MT-5] ApplicationUser → Tenant ilişkisi
+            //  ApplicationUser → Tenant
             // ════════════════════════════════════════════════════════════════
             modelBuilder.Entity<ApplicationUser>(entity =>
             {
@@ -126,11 +118,11 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                     .WithMany(t => t.Users)
                     .HasForeignKey(u => u.TenantId)
                     .OnDelete(DeleteBehavior.Restrict)
-                    .IsRequired(false); // Süper admin için null kabul edilir
+                    .IsRequired(false);
             });
 
             // ════════════════════════════════════════════════════════════════
-            //  Table — mevcut konfigürasyon KORUNDU + [MT-4] + [MT-7]
+            //  Table — Global Query Filter
             // ════════════════════════════════════════════════════════════════
             modelBuilder.Entity<Table>(entity =>
             {
@@ -140,24 +132,19 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                 entity.Property(t => t.TableCapacity).HasMaxLength(2).HasDefaultValue(4).IsRequired();
                 entity.Property(t => t.TableStatus).HasDefaultValue(0).IsRequired();
                 entity.Property(t => t.TableCreatedAt).HasDefaultValueSql("NOW()").IsRequired();
-
-                // [MT-7] TenantId sütun konfigürasyonu
                 entity.Property(t => t.TenantId).HasMaxLength(100).IsRequired();
                 entity.HasOne(t => t.Tenant)
                     .WithMany()
                     .HasForeignKey(t => t.TenantId)
                     .OnDelete(DeleteBehavior.Restrict);
 
-                // [MT-4] Global Query Filter — THE MAGIC SHIELD
-                // TenantId null (migration/seed) → tüm veriler döner
-                // TenantId dolu (normal istek) → yalnızca o tenant'ın verileri döner
                 entity.HasQueryFilter(t =>
                     _tenantService.TenantId == null ||
                     t.TenantId == _tenantService.TenantId);
             });
 
             // ════════════════════════════════════════════════════════════════
-            //  Category — mevcut konfigürasyon KORUNDU + [MT-4] + [MT-6] + [MT-7]
+            //  Category — Global Query Filter
             // ════════════════════════════════════════════════════════════════
             modelBuilder.Entity<Category>(entity =>
             {
@@ -166,30 +153,22 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                 entity.Property(c => c.CategoryName).HasMaxLength(100).IsRequired();
                 entity.Property(c => c.CategorySortOrder).HasDefaultValue(0).IsRequired();
                 entity.Property(c => c.IsActive).HasDefaultValue(true).IsRequired();
-
-                // [MT-6] Global unique → Tenant-scoped unique
-                // ÖNCE: entity.HasIndex(c => c.CategoryName).IsUnique()
-                //       — farklı restoranlar aynı adı kullanamıyordu (YANLIŞ)
-                // SONRA: (TenantId, CategoryName) birlikte benzersiz
                 entity.HasIndex(c => new { c.TenantId, c.CategoryName })
                     .IsUnique()
                     .HasDatabaseName("uq_categories_tenant_name");
-
-                // [MT-7] TenantId sütun konfigürasyonu
                 entity.Property(c => c.TenantId).HasMaxLength(100).IsRequired();
                 entity.HasOne(c => c.Tenant)
                     .WithMany()
                     .HasForeignKey(c => c.TenantId)
                     .OnDelete(DeleteBehavior.Restrict);
 
-                // [MT-4] Global Query Filter
                 entity.HasQueryFilter(c =>
                     _tenantService.TenantId == null ||
                     c.TenantId == _tenantService.TenantId);
             });
 
             // ════════════════════════════════════════════════════════════════
-            //  MenuItem — mevcut konfigürasyon KORUNDU + [MT-4] + [MT-7]
+            //  MenuItem — Global Query Filter
             // ════════════════════════════════════════════════════════════════
             modelBuilder.Entity<MenuItem>(entity =>
             {
@@ -200,32 +179,28 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                 entity.Property(m => m.StockQuantity).HasDefaultValue(0).IsRequired();
                 entity.Property(m => m.AlertThreshold).HasDefaultValue(0).IsRequired();
                 entity.Property(m => m.CriticalThreshold).HasDefaultValue(0).IsRequired();
-                entity.Property(m => m.CostPrice).HasPrecision(10, 2);  // nullable, no default
+                entity.Property(m => m.CostPrice).HasPrecision(10, 2);
                 entity.Property(m => m.TrackStock).HasDefaultValue(false).IsRequired();
                 entity.Property(m => m.IsAvailable).HasDefaultValue(true).IsRequired();
                 entity.Property(m => m.Description).HasColumnType("text");
                 entity.Property(m => m.MenuItemCreatedTime).HasDefaultValueSql("NOW()").IsRequired();
-
                 entity.HasOne(c => c.Category)
                     .WithMany(m => m.MenuItems)
                     .HasForeignKey(c => c.CategoryId)
                     .OnDelete(DeleteBehavior.Restrict);
-
-                // [MT-7] TenantId sütun konfigürasyonu
                 entity.Property(m => m.TenantId).HasMaxLength(100).IsRequired();
                 entity.HasOne(m => m.Tenant)
                     .WithMany()
                     .HasForeignKey(m => m.TenantId)
                     .OnDelete(DeleteBehavior.Restrict);
 
-                // [MT-4] Global Query Filter
                 entity.HasQueryFilter(m =>
                     _tenantService.TenantId == null ||
                     m.TenantId == _tenantService.TenantId);
             });
 
             // ════════════════════════════════════════════════════════════════
-            //  Order — mevcut konfigürasyon KORUNDU + [MT-4] + [MT-7]
+            //  Order — Global Query Filter
             // ════════════════════════════════════════════════════════════════
             modelBuilder.Entity<Order>(entity =>
             {
@@ -236,30 +211,30 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                 entity.Property(o => o.OrderNote).HasColumnType("text");
                 entity.Property(o => o.OrderTotalAmount).HasPrecision(12, 2).HasDefaultValue(0).IsRequired();
                 entity.Property(o => o.OrderOpenedAt).HasDefaultValueSql("NOW()").IsRequired();
-
                 entity.HasOne(t => t.Table)
                     .WithMany(o => o.Orders)
                     .HasForeignKey(o => o.TableId)
                     .OnDelete(DeleteBehavior.Restrict);
-
-                // [MT-7] TenantId sütun konfigürasyonu
                 entity.Property(o => o.TenantId).HasMaxLength(100).IsRequired();
                 entity.HasOne(o => o.Tenant)
                     .WithMany()
                     .HasForeignKey(o => o.TenantId)
                     .OnDelete(DeleteBehavior.Restrict);
 
-                // [MT-4] Global Query Filter
                 entity.HasQueryFilter(o =>
                     _tenantService.TenantId == null ||
                     o.TenantId == _tenantService.TenantId);
             });
 
             // ════════════════════════════════════════════════════════════════
-            //  OrderItem — mevcut konfigürasyon AYNEN KORUNDU
-            //  NOT: TenantId eklenmedi. Order üzerinden JOIN ile izole edilir.
-            //       Global Query Filter Order'a uygulandı; OrderItem sorgularında
-            //       EF Core otomatik olarak Order filtreli JOIN üretir.
+            //  OrderItem
+            //  [WARN-1 DÜZELTME] MenuItem'a filtre uygulandı → OrderItem'a
+            //  eşleşen filtre eklenmeli. MenuItem.TenantId üzerinden kontrol.
+            //
+            //  Filtre mantığı:
+            //    TenantId null (migration/seed) → filtre yok, tüm kayıtlar döner
+            //    TenantId dolu → yalnızca o tenant'ın MenuItem'larına bağlı
+            //    OrderItem'lar döner (= doğru tenant'ın sipariş kalemleri)
             // ════════════════════════════════════════════════════════════════
             modelBuilder.Entity<OrderItem>(entity =>
             {
@@ -288,11 +263,17 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                     .WithMany()
                     .HasForeignKey(o => o.MenuItemId)
                     .OnDelete(DeleteBehavior.Restrict);
+
+                // [WARN-1 DÜZELTME] MenuItem filtresiyle eşleşen filtre
+                entity.HasQueryFilter(o =>
+                    _tenantService.TenantId == null ||
+                    o.MenuItem.TenantId == _tenantService.TenantId);
             });
 
             // ════════════════════════════════════════════════════════════════
-            //  Payment — mevcut konfigürasyon AYNEN KORUNDU
-            //  NOT: TenantId eklenmedi. Order üzerinden JOIN ile izole edilir.
+            //  Payment
+            //  [WARN-2 DÜZELTME] Order'a filtre uygulandı → Payment'a
+            //  eşleşen filtre eklenmeli. Order.TenantId üzerinden kontrol.
             // ════════════════════════════════════════════════════════════════
             modelBuilder.Entity<Payment>(entity =>
             {
@@ -307,11 +288,17 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                     .WithMany(p => p.Payments)
                     .HasForeignKey(o => o.OrderId)
                     .OnDelete(DeleteBehavior.Restrict);
+
+                // [WARN-2 DÜZELTME] Order filtresiyle eşleşen filtre
+                entity.HasQueryFilter(p =>
+                    _tenantService.TenantId == null ||
+                    p.Order.TenantId == _tenantService.TenantId);
             });
 
             // ════════════════════════════════════════════════════════════════
-            //  StockLog — mevcut konfigürasyon AYNEN KORUNDU
-            //  NOT: TenantId eklenmedi. MenuItem üzerinden JOIN ile izole edilir.
+            //  StockLog
+            //  [WARN-3 DÜZELTME] MenuItem'a filtre uygulandı → StockLog'a
+            //  eşleşen filtre eklenmeli. MenuItem.TenantId üzerinden kontrol.
             // ════════════════════════════════════════════════════════════════
             modelBuilder.Entity<StockLog>(entity =>
             {
@@ -326,11 +313,15 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                 entity.Property(s => s.SourceType).HasMaxLength(30);
                 entity.Property(s => s.OrderId);
                 entity.Property(s => s.UnitPrice).HasColumnType("numeric(18,2)");
-
                 entity.HasOne(s => s.MenuItem)
                     .WithMany()
                     .HasForeignKey(s => s.MenuItemId)
                     .OnDelete(DeleteBehavior.Cascade);
+
+                // [WARN-3 DÜZELTME] MenuItem filtresiyle eşleşen filtre
+                entity.HasQueryFilter(s =>
+                    _tenantService.TenantId == null ||
+                    s.MenuItem.TenantId == _tenantService.TenantId);
             });
         }
     }

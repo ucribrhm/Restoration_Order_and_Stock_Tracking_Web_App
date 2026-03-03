@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Hubs;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
@@ -139,7 +140,8 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             table.WaiterCalledAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            await _hub.Clients.All.SendAsync("WaiterCalled", new
+            // [SIG] QrMenuController [AllowAnonymous] → ITenantService null. table.TenantId kullanılır.
+            await _hub.Clients.Group(table.TenantId ?? "").SendAsync("WaiterCalled", new // [SIG] Clients.All→Group
             {
                 tableName = table.TableName,
                 calledAtUtc = table.WaiterCalledAt!.Value.ToString("o")

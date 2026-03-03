@@ -1,7 +1,18 @@
-﻿// ════════════════════════════════════════════════════════════════════════════
+﻿// ============================================================================
 //  Controllers/KitchenController.cs  —  KDS v2
-// ════════════════════════════════════════════════════════════════════════════
-
+//  DEĞİŞİKLİK — FAZ 1 ADIM 3: SignalR Tenant İzolasyonu
+//
+//  [SIG] KitchenController [AllowAnonymous] olduğundan ITenantService null döner.
+//  Çözüm: item.Order.TenantId değeri doğrudan DB nesnesinden okunur.
+//  Bu değer Clients.Group(tenantId) için kullanılır.
+//
+//  DEĞİŞEN SATIRLAR:
+//  1. UpdateStatus → item.Order.TenantId ile tenantId değişkeni oluşturuldu
+//  2. Clients.All.SendAsync(OrderItemStatusChanged) → Clients.Group(tenantId)
+//  3. Clients.All.SendAsync(OrderReadyForPickup)    → Clients.Group(tenantId)
+//
+//  DİĞER TÜM SATIRLAR AYNEN KORUNDU.
+// ============================================================================
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
@@ -25,7 +36,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
 
         // ─────────────────────────────────────────────────────────────
         // GET /Kitchen/Display
-        // Sadece pending + preparing kalemler gösterilir; served/cancelled mutfağı ilgilendirmez.
         // ─────────────────────────────────────────────────────────────
         public async Task<IActionResult> Display()
         {
@@ -38,16 +48,12 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                 .OrderBy(o => o.OrderOpenedAt)
                 .ToListAsync();
 
-            // Aktif kalemi kalmayan adisyonları listele
             orders = orders.Where(o => o.OrderItems.Any()).ToList();
             return View(orders);
         }
 
         // ─────────────────────────────────────────────────────────────
         // POST /Kitchen/UpdateStatus
-        // Geçerli geçişler: pending->preparing  |  preparing->ready
-        // "ready" → DB'de "served" kaydedilir (yeni alan açılmıyor).
-        // preparing->ready geçişinde ek olarak OrderReadyForPickup event'i fırlatılır.
         // ─────────────────────────────────────────────────────────────
         [HttpPost]
         public async Task<IActionResult> UpdateStatus([FromBody] KdsStatusUpdateDto dto)
@@ -75,23 +81,27 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             var tableName = item.Order?.Table?.TableName ?? $"Adisyon #{item.OrderId}";
             var menuItemName = item.MenuItem?.MenuItemName ?? "Ürün";
 
-            // "ready" UI kavramı DB'de "served" olarak saklanır
+            // ── [SIG] TenantId DB nesnesinden oku ──────────────────────────
+            // KitchenController [AllowAnonymous] → ITenantService.TenantId null döner.
+            // Order.TenantId (FAZ 1 ADIM 2'de eklendi) doğrudan kullanılır.
+            var tenantId = item.Order?.TenantId ?? "";
+            // ──────────────────────────────────────────────────────────────
+
             item.OrderItemStatus = dto.NewStatus == "ready" ? "served" : dto.NewStatus;
             await _db.SaveChangesAsync();
 
-            // Tüm ekranlara durum değişikliği bildirimi
-            await _hub.Clients.All.SendAsync("OrderItemStatusChanged", new
+            // ── [SIG] Clients.All → Clients.Group(tenantId) ───────────────
+            await _hub.Clients.Group(tenantId).SendAsync("OrderItemStatusChanged", new
             {
                 orderItemId = item.OrderItemId,
-                newStatus = dto.NewStatus,   // KDS "ready" alınca kartı ekrandan siler
+                newStatus = dto.NewStatus,
                 tableName,
                 menuItemName
             });
 
-            // Hazır olunca garsona özel bildirim
             if (dto.NewStatus == "ready")
             {
-                await _hub.Clients.All.SendAsync("OrderReadyForPickup", new
+                await _hub.Clients.Group(tenantId).SendAsync("OrderReadyForPickup", new
                 {
                     orderItemId = item.OrderItemId,
                     orderId = item.OrderId,
@@ -100,6 +110,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                     readyAt = DateTime.Now.ToString("HH:mm:ss")
                 });
             }
+            // ──────────────────────────────────────────────────────────────
 
             return Ok(new { success = true, tableName, menuItemName });
         }

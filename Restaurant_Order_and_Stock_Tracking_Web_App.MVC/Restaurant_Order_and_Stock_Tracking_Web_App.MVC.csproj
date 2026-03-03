@@ -27,4 +27,6 @@
     <Folder Include="wwwroot\js\Views\Shared\" />
   </ItemGroup>
 
+  <ProjectExtensions><VisualStudio><UserProperties properties_4launchsettings_1json__JsonSchema="https://jsonapi.org/schema" /></VisualStudio></ProjectExtensions>
+
 </Project>

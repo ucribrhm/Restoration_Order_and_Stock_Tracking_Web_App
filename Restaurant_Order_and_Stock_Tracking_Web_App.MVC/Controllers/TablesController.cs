@@ -1,12 +1,13 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Dtos.Tables;
-using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
-using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.SignalR;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Hubs;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;
+using System.Text.RegularExpressions;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
 {
@@ -15,11 +16,14 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
     {
         private readonly RestaurantDbContext _db;
         private readonly IHubContext<RestaurantHub> _hub;
+        private readonly ITenantService _tenantService; // [SIG]
 
-        public TablesController(RestaurantDbContext db, IHubContext<RestaurantHub> hub)
+        public TablesController(RestaurantDbContext db, IHubContext<RestaurantHub> hub,
+            ITenantService tenantService)
         {
             _db = db;
             _hub = hub;
+            _tenantService = tenantService; // [SIG]
         }
 
         // ── GET /Tables ───────────────────────────────────────────────
@@ -303,7 +307,8 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             await _db.SaveChangesAsync();
 
             // Tüm bağlı ekranlara "artık normal" sinyali gönder
-            await _hub.Clients.All.SendAsync("WaiterDismissed", new
+            // HATA 2: SendAsync metodunun parametre yapısı düzeltildi.
+            await _hub.Clients.Group(_tenantService.TenantId ?? "").SendAsync("WaiterDismissed", new
             {
                 tableName = table.TableName
             });

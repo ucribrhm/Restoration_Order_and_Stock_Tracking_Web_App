@@ -26,6 +26,7 @@ using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Dtos.Orders;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Hubs;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
 {
@@ -36,17 +37,20 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IHubContext<NotificationHub> _hub;          // Dashboard bildirimleri
         private readonly IHubContext<RestaurantHub> _restaurantHub; // KDS + genel broadcast
+        private readonly ITenantService _tenantService;              // [SIG] Tenant izolasyonu
 
         public OrdersController(
             RestaurantDbContext db,
             UserManager<ApplicationUser> userManager,
             IHubContext<NotificationHub> hub,
-            IHubContext<RestaurantHub> restaurantHub)
+            IHubContext<RestaurantHub> restaurantHub,
+            ITenantService tenantService)
         {
             _db = db;
             _userManager = userManager;
             _hub = hub;
             _restaurantHub = restaurantHub;
+            _tenantService = tenantService;
         }
 
         // ═════════════════════════════════════════════════════════════
@@ -55,7 +59,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
         //  Renk kodu:  turuncu=#f97316 | yeşil=#22c55e | kırmızı=#ef4444
         // ═════════════════════════════════════════════════════════════
         private Task NotifyAsync(string icon, string message, string color = "#f97316")
-            => _hub.Clients.All.SendAsync("ReceiveNotification", new
+            => _hub.Clients.Group(_tenantService.TenantId ?? "").SendAsync("ReceiveNotification", new // [SIG] Clients.All→Group
             {
                 icon,
                 message,
@@ -372,7 +376,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                     .FirstOrDefaultAsync(x => x.OrderId == dto.OrderId && x.MenuItemId == dto.MenuItemId);
                 if (newItem2 != null)
                 {
-                    _ = _restaurantHub.Clients.All.SendAsync("NewOrderItem", new
+                    _ = _restaurantHub.Clients.Group(_tenantService.TenantId ?? "").SendAsync("NewOrderItem", new
                     {
                         orderItemId = newItem2.OrderItemId,
                         orderId = order.OrderId,
@@ -494,7 +498,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                 foreach (var kdsItem in addedItemIds)
                 {
                     var kdsMenu = await _db.MenuItems.FindAsync(kdsItem.MenuItemId);
-                    _ = _restaurantHub.Clients.All.SendAsync("NewOrderItem", new
+                    _ = _restaurantHub.Clients.Group(_tenantService.TenantId ?? "").SendAsync("NewOrderItem", new
                     {
                         orderItemId = kdsItem.OrderItemId,
                         orderId = order.OrderId,

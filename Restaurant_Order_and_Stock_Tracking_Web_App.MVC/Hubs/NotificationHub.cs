@@ -1,33 +1,47 @@
-﻿// ════════════════════════════════════════════════════════════════════════════
+﻿// ============================================================================
 //  Hubs/NotificationHub.cs
-//  Yol: Restaurant_Order_and_Stock_Tracking_Web_App.MVC/Hubs/
+//  DEĞİŞİKLİK — FAZ 1 ADIM 3: SignalR Tenant İzolasyonu
 //
-//  Dashboard'a gerçek zamanlı operasyon bildirimleri gönderen SignalR Hub.
+//  EKLENENLER:
+//  [SIG-1] OnConnectedAsync  → bağlanan client'ı tenant grubuna ekle
+//  [SIG-2] OnDisconnectedAsync → ayrılan client'ı gruptan çıkar
 //
-//  ─── Event Listesi (Server → Client) ────────────────────────────────────
-//  ReceiveNotification   { icon, message, color, orderId?, tableName }
-//
-//  ─── Mevcut RestaurantHub ile İlişkisi ──────────────────────────────────
-//  RestaurantHub  → WaiterCalled / WaiterDismissed  (masa bazlı anlık)
-//  NotificationHub → ReceiveNotification            (dashboard operasyon log)
-//  İkisi bağımsız çalışır; birbirini etkilemez.
-//
-//  ─── Güvenlik ────────────────────────────────────────────────────────────
-//  [Authorize] → yalnızca giriş yapmış kullanıcılar bağlanabilir.
-//  Tüm broadcast'ler server-side (controller içinden) IHubContext<> ile
-//  yapılır; istemciden hub'a doğrudan çağrı gerekmez.
-// ════════════════════════════════════════════════════════════════════════════
-
+//  [Authorize] korundu → yalnızca kimliği doğrulanmış kullanıcılar bağlanır.
+//  Bu sayede TenantId Claims'te her zaman mevcuttur (TenantClaimsTransformation
+//  tarafından login sırasında eklendi).
+// ============================================================================
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using System.Security.Claims;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Hubs
 {
     [Authorize]
     public class NotificationHub : Hub
     {
+        // ── [SIG-1] Bağlantı Kurulunca — Tenant Grubuna Ekle ────────────────
+        public override async Task OnConnectedAsync()
+        {
+            var tenantId = Context.User?.FindFirstValue("TenantId");
+
+            if (!string.IsNullOrEmpty(tenantId))
+                await Groups.AddToGroupAsync(Context.ConnectionId, tenantId);
+
+            await base.OnConnectedAsync();
+        }
+
+        // ── [SIG-2] Bağlantı Kesilince — Gruptan Çıkar ──────────────────────
+        public override async Task OnDisconnectedAsync(Exception? exception)
+        {
+            var tenantId = Context.User?.FindFirstValue("TenantId");
+
+            if (!string.IsNullOrEmpty(tenantId))
+                await Groups.RemoveFromGroupAsync(Context.ConnectionId, tenantId);
+
+            await base.OnDisconnectedAsync(exception);
+        }
+
         // Hub metodları intentionally boş.
-        // Tüm broadcast'ler OrdersController (ve ileride diğer controller'lar)
-        // tarafından IHubContext<NotificationHub> üzerinden yapılır.
+        // Tüm broadcast'ler IHubContext<NotificationHub> üzerinden yapılır.
     }
 }
