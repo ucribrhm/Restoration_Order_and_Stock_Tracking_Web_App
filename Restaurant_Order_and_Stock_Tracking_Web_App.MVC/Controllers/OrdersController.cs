@@ -34,16 +34,19 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
     {
         private readonly RestaurantDbContext _db;
         private readonly UserManager<ApplicationUser> _userManager;
-        private readonly IHubContext<NotificationHub> _hub; // ← YENİ
+        private readonly IHubContext<NotificationHub> _hub;          // Dashboard bildirimleri
+        private readonly IHubContext<RestaurantHub> _restaurantHub; // KDS + genel broadcast
 
         public OrdersController(
             RestaurantDbContext db,
             UserManager<ApplicationUser> userManager,
-            IHubContext<NotificationHub> hub)              // ← YENİ
+            IHubContext<NotificationHub> hub,
+            IHubContext<RestaurantHub> restaurantHub)
         {
             _db = db;
             _userManager = userManager;
             _hub = hub;
+            _restaurantHub = restaurantHub;
         }
 
         // ═════════════════════════════════════════════════════════════
@@ -362,6 +365,24 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                 _ = NotifyAsync("🍽️",
                     $"{order.Table?.TableName ?? $"Adisyon #{order.OrderId}"} — {mi.MenuItemName} × {dto.Quantity} eklendi",
                     "#f97316");
+
+                // ── KDS: Mutfak ekranına yeni sipariş kalemi bildir ──────────
+                var newItem2 = await _db.OrderItems
+                    .OrderByDescending(x => x.OrderItemId)
+                    .FirstOrDefaultAsync(x => x.OrderId == dto.OrderId && x.MenuItemId == dto.MenuItemId);
+                if (newItem2 != null)
+                {
+                    _ = _restaurantHub.Clients.All.SendAsync("NewOrderItem", new
+                    {
+                        orderItemId = newItem2.OrderItemId,
+                        orderId = order.OrderId,
+                        tableName = order.Table?.TableName ?? $"Adisyon #{order.OrderId}",
+                        menuItemName = mi.MenuItemName,
+                        quantity = newItem2.OrderItemQuantity,
+                        note = newItem2.OrderItemNote,
+                        addedAt = newItem2.OrderItemAddedAt
+                    });
+                }
                 // ── ▲ YENİ ──────────────────────────────────────────────────
 
                 return Json(new { success = true, message = $"{mi.MenuItemName} eklendi." });
@@ -463,6 +484,27 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                 _ = NotifyAsync("🛒",
                     $"{order.Table?.TableName ?? $"Adisyon #{order.OrderId}"} — {req.Items.Count} ürün eklendi (+₺{totalAdded:N0})",
                     "#f97316");
+
+                // ── KDS: Her eklenen kalem için mutfak ekranını bildir ───────
+                var addedItemIds = await _db.OrderItems
+                    .Where(x => x.OrderId == req.OrderId && x.OrderItemStatus == "pending")
+                    .OrderByDescending(x => x.OrderItemId)
+                    .Take(req.Items.Count)
+                    .ToListAsync();
+                foreach (var kdsItem in addedItemIds)
+                {
+                    var kdsMenu = await _db.MenuItems.FindAsync(kdsItem.MenuItemId);
+                    _ = _restaurantHub.Clients.All.SendAsync("NewOrderItem", new
+                    {
+                        orderItemId = kdsItem.OrderItemId,
+                        orderId = order.OrderId,
+                        tableName = order.Table?.TableName ?? $"Adisyon #{order.OrderId}",
+                        menuItemName = kdsMenu?.MenuItemName ?? "Bilinmiyor",
+                        quantity = kdsItem.OrderItemQuantity,
+                        note = kdsItem.OrderItemNote,
+                        addedAt = kdsItem.OrderItemAddedAt
+                    });
+                }
                 // ── ▲ YENİ ──────────────────────────────────────────────────
 
                 return Json(new { success = true, message = $"{req.Items.Count} ürün eklendi." });
