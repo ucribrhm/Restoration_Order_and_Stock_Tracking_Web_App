@@ -1,415 +1,1541 @@
 ﻿@*
-    Views/Home/Index.cshtml  —  Dashboard Komuta Merkezi
-    Yol: Restaurant_Order_and_Stock_Tracking_Web_App.MVC/Views/Home/Index.cshtml
+    ════════════════════════════════════════════════════════════════════════
+    Views/Home/Index.cshtml  —  Dashboard Komuta Merkezi  (WAOOW Edition)
+    Yol: Restaurant_Order_and_Stock_Tracking_Web_App.MVC/Views/Home/
+    ════════════════════════════════════════════════════════════════════════
 *@
 @model Restaurant_Order_and_Stock_Tracking_Web_App.MVC.ViewModels.Dashboard.DashboardViewModel
 @{
     ViewData["Title"] = "Dashboard";
     Layout = "~/Views/Shared/_Layout.cshtml";
 
-    // Trend badge yardımcıları
-    string TrendClass(decimal? pct) => pct switch
-    {
-        null               => "neutral",
-        > 0                => "up",
-        < 0                => "down",
-        _                  => "neutral"
-    };
-
-    string TrendIcon(decimal? pct) => pct switch
-    {
-        null => "—",
-        > 0  => "↑",
-        < 0  => "↓",
-        _    => "—"
-    };
-
-    string TrendText(decimal? pct) => pct switch
-    {
-        null  => "Dünkü veri yok",
-        var p => $"{TrendIcon(p)} %{Math.Abs(p.Value):F1}"
-    };
-
-    // Masa doluluk oranı bar genişlikleri
     var ts = Model.TableStatus;
     double occPct = ts.Total > 0 ? (double)ts.Occupied / ts.Total * 100 : 0;
     double resPct = ts.Total > 0 ? (double)ts.Reserved / ts.Total * 100 : 0;
-    double empPct = ts.Total > 0 ? (double)ts.Empty    / ts.Total * 100 : 0;
 
-    // Top ürün maksimum adedi (progress bar için)
-    int maxQty = Model.TopSellingProducts.Any()
-        ? Model.TopSellingProducts.Max(p => p.Quantity)
-        : 1;
+    string TrendClass(decimal? p) => p switch { > 0 => "up", < 0 => "down", _ => "neutral" };
+    string TrendIcon(decimal? p) => p switch { > 0 => "↑", < 0 => "↓", _ => "—" };
+    string TrendText(decimal? p) => p == null ? "Veri yok" : $"{TrendIcon(p)} %{Math.Abs(p.Value):F1}";
+
+    int maxQty = Model.TopSellingProducts.Any() ? Model.TopSellingProducts.Max(x => x.Quantity) : 1;
+
+    string StockLevelLabel(string l) => l switch { "critical" => "KRİTİK", "low" => "DÜŞÜK", _ => "YETERLİ" };
+    string StockLevelColor(string l) => l switch { "critical" => "#ef4444", "low" => "#f59e0b", _ => "#22c55e" };
+    string StockLevelBg(string l) => l switch { "critical" => "rgba(239,68,68,.1)", "low" => "rgba(245,158,11,.1)", _ => "rgba(34,197,94,.1)" };
+    string StockLevelBorder(string l) => l switch { "critical" => "rgba(239,68,68,.3)", "low" => "rgba(245,158,11,.3)", _ => "rgba(34,197,94,.3)" };
 }
 
 @section Styles {
-    <link href="~/css/Views/Home/Index.css" rel="stylesheet" asp-append-version="true" />
+    <style>
+        @@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+
+        :root {
+            --bg: #0a0a0f;
+            --surface: #13131e;
+            --surface2: #1a1a28;
+            --surface3: #22223a;
+            --border: rgba(255,255,255,.07);
+            --border2: rgba(255,255,255,.12);
+            --accent: #f97316;
+            --accent-dk: #ea6c0a;
+            --accent-lt: rgba(249,115,22,.12);
+            --accent-glow: rgba(249,115,22,.28);
+            --green: #22c55e;
+            --green-lt: rgba(34,197,94,.12);
+            --red: #ef4444;
+            --red-lt: rgba(239,68,68,.12);
+            --blue: #3b82f6;
+            --blue-lt: rgba(59,130,246,.12);
+            --amber: #f59e0b;
+            --amber-lt: rgba(245,158,11,.12);
+            --text: #f0ece8;
+            --text2: #9994a8;
+            --text3: #5a5668;
+            --font: 'Outfit', sans-serif;
+            --r: 16px;
+            --r-sm: 10px;
+            --sh: 0 4px 24px rgba(0,0,0,.4);
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        .dp {
+            font-family: var(--font);
+            color: var(--text);
+            background: var(--bg);
+        }
+
+            .dp *, .dp *::before, .dp *::after {
+                box-sizing: border-box;
+            }
+
+        /* ── Animations ─────────────────────────────────────────────────────── */
+        @@keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(18px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @@keyframes pingK {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            70% {
+                transform: scale(2.4);
+                opacity: 0;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 0;
+            }
+        }
+
+        @@keyframes pgrow {
+            from {
+                width: 0;
+            }
+        }
+
+        @@keyframes critPulse {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(239,68,68,0);
+            }
+
+            50% {
+                box-shadow: 0 0 0 8px rgba(239,68,68,.18);
+            }
+        }
+
+        @@keyframes toastIn {
+            from {
+                opacity: 0;
+                transform: translateX(52px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @@keyframes toastOut {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+
+            to {
+                opacity: 0;
+                transform: translateX(52px);
+            }
+        }
+
+        /* Staggered delay helpers */
+        .wu {
+            animation: fadeUp .55s cubic-bezier(.22,1,.36,1) both;
+        }
+
+        .d1 {
+            animation-delay: .05s;
+        }
+
+        .d2 {
+            animation-delay: .11s;
+        }
+
+        .d3 {
+            animation-delay: .17s;
+        }
+
+        .d4 {
+            animation-delay: .23s;
+        }
+
+        .d5 {
+            animation-delay: .30s;
+        }
+
+        .d6 {
+            animation-delay: .37s;
+        }
+
+        .d7 {
+            animation-delay: .44s;
+        }
+
+        .d8 {
+            animation-delay: .51s;
+        }
+
+        .d9 {
+            animation-delay: .58s;
+        }
+
+        .d10 {
+            animation-delay: .65s;
+        }
+
+        /* ── Card ─────────────────────────────────────────────────────────────── */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--r);
+            box-shadow: var(--sh);
+            transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+            .card::after {
+                content: '';
+                position: absolute;
+                inset: 0;
+                border-radius: var(--r);
+                background: radial-gradient(circle at 50% 0%, rgba(249,115,22,.06) 0%, transparent 70%);
+                opacity: 0;
+                transition: opacity .22s ease;
+                pointer-events: none;
+            }
+
+            .card:hover {
+                transform: translateY(-3px);
+                border-color: rgba(249,115,22,.2);
+                box-shadow: 0 0 0 1px rgba(249,115,22,.15),0 8px 32px rgba(249,115,22,.12),0 20px 60px rgba(0,0,0,.5);
+            }
+
+                .card:hover::after {
+                    opacity: 1;
+                }
+
+        /* ── Header ────────────────────────────────────────────────────────────── */
+        .dh {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 28px;
+            flex-wrap: wrap;
+            gap: 14px;
+        }
+
+        .dh-l {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .dh-logo {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            background: linear-gradient(135deg,var(--accent),var(--accent-dk));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            flex-shrink: 0;
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+
+        .dh-title {
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: -.4px;
+        }
+
+            .dh-title b {
+                color: var(--accent);
+            }
+
+        .dh-sub {
+            font-size: 12px;
+            color: var(--text3);
+            margin-top: 2px;
+        }
+
+        .dh-r {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-rep {
+            background: var(--surface2);
+            border: 1px solid var(--border2);
+            border-radius: var(--r-sm);
+            padding: 9px 18px;
+            font: 600 13px var(--font);
+            color: var(--text2);
+            cursor: pointer;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all .18s ease;
+        }
+
+            .btn-rep:hover {
+                background: var(--accent-lt);
+                border-color: rgba(249,115,22,.35);
+                color: var(--accent);
+            }
+
+        .live-blk {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--r-sm);
+            padding: 8px 14px;
+        }
+
+        .live-bdg {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--green-lt);
+            border: 1px solid rgba(34,197,94,.2);
+            border-radius: 20px;
+            padding: 4px 10px;
+        }
+
+        .live-dw {
+            position: relative;
+            width: 8px;
+            height: 8px;
+            flex-shrink: 0;
+        }
+
+        .live-dr {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pingK 1.6s ease-in-out infinite;
+        }
+
+        .live-dc {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: var(--green);
+        }
+
+        .live-lbl {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--green);
+            letter-spacing: 1px;
+        }
+
+        .live-time {
+            font-size: 17px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            color: var(--text);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ── Alert strip ─────────────────────────────────────────────────────── */
+        .astrip {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font: 600 12px var(--font);
+            text-decoration: none;
+            transition: all .15s ease;
+        }
+
+        .chip-o {
+            background: var(--accent-lt);
+            border: 1px solid rgba(249,115,22,.3);
+            color: var(--accent);
+        }
+
+        .chip-r {
+            background: var(--red-lt);
+            border: 1px solid rgba(239,68,68,.3);
+            color: var(--red);
+        }
+
+        .chip-o:hover {
+            background: rgba(249,115,22,.2);
+        }
+
+        .chip-r:hover {
+            background: rgba(239,68,68,.2);
+        }
+
+        /* ── KPI grid ──────────────────────────────────────────────────────────── */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4,1fr);
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        @@media(max-width:1100px) {
+            .kpi-grid {
+                grid-template-columns: repeat(2,1fr);
+            }
+        }
+
+        @@media(max-width:600px) {
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .kc {
+            padding: 22px;
+        }
+
+        .kc-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .kc-ico {
+            width: 40px;
+            height: 40px;
+            border-radius: 11px;
+            font-size: 19px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+        }
+
+        .kbadge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+            .kbadge.up {
+                background: var(--green-lt);
+                color: var(--green);
+            }
+
+            .kbadge.down {
+                background: var(--red-lt);
+                color: var(--red);
+            }
+
+            .kbadge.neutral {
+                background: var(--surface3);
+                color: var(--text3);
+            }
+
+        .klbl {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.1px;
+            color: var(--text3);
+            margin-bottom: 6px;
+        }
+
+        .kval {
+            font-size: 30px;
+            font-weight: 900;
+            letter-spacing: -1px;
+            line-height: 1;
+            margin-bottom: 10px;
+        }
+
+        .kmeta {
+            font-size: 12px;
+            color: var(--text2);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .ka-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--green);
+            flex-shrink: 0;
+            animation: pingK 2s ease infinite;
+        }
+
+        .tsb {
+            height: 8px;
+            border-radius: 4px;
+            background: var(--surface3);
+            overflow: hidden;
+            display: flex;
+            margin: 10px 0 8px;
+        }
+
+        .tsb-o {
+            background: var(--accent);
+            border-radius: 4px 0 0 4px;
+            transition: width 1.2s cubic-bezier(.22,1,.36,1);
+        }
+
+        .tsb-r {
+            background: var(--blue);
+            transition: width 1.2s cubic-bezier(.22,1,.36,1) .1s;
+        }
+
+        .tsb-e {
+            flex: 1;
+        }
+
+        .tsb-lgd {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .tsl {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            color: var(--text2);
+        }
+
+        .tsl-d {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* ── Middle grid ───────────────────────────────────────────────────────── */
+        .mid-grid {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr 1fr;
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        @@media(max-width:1200px) {
+            .mid-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @@media(max-width:700px) {
+            .mid-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .ch {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 18px;
+        }
+
+        .ch-t {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .ch-s {
+            font-size: 11px;
+            color: var(--text3);
+            margin-top: 2px;
+        }
+
+        .ch-tag {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: .8px;
+            text-transform: uppercase;
+            background: var(--accent-lt);
+            color: var(--accent);
+            border: 1px solid rgba(249,115,22,.2);
+            border-radius: 6px;
+            padding: 3px 9px;
+        }
+
+        .ch-tag-g {
+            background: var(--green-lt);
+            color: var(--green);
+            border-color: rgba(34,197,94,.2);
+        }
+
+        .cw {
+            position: relative;
+            height: 200px;
+        }
+
+        /* Heatmap */
+        .hmg {
+            display: grid;
+            grid-template-columns: repeat(5,1fr);
+            gap: 7px;
+        }
+
+        .hmc {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: 700;
+            transition: transform .14s ease, box-shadow .14s ease;
+            border: 1.5px solid transparent;
+        }
+
+            .hmc:hover {
+                transform: scale(1.07);
+                z-index: 5;
+            }
+
+            .hmc.occupied {
+                background: rgba(249,115,22,.18);
+                border-color: rgba(249,115,22,.4);
+                color: var(--accent);
+            }
+
+                .hmc.occupied:hover {
+                    background: rgba(249,115,22,.28);
+                    box-shadow: 0 0 16px var(--accent-glow);
+                }
+
+            .hmc.reserved {
+                background: rgba(59,130,246,.18);
+                border-color: rgba(59,130,246,.4);
+                color: var(--blue);
+            }
+
+                .hmc.reserved:hover {
+                    background: rgba(59,130,246,.28);
+                    box-shadow: 0 0 16px rgba(59,130,246,.3);
+                }
+
+            .hmc.empty {
+                background: var(--surface2);
+                border-color: var(--border);
+                color: var(--text3);
+            }
+
+            .hmc.waiter {
+                background: rgba(245,158,11,.18);
+                border-color: rgba(245,158,11,.5);
+                color: var(--amber);
+                animation: critPulse 2s ease-in-out infinite;
+            }
+
+        .hm-id {
+            font-size: 9px;
+            font-weight: 800;
+        }
+
+        .hm-bill {
+            font-size: 10px;
+            font-weight: 700;
+            margin-top: 2px;
+        }
+
+        .hm-tip {
+            display: none;
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--surface2);
+            border: 1px solid var(--border2);
+            border-radius: 10px;
+            padding: 10px 13px;
+            z-index: 100;
+            white-space: nowrap;
+            pointer-events: none;
+            box-shadow: 0 8px 32px rgba(0,0,0,.7);
+            min-width: 130px;
+        }
+
+        .hmc:hover .hm-tip {
+            display: block;
+        }
+
+        .hm-tip-t {
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--accent);
+            margin-bottom: 4px;
+        }
+
+        .hm-tip-r {
+            font-size: 11px;
+            color: var(--text2);
+            line-height: 1.7;
+        }
+
+        /* Donut */
+        .dwrap {
+            position: relative;
+            height: 180px;
+            margin-bottom: 14px;
+        }
+
+        .dcenter {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+
+        .dc-lbl {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text3);
+            text-transform: uppercase;
+            letter-spacing: .8px;
+        }
+
+        .dc-val {
+            font-size: 26px;
+            font-weight: 900;
+            color: var(--text);
+            line-height: 1;
+            margin: 2px 0;
+        }
+
+        .top-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .top-rank {
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--text3);
+            min-width: 18px;
+        }
+
+        .top-name {
+            font-size: 12px;
+            font-weight: 600;
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .top-bw {
+            width: 60px;
+            height: 4px;
+            background: var(--surface3);
+            border-radius: 2px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .top-bar {
+            height: 100%;
+            background: linear-gradient(90deg,var(--accent-dk),var(--accent));
+            border-radius: 2px;
+            animation: pgrow .9s ease both;
+        }
+
+        .top-qty {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--accent);
+            min-width: 42px;
+            text-align: right;
+        }
+
+        /* ── Bottom grid ───────────────────────────────────────────────────────── */
+        .bot-grid {
+            display: grid;
+            grid-template-columns: 1.5fr 1.2fr 1fr;
+            gap: 14px;
+        }
+
+        @@media(max-width:1200px) {
+            .bot-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @@media(max-width:700px) {
+            .bot-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .bot-r {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        /* Stock cards */
+        .sc {
+            border-radius: var(--r-sm);
+            padding: 12px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transition: all .15s ease;
+        }
+
+            .sc.critical {
+                animation: critPulse 2.2s ease-in-out infinite;
+            }
+
+        .sc-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .sc-nm {
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .sc-bdg {
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: .8px;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 5px;
+        }
+
+        .sc-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text2);
+        }
+
+        .sc-pb {
+            height: 5px;
+            border-radius: 3px;
+            background: var(--surface3);
+            overflow: hidden;
+        }
+
+        .sc-pf {
+            height: 100%;
+            border-radius: 3px;
+            animation: pgrow 1s ease both;
+        }
+
+        /* Revenue target */
+        .tgt-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 14px;
+        }
+
+        .tgt-sw {
+            position: relative;
+            width: 68px;
+            height: 68px;
+            flex-shrink: 0;
+        }
+
+        .tgt-svg {
+            width: 68px;
+            height: 68px;
+            transform: rotate(-90deg);
+        }
+
+        .tgt-bg {
+            fill: none;
+            stroke: var(--surface3);
+            stroke-width: 7;
+        }
+
+        .tgt-fg {
+            fill: none;
+            stroke: var(--accent);
+            stroke-width: 7;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 1.4s cubic-bezier(.22,1,.36,1);
+        }
+
+        .tgt-lbl {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 900;
+            color: var(--accent);
+        }
+
+        .tgt-val {
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: -.5px;
+        }
+
+        .tgt-of {
+            font-size: 12px;
+            color: var(--text2);
+            margin-top: 2px;
+        }
+
+        .tgt-bw {
+            height: 10px;
+            background: var(--surface3);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .tgt-bf {
+            height: 100%;
+            background: linear-gradient(90deg,#c2410c,var(--accent),#fb923c);
+            border-radius: 5px;
+            animation: pgrow 1.5s cubic-bezier(.22,1,.36,1) both .3s;
+            box-shadow: 0 0 14px var(--accent-glow);
+        }
+
+        .tgt-tks {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 6px;
+            font-size: 10px;
+            color: var(--text3);
+        }
+
+        /* Empty state */
+        .emp {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 180px;
+            gap: 8px;
+            color: var(--text3);
+        }
+
+        .emp-i {
+            font-size: 36px;
+            opacity: .25;
+        }
+
+        /* Toast */
+        #toast-c {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 9999;
+            pointer-events: none;
+        }
+
+        .ti {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--surface2);
+            border-radius: 12px;
+            padding: 12px 18px;
+            pointer-events: auto;
+            min-width: 260px;
+            animation: toastIn .32s cubic-bezier(.22,1,.36,1) both;
+            box-shadow: 0 8px 32px rgba(0,0,0,.5);
+        }
+
+            .ti.out {
+                animation: toastOut .28s ease forwards;
+            }
+
+        .ti-ico {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .ti-msg {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .ti-t {
+            font-size: 10px;
+            color: var(--text3);
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+
+        /* Legend rows */
+        .lgd-row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .lgd-i {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            color: var(--text2);
+        }
+
+        .lgd-line {
+            width: 14px;
+            height: 2px;
+            display: inline-block;
+            border-radius: 2px;
+        }
+    </style>
 }
 
-@* ── BAŞLIK ─────────────────────────────────────────────────────────────── *@
-<div class="dash-header">
-    <div>
-        <h1 class="dash-title">📊 Dashboard</h1>
-        <div class="dash-subtitle">Anlık operasyon özeti — <span class="dash-date">@DateTime.Now.ToString("dd MMMM yyyy, HH:mm", new System.Globalization.CultureInfo("tr-TR"))</span></div>
-    </div>
-    <a asp-controller="Reports" asp-action="Index" class="btn btn-ghost" style="font-size:.8rem;">
-        📈 Raporlar →
-    </a>
-</div>
+@* ════════════════════════════════════════════════════════════════════════
+   HTML BODY
+   ════════════════════════════════════════════════════════════════════════ *@
+<div class="dp">
 
-@* ── ALARM ŞERİDİ ────────────────────────────────────────────────────────── *@
-@if (Model.WaiterCallsActive > 0 || Model.LowStockAlerts > 0 || Model.ActiveOrdersNow > 0)
-{
-    <div class="alert-strip">
-        @if (Model.ActiveOrdersNow > 0)
-        {
-            <a asp-controller="Orders" asp-action="Index" class="alert-chip chip-orange">
-                🧾 @Model.ActiveOrdersNow aktif sipariş
-            </a>
-        }
-        @if (Model.WaiterCallsActive > 0)
-        {
-            <a asp-controller="Tables" asp-action="Index" class="alert-chip chip-red">
-                🔔 @Model.WaiterCallsActive garson çağrısı
-            </a>
-        }
-        @if (Model.LowStockAlerts > 0)
-        {
-            <a asp-controller="Stock" asp-action="Index" class="alert-chip chip-red">
-                ⚠️ @Model.LowStockAlerts kritik stok
-            </a>
-        }
-    </div>
-}
-
-@* ══════════════════════════════════════════════════════════════════════════
-   KPI KARTLARI — 4'lü Bento Grid
-   ══════════════════════════════════════════════════════════════════════════ *@
-<div class="kpi-grid">
-
-    @* ── Kart 1: Günlük Ciro ── *@
-    <div class="bento-card">
-        <div class="kpi-icon">💰</div>
-        <div class="kpi-label">Günlük Ciro</div>
-        <div class="kpi-value">₺@Model.DailyTotalRevenue.ToString("N0")</div>
-        <span class="kpi-badge @TrendClass(Model.RevenueTrendPercentage)">
-            @TrendText(Model.RevenueTrendPercentage)
-        </span>
-        <div class="kpi-meta">Düne kıyasla</div>
-    </div>
-
-    @* ── Kart 2: Sipariş Adedi ── *@
-    <div class="bento-card">
-        <div class="kpi-icon">🧾</div>
-        <div class="kpi-label">Sipariş Adedi</div>
-        <div class="kpi-value">@Model.TotalOrdersToday</div>
-        <div class="kpi-meta">
-            <span class="kpi-active-dot"></span>
-            @Model.ActiveOrdersNow aktif &nbsp;·&nbsp;
-            @(Model.TotalOrdersToday - Model.ActiveOrdersNow) kapandı
-        </div>
-    </div>
-
-    @* ── Kart 3: Adisyon Ortalaması ── *@
-    <div class="bento-card">
-        <div class="kpi-icon">📊</div>
-        <div class="kpi-label">Adisyon Ortalaması</div>
-        <div class="kpi-value">₺@Model.AverageOrderValue.ToString("N0")</div>
-        <div class="kpi-meta">Kapanan siparişlerin ortalaması</div>
-    </div>
-
-    @* ── Kart 4: Masa Durumu ── *@
-    <div class="bento-card">
-        <div class="kpi-icon">🪑</div>
-        <div class="kpi-label">Masa Durumu</div>
-        <div class="kpi-value">
-            @ts.Occupied <span style="font-size:1rem;font-weight:400;color:var(--text-muted);">/ @ts.Total dolu</span>
-        </div>
-
-        @* Doluluk çubuğu *@
-        <div class="table-status-bar">
-            <div class="tsb-segment tsb-occupied" style="width:@occPct.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)%"></div>
-            <div class="tsb-segment tsb-reserved" style="width:@resPct.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)%"></div>
-            <div class="tsb-segment tsb-empty"    style="width:@empPct.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)%"></div>
-        </div>
-
-        <div class="table-legend">
-            <div class="tl-item">
-                <div class="tl-dot" style="background:var(--accent)"></div>
-                <span>Dolu (@ts.Occupied)</span>
-            </div>
-            <div class="tl-item">
-                <div class="tl-dot" style="background:#3B82F6"></div>
-                <span>Rezerve (@ts.Reserved)</span>
-            </div>
-            <div class="tl-item">
-                <div class="tl-dot" style="background:var(--border)"></div>
-                <span>Boş (@ts.Empty)</span>
-            </div>
-        </div>
-    </div>
-
-</div>
-
-@* ══════════════════════════════════════════════════════════════════════════
-   GRAFİK SATIRI — Sol: Line Chart | Sağ: Doughnut + Liste
-   ══════════════════════════════════════════════════════════════════════════ *@
-<div class="chart-grid">
-
-    @* ── Sol: Saatlik Yoğunluk (Line Chart) ── *@
-    <div class="chart-card">
-        <div class="chart-card-header">
+    @* ── BAŞLIK ─────────────────────────────────────────────────────────── *@
+    <div class="dh wu d1">
+        <div class="dh-l">
+            <div class="dh-logo">🍽️</div>
             <div>
-                <div class="chart-card-title">⏱️ Saatlik Sipariş Yoğunluğu</div>
-                <div class="chart-card-sub">Bugünün saat bazında sipariş akışı</div>
+                <div class="dh-title">Komuta <b>Merkezi</b></div>
+                <div class="dh-sub">Anlık operasyon özeti — <span id="liveDate"></span></div>
             </div>
-            <span class="chart-tag">Bugün</span>
         </div>
-
-        @if (Model.HourlyOrderTrends.All(h => h.OrderCount == 0))
-        {
-            <div class="chart-empty">
-                <div class="chart-empty-icon">📭</div>
-                <span>Bugün henüz sipariş yok</span>
-            </div>
-        }
-        else
-        {
-            <div class="chart-wrap">
-                <canvas id="lineChart" height="220"></canvas>
-            </div>
-        }
-    </div>
-
-    @* ── Sağ: En Çok Satanlar (Doughnut + Liste) ── *@
-    <div class="chart-card">
-        <div class="chart-card-header">
-            <div>
-                <div class="chart-card-title">🏆 En Çok Satanlar</div>
-                <div class="chart-card-sub">Bugünün top 5 ürünü</div>
-            </div>
-            <span class="chart-tag">Top 5</span>
-        </div>
-
-        @if (!Model.TopSellingProducts.Any())
-        {
-            <div class="chart-empty">
-                <div class="chart-empty-icon">📭</div>
-                <span>Henüz satış verisi yok</span>
-            </div>
-        }
-        else
-        {
-            @* Doughnut Grafik *@
-            <div class="doughnut-wrap">
-                <canvas id="doughnutChart" height="220"></canvas>
-                <div class="doughnut-center">
-                    <div class="dc-label">toplam</div>
-                    <div class="dc-value">@Model.TopSellingProducts.Sum(p => p.Quantity)</div>
-                    <div class="dc-label">adet</div>
+        <div class="dh-r">
+            <a asp-controller="Reports" asp-action="Index" class="btn-rep">📈 Raporlar →</a>
+            <div class="live-blk">
+                <div class="live-bdg">
+                    <div class="live-dw">
+                        <span class="live-dr"></span>
+                        <span class="live-dc"></span>
+                    </div>
+                    <span class="live-lbl">CANLI</span>
                 </div>
+                <span class="live-time" id="liveClk">--:--:--</span>
             </div>
+        </div>
+    </div>
 
-            @* Sıralı liste *@
-            <div class="top-list">
-                @for (int i = 0; i < Model.TopSellingProducts.Count; i++)
+    @* ── ALARM ŞERİDİ ────────────────────────────────────────────────────── *@
+    @if (Model.ActiveOrdersNow > 0 || Model.WaiterCallsActive > 0 || Model.LowStockAlerts > 0)
+    {
+        <div class="astrip wu d2">
+            @if (Model.ActiveOrdersNow > 0)
+            {
+                <a asp-controller="Orders" asp-action="Index" class="chip chip-o">🧾 @Model.ActiveOrdersNow aktif sipariş</a>
+            }
+            @if (Model.WaiterCallsActive > 0)
+            {
+                <a asp-controller="Tables" asp-action="Index" class="chip chip-r">🔔 @Model.WaiterCallsActive garson çağrısı</a>
+            }
+            @if (Model.LowStockAlerts > 0)
+            {
+                <a asp-controller="Stock" asp-action="Index" class="chip chip-r">⚠️ @Model.LowStockAlerts kritik stok</a>
+            }
+        </div>
+    }
+
+    @* ════════════════════════════════════════════════════════════════════════
+   BÖLÜM 1 — KPI KARTLARI
+   ════════════════════════════════════════════════════════════════════════ *@
+    <div class="kpi-grid">
+
+        <div class="card kc wu d3">
+            <div class="kc-top">
+                <div class="kc-ico">💰</div>
+                <span class="kbadge @TrendClass(Model.RevenueTrendPercentage)">@TrendText(Model.RevenueTrendPercentage)</span>
+            </div>
+            <div class="klbl">Günlük Ciro</div>
+            <div class="kval" data-cu="@((double)Model.DailyTotalRevenue)" data-pre="₺" data-fmt="cur">₺0</div>
+            <div class="kmeta">Dün: ₺@Model.YesterdayRevenue.ToString("N0")</div>
+        </div>
+
+        <div class="card kc wu d4">
+            <div class="kc-top">
+                <div class="kc-ico">🧾</div>
+                <span class="kbadge up">Bugün</span>
+            </div>
+            <div class="klbl">Sipariş Adedi</div>
+            <div class="kval" data-cu="@Model.TotalOrdersToday">0</div>
+            <div class="kmeta">
+                <span class="ka-dot"></span>
+                @Model.ActiveOrdersNow aktif &nbsp;·&nbsp; @Model.ClosedOrdersToday kapandı
+            </div>
+        </div>
+
+        <div class="card kc wu d5">
+            <div class="kc-top">
+                <div class="kc-ico">📊</div>
+                <span class="kbadge neutral">Ort.</span>
+            </div>
+            <div class="klbl">Adisyon Ortalaması</div>
+            <div class="kval" data-cu="@((double)Model.AverageOrderValue)" data-pre="₺" data-fmt="cur">₺0</div>
+            <div class="kmeta">Kapanan adisyonlar</div>
+        </div>
+
+        <div class="card kc wu d6">
+            <div class="kc-top">
+                <div class="kc-ico">🪑</div>
+                <span class="kbadge @(ts.OccupancyRate > 70 ? "up" : "neutral")">
+                    %@ts.OccupancyRate.ToString("F0") Dolu
+                </span>
+            </div>
+            <div class="klbl">Masa Durumu</div>
+            <div class="kval">
+                @ts.Occupied<span style="font-size:1rem;font-weight:500;color:var(--text3)"> / @ts.Total</span>
+            </div>
+            <div class="tsb">
+                <div class="tsb-o" style="width:@occPct.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)%"></div>
+                <div class="tsb-r" style="width:@resPct.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)%"></div>
+                <div class="tsb-e"></div>
+            </div>
+            <div class="tsb-lgd">
+                <div class="tsl"><span class="tsl-d" style="background:var(--accent)"></span>Dolu (@ts.Occupied)</div>
+                <div class="tsl"><span class="tsl-d" style="background:var(--blue)"></span>Rezerve (@ts.Reserved)</div>
+                <div class="tsl"><span class="tsl-d" style="background:var(--surface3)"></span>Boş (@ts.Empty)</div>
+            </div>
+        </div>
+
+    </div>
+
+    @* ════════════════════════════════════════════════════════════════════════
+   BÖLÜM 2 — ANA GÖRSELLEŞTIRMELER
+   ════════════════════════════════════════════════════════════════════════ *@
+    <div class="mid-grid">
+
+        @* Area Chart *@
+        <div class="card wu d7" style="padding:22px">
+            <div class="ch">
+                <div><div class="ch-t">⏱️ Saatlik Sipariş Yoğunluğu</div><div class="ch-s">Bugünün saat bazlı akışı</div></div>
+                <span class="ch-tag">Bugün</span>
+            </div>
+            @if (Model.HourlyOrderTrends.All(h => h.OrderCount == 0))
+            {
+                <div class="emp"><div class="emp-i">📭</div><div>Henüz sipariş yok</div></div>
+            }
+            else
+            {
+
+                <div class="cw"><canvas id="areaChart"></canvas></div>
+            }
+        </div>
+
+        @* Heatmap *@
+        <div class="card wu d8" style="padding:22px">
+            <div class="ch">
+                <div><div class="ch-t">🗺️ Masa Haritası</div><div class="ch-s">Anlık doluluk durumu</div></div>
+                <span class="ch-tag ch-tag-g">@ts.Occupied/@ts.Total Dolu</span>
+            </div>
+            <div class="hmg">
+                @foreach (var m in Model.TableHeatmap)
                 {
-                    var p    = Model.TopSellingProducts[i];
-                    var pct  = maxQty > 0 ? (int)Math.Round((double)p.Quantity / maxQty * 100) : 0;
-                    <div class="top-item">
-                        <div class="top-rank">#@(i + 1)</div>
-                        <div class="top-name" title="@p.ProductName">@p.ProductName</div>
-                        <div class="top-bar-wrap">
-                            <div class="top-bar" style="width:@pct%"></div>
+                    <div class="hmc @m.Status">
+                        <div class="hm-id">@m.TableId</div>
+                        @if (m.Status == "occupied" || m.Status == "waiter")
+                        {
+                            <div class="hm-bill">₺@m.CurrentBill.ToString("N0")</div>
+                        }
+                        else if (m.Status == "reserved")
+                        {
+
+                            <div class="hm-bill">@m.ReservationTime</div>
+                        }
+                        <div class="hm-tip">
+                            <div class="hm-tip-t">@m.TableName</div>
+                            @if (m.Status == "occupied" || m.Status == "waiter")
+                            {
+                                <div class="hm-tip-r">💰 ₺@m.CurrentBill.ToString("N0")</div>
+                                <div class="hm-tip-r">👥 @m.GuestCount kişi · ⏱ @m.DurationText</div>
+                                @if (m.Status == "waiter")
+                                {
+                                    <div class="hm-tip-r" style="color:var(--amber)">🔔 Garson çağırıyor!</div>
+                                }
+                            }
+                            else if (m.Status == "reserved")
+                            {
+                                <div class="hm-tip-r">📅 Rezervasyon · ⏰ @m.ReservationTime</div>
+                            }
+                            else
+                            {
+
+                                <div class="hm-tip-r">✅ Müsait masa</div>
+                            }
                         </div>
-                        <div class="top-qty">@p.Quantity adet</div>
                     </div>
                 }
             </div>
-        }
+        </div>
+
+        @* Donut *@
+        <div class="card wu d9" style="padding:22px">
+            <div class="ch">
+                <div><div class="ch-t">🏆 En Çok Satanlar</div><div class="ch-s">Bugünkü top 5 ürün</div></div>
+                <span class="ch-tag">Top 5</span>
+            </div>
+            @if (!Model.TopSellingProducts.Any())
+            {
+                <div class="emp"><div class="emp-i">📭</div><div>Veri yok</div></div>
+            }
+            else
+            {
+                <div class="dwrap">
+                    <canvas id="donutChart"></canvas>
+                    <div class="dcenter">
+                        <div class="dc-lbl">toplam</div>
+                        <div class="dc-val">@Model.TopSellingProducts.Sum(p => p.Quantity)</div>
+                        <div class="dc-lbl">adet</div>
+                    </div>
+                </div>
+                <div>
+                    @for (int i = 0; i < Model.TopSellingProducts.Count; i++)
+                    {
+                        var p = Model.TopSellingProducts[i];
+                        var pct = maxQty > 0 ? (int)Math.Round((double)p.Quantity / maxQty * 100) : 0;
+                        <div class="top-item">
+                            <div class="top-rank">#@(i + 1)</div>
+                            <div class="top-name" title="@p.ProductName">@p.ProductName</div>
+                            <div class="top-bw"><div class="top-bar" style="width:@pct%;animation-delay:@(i * 0.1)s"></div></div>
+                            <div class="top-qty">@p.Quantity ad</div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+    </div>
+
+    @* ════════════════════════════════════════════════════════════════════════
+   BÖLÜM 3 — ANALİTİK
+   ════════════════════════════════════════════════════════════════════════ *@
+    <div class="bot-grid">
+
+        @* Haftalık trend *@
+        <div class="card wu d7" style="padding:22px">
+            <div class="ch">
+                <div><div class="ch-t">📈 Haftalık Trend</div><div class="ch-s">Bu hafta vs. geçen hafta ciro</div></div>
+                <div class="lgd-row">
+                    <div class="lgd-i"><span class="lgd-line" style="background:var(--accent)"></span>Bu Hafta</div>
+                    <div class="lgd-i"><span class="lgd-line" style="background:var(--text3)"></span>Geçen</div>
+                </div>
+            </div>
+            <div class="cw" style="height:190px"><canvas id="weeklyChart"></canvas></div>
+        </div>
+
+        @* Karlı saatler *@
+        <div class="card wu d8" style="padding:22px">
+            <div class="ch">
+                <div><div class="ch-t">💹 En Karlı Saatler</div><div class="ch-s">Saatlik gelir dağılımı</div></div>
+            </div>
+            <div class="cw" style="height:190px"><canvas id="barChart"></canvas></div>
+        </div>
+
+        @* Stok + Hedef *@
+        <div class="bot-r">
+
+            <div class="card wu d9" style="padding:20px">
+                <div class="ch" style="margin-bottom:12px">
+                    <div><div class="ch-t">📦 Stok Durumu</div><div class="ch-s">Malzeme seviyeleri</div></div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                    @foreach (var s in Model.StockAlerts)
+                    {
+                        var col = StockLevelColor(s.Level);
+                        var bg = StockLevelBg(s.Level);
+                        var brd = StockLevelBorder(s.Level);
+                        <div class="sc @(s.Level == "critical" ? "critical" : "")"
+                             style="background:@bg;border:1px solid @brd">
+                            <div class="sc-top">
+                                <div class="sc-nm">@s.ProductName</div>
+                                <span class="sc-bdg" style="background:@bg;color:@col;border:1px solid @brd">
+                                    @StockLevelLabel(s.Level)
+                                </span>
+                            </div>
+                            <div class="sc-row">
+                                <span>@s.CurrentQty @s.Unit / @s.MaxQty @s.Unit</span>
+                                <span style="color:@col;font-weight:700">%@s.PercentRemaining.ToString("F0")</span>
+                            </div>
+                            <div class="sc-pb">
+                                <div class="sc-pf"
+                                     style="width:@s.PercentRemaining.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)%;background:@col;opacity:.8">
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="card wu d10" style="padding:20px">
+                <div class="ch-t" style="margin-bottom:14px">🎯 Günlük Ciro Hedefi</div>
+                <div class="tgt-row">
+                    <div class="tgt-sw">
+                        <svg class="tgt-svg" viewBox="0 0 68 68">
+                            <circle class="tgt-bg" cx="34" cy="34" r="27" />
+                            <circle class="tgt-fg" cx="34" cy="34" r="27"
+                                    stroke-dasharray="169.6"
+                                    stroke-dashoffset="@((169.6 * (1 - (double)Model.RevenueTargetPercentage / 100)).ToString("F1", System.Globalization.CultureInfo.InvariantCulture))" />
+                        </svg>
+                        <div class="tgt-lbl">%@Model.RevenueTargetPercentage.ToString("F0")</div>
+                    </div>
+                    <div>
+                        <div class="tgt-val">₺@Model.DailyTotalRevenue.ToString("N0")</div>
+                        <div class="tgt-of">Hedef: ₺@Model.DailyRevenueTarget.ToString("N0")</div>
+                    </div>
+                </div>
+                <div class="tgt-bw">
+                    <div class="tgt-bf"
+                         style="width:@Model.RevenueTargetPercentage.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)%">
+                    </div>
+                </div>
+                <div class="tgt-tks">
+                    <span>₺0</span>
+                    <span style="color:var(--accent);font-weight:600">₺@Model.DailyTotalRevenue.ToString("N0") ✓</span>
+                    <span>₺@Model.DailyRevenueTarget.ToString("N0")</span>
+                </div>
+            </div>
+
+        </div>
     </div>
 
 </div>
+<div id="toast-c"></div>
 
-@* ══════════════════════════════════════════════════════════════════════════
-   CHART.JS VERİ AKIŞI VE KURULUM
-   ══════════════════════════════════════════════════════════════════════════ *@
+@* ════════════════════════════════════════════════════════════════════════
+   SCRIPTS
+   ════════════════════════════════════════════════════════════════════════ *@
 @section Scripts {
-
+    <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@@8.0.7/dist/browser/signalr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-
     <script>
-    // ── Razor → JS Veri Köprüsü ─────────────────────────────────────────────
-    const hourlyData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-        Model.HourlyOrderTrends.Select(h => new {
-            label      = h.HourLabel,
-            orderCount = h.OrderCount,
-            revenue    = (double)h.Revenue
-        })
-    ));
+        /* ── Razor → JS Veri Köprüsü ──────────────────────────────────────────── */
+        const HOURLY  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                    Model.HourlyOrderTrends.Select(h => new { lbl = h.HourLabel, n = h.OrderCount, c = (double)h.Revenue })
+            ));
+    const TOP5    = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                Model.TopSellingProducts.Select(p => new { nm = p.ProductName, q = p.Quantity, r = (double)p.Revenue })
+        ));
+    const WEEKLY  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                Model.WeeklyTrend.Select(w => new { d = w.DayLabel, tw = (double)w.ThisWeek, lw = (double)w.LastWeek })
+        ));
 
-    const topData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-        Model.TopSellingProducts.Select(p => new {
-            name     = p.ProductName,
-            quantity = p.Quantity,
-            revenue  = (double)p.Revenue
-        })
-    ));
+    /* ── 1. CANLI SAAT ─────────────────────────────────────────────────────── */
+    !function liveClock(){
+        const c=document.getElementById('liveClk'), dt=document.getElementById('liveDate');
+        const p=n=>String(n).padStart(2,'0');
+        function tick(){
+            const n=new Date();
+            c&&(c.textContent=`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`);
+            dt&&(dt.textContent=n.toLocaleDateString('tr-TR',{weekday:'long',year:'numeric',month:'long',day:'numeric'}));
+        }
+        tick(); setInterval(tick,1000);
+    }();
 
-    // ── Tema Renkleri ────────────────────────────────────────────────────────
-    const accent    = '#F97316';
-    const isDark    = document.documentElement.getAttribute('data-theme') !== 'light';
-    const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)';
-    const textColor = isDark ? '#687080'                : '#8A95A3';
+        /* ── 2. COUNT-UP ───────────────────────────────────────────────────────── */
+        function countUp(el,target,dur,pre,isCur){
+            const t0=performance.now();
+            (function step(ts){
+                const p=Math.min((ts-t0)/dur,1), e=1-Math.pow(1-p,4), v=Math.round(e*target);
+                el.textContent=pre+(isCur?v.toLocaleString('tr-TR'):v);
+                p<1&&requestAnimationFrame(step);
+            })(performance.now());
+        }
+        document.querySelectorAll('[data-cu]').forEach(el=>{
+            setTimeout(()=>countUp(el,+el.dataset.cu,1500,el.dataset.pre||'',el.dataset.fmt==='cur'),350);
+        });
 
-    // ── Genel Plugin Varsayılanları ──────────────────────────────────────────
-    Chart.defaults.font.family  = "'DM Sans', sans-serif";
-    Chart.defaults.font.size    = 11;
-    Chart.defaults.color        = textColor;
+        /* ── 3. CHART.JS DEFAULTS ─────────────────────────────────────────────── */
+        const ACC='#f97316', GC='rgba(255,255,255,0.05)', TC='#5a5668';
+        Chart.defaults.font.family="'Outfit',sans-serif"; Chart.defaults.font.size=11; Chart.defaults.color=TC;
+        const TIP={ backgroundColor:'#1a1a28', borderColor:'rgba(255,255,255,0.1)', borderWidth:1,
+                    titleColor:'#f0ece8', bodyColor:TC, padding:10, cornerRadius:10 };
+        const SC={ x:{grid:{color:GC},ticks:{color:TC},border:{display:false}},
+                   y:{grid:{color:GC},ticks:{color:TC},border:{display:false},beginAtZero:true} };
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // 1. LINE CHART  —  Saatlik Sipariş Yoğunluğu
-    // ══════════════════════════════════════════════════════════════════════════
-    const lineCanvas = document.getElementById('lineChart');
-    if (lineCanvas && hourlyData.length > 0) {
+        /* ── 4. AREA CHART ─────────────────────────────────────────────────────── */
+        const aEl=document.getElementById('areaChart');
+        if(aEl&&HOURLY.length){
+            const ctx=aEl.getContext('2d'), g=ctx.createLinearGradient(0,0,0,200);
+            g.addColorStop(0,'rgba(249,115,22,.32)'); g.addColorStop(.6,'rgba(249,115,22,.07)'); g.addColorStop(1,'rgba(249,115,22,0)');
+            new Chart(ctx,{
+                type:'line',
+                data:{ labels:HOURLY.map(h=>h.lbl),
+                       datasets:[{label:'Sipariş',data:HOURLY.map(h=>h.n),borderColor:ACC,backgroundColor:g,
+                                  borderWidth:2.5,pointRadius:4,pointBackgroundColor:ACC,pointBorderColor:'#0a0a0f',
+                                  pointBorderWidth:2,pointHoverRadius:6,fill:true,tension:.4}]},
+                options:{ responsive:true,maintainAspectRatio:false,
+                    animation:{duration:900,easing:'easeOutQuart'},
+                    interaction:{mode:'index',intersect:false},
+                    plugins:{legend:{display:false},tooltip:{...TIP,callbacks:{label:c=>` ${c.parsed.y} sipariş`}}},
+                    scales:{...SC,y:{...SC.y,ticks:{...SC.y.ticks,stepSize:1,callback:v=>Number.isInteger(v)?v:''}}} }
+            });
+        }
 
-        const ctx = lineCanvas.getContext('2d');
+        /* ── 5. DONUT CHART ────────────────────────────────────────────────────── */
+        const dEl=document.getElementById('donutChart');
+        if(dEl&&TOP5.length){
+            const PAL=['#f97316','#fb923c','#fdba74','#c2410c','#431407'];
+            new Chart(dEl.getContext('2d'),{
+                type:'doughnut',
+                data:{ labels:TOP5.map(p=>p.nm),
+                       datasets:[{data:TOP5.map(p=>p.q),backgroundColor:PAL,borderColor:'#0a0a0f',borderWidth:3,hoverOffset:8}]},
+                options:{ responsive:true,maintainAspectRatio:false,cutout:'70%',
+                    animation:{duration:800,animateRotate:true},
+                    plugins:{legend:{display:false},tooltip:{...TIP,callbacks:{label:c=>` ${c.parsed} adet`}}} }
+            });
+        }
 
-        // Turuncu degrade dolgu
-        const gradient = ctx.createLinearGradient(0, 0, 0, 260);
-        gradient.addColorStop(0,   'rgba(249,115,22,0.28)');
-        gradient.addColorStop(0.6, 'rgba(249,115,22,0.06)');
-        gradient.addColorStop(1,   'rgba(249,115,22,0.00)');
+        /* ── 6. WEEKLY LINE CHART ──────────────────────────────────────────────── */
+        const wEl=document.getElementById('weeklyChart');
+        if(wEl&&WEEKLY.length){
+            new Chart(wEl.getContext('2d'),{
+                type:'line',
+                data:{ labels:WEEKLY.map(w=>w.d),
+                       datasets:[
+                           {label:'Bu Hafta',data:WEEKLY.map(w=>w.tw),borderColor:ACC,backgroundColor:'transparent',
+                            borderWidth:3,pointRadius:5,pointBackgroundColor:ACC,pointBorderColor:'#0a0a0f',
+                            pointBorderWidth:2,pointHoverRadius:7,tension:.35},
+                           {label:'Geçen Hafta',data:WEEKLY.map(w=>w.lw),borderColor:'rgba(255,255,255,.18)',
+                            backgroundColor:'transparent',borderWidth:2,borderDash:[5,4],
+                            pointRadius:3,pointBackgroundColor:'rgba(255,255,255,.18)',tension:.35}
+                       ]},
+                options:{ responsive:true,maintainAspectRatio:false,animation:{duration:900},
+                    interaction:{mode:'index',intersect:false},
+                    plugins:{legend:{display:false},
+                             tooltip:{...TIP,callbacks:{label:c=>` ${c.dataset.label}: ₺${Math.round(c.parsed.y).toLocaleString('tr-TR')}`}}},
+                    scales:{...SC,y:{...SC.y,ticks:{...SC.y.ticks,callback:v=>'₺'+(v/1000).toFixed(0)+'K'}}} }
+            });
+        }
 
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels:   hourlyData.map(h => h.label),
-                datasets: [{
-                    label:           'Sipariş Adedi',
-                    data:            hourlyData.map(h => h.orderCount),
-                    borderColor:     accent,
-                    backgroundColor: gradient,
-                    borderWidth:     2.5,
-                    pointRadius:     4,
-                    pointBackgroundColor: accent,
-                    pointBorderColor:    isDark ? '#161A20' : '#fff',
-                    pointBorderWidth:    2,
-                    pointHoverRadius:    6,
-                    fill:            true,
-                    tension:         0.38
-                }]
-            },
-            options: {
-                responsive:          true,
-                maintainAspectRatio: false,
-                animation: {
-                    duration: 900,
-                    easing:   'easeOutQuart'
-                },
-                interaction: {
-                    mode:      'index',
-                    intersect: false
-                },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: isDark ? '#1E242C' : '#fff',
-                        borderColor:     isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-                        borderWidth:     1,
-                        titleColor:      isDark ? '#EEF0F3' : '#141A22',
-                        bodyColor:       textColor,
-                        padding:         10,
-                        callbacks: {
-                            label: ctx => ` ${ctx.parsed.y} sipariş`
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        grid:    { color: gridColor },
-                        ticks:   { color: textColor, maxTicksLimit: 10 },
-                        border:  { display: false }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        grid:   { color: gridColor },
-                        ticks:  {
-                            color:     textColor,
-                            stepSize:  1,
-                            callback:  val => Number.isInteger(val) ? val : ''
-                        },
-                        border: { display: false }
-                    }
+        /* ── 7. BAR CHART ─────────────────────────────────────────────────────── */
+        const bEl=document.getElementById('barChart');
+        if(bEl&&HOURLY.length){
+            const mx=Math.max(...HOURLY.map(h=>h.c));
+            const cols=HOURLY.map(h=>h.c===mx?ACC:'rgba(249,115,22,.25)');
+            new Chart(bEl.getContext('2d'),{
+                type:'bar',
+                data:{ labels:HOURLY.map(h=>h.lbl),
+                       datasets:[{label:'Ciro',data:HOURLY.map(h=>h.c),backgroundColor:cols,borderWidth:0,
+                                  borderRadius:5,borderSkipped:false,hoverBackgroundColor:ACC}]},
+                options:{ responsive:true,maintainAspectRatio:false,animation:{duration:900,easing:'easeOutQuart'},
+                    plugins:{legend:{display:false},tooltip:{...TIP,callbacks:{label:c=>` ₺${Math.round(c.parsed.y).toLocaleString('tr-TR')}`}}},
+                    scales:{...SC,x:{...SC.x,ticks:{...SC.x.ticks,maxRotation:45}},
+                                y:{...SC.y,ticks:{...SC.y.ticks,callback:v=>'₺'+(v/1000).toFixed(0)+'K'}}} }
+            });
+        }
+
+        /* ════════════════════════════════════════════════════════════════════════
+           8. GERÇEK ZAMANLI BİLDİRİM SİSTEMİ — SignalR
+           ════════════════════════════════════════════════════════════════════════
+           Mock/setInterval kodu tamamen kaldırıldı.
+           Artık yalnızca OrdersController'dan gelen gerçek aksiyonlar
+           (Adisyon Aç, Ürün Ekle, Hesap Kapat vb.) bildirim üretir.
+
+           Hub: /notificationHub  (Program.cs → app.MapHub<NotificationHub>)
+           Event: ReceiveNotification  →  { icon, message, color, time }
+           ════════════════════════════════════════════════════════════════════════ */
+        !function initSignalR() {
+            const C = document.getElementById('toast-c');
+
+            // ── Toast DOM oluştur ve göster ─────────────────────────────────────
+            function showToast(icon, message, color, time) {
+                const t = document.createElement('div');
+                t.className = 'ti';
+                t.style.borderLeft = `3px solid ${color}`;
+                t.innerHTML =
+                    `<span class="ti-ico">${icon}</span>` +
+                    `<span class="ti-msg">${message}</span>` +
+                    `<span class="ti-t">${time}</span>`;
+                C.appendChild(t);
+
+                // 5 saniye görünür → fadeOut → DOM'dan sil
+                setTimeout(() => {
+                    t.classList.add('out');
+                    setTimeout(() => t.remove(), 320);
+                }, 5000);
+
+                // Maksimum 4 toast aynı anda görünsün
+                while (C.children.length > 4) C.firstChild.remove();
+            }
+
+            // ── SignalR bağlantısı kur ──────────────────────────────────────────
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl('/notificationHub')
+                .withAutomaticReconnect([0, 2000, 5000, 10000, 30000]) // ms cinsinden retry
+                .configureLogging(signalR.LogLevel.Warning)
+                .build();
+
+            // ── Sunucudan gelen gerçek event ─────────────────────────────────────
+            // OrdersController → NotifyAsync() → ReceiveNotification
+            connection.on('ReceiveNotification', function (payload) {
+                const { icon = '🔔', message = '', color = '#f97316', time = '' } = payload;
+                showToast(icon, message, color, time);
+            });
+
+            // ── Bağlantı yönetimi ────────────────────────────────────────────────
+            async function startConnection() {
+                try {
+                    await connection.start();
+                    console.info('[SignalR] NotificationHub bağlandı.');
+                } catch (err) {
+                    console.warn('[SignalR] Bağlantı hatası, 10sn sonra tekrar denenecek:', err);
+                    setTimeout(startConnection, 10000);
                 }
             }
-        });
-    }
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // 2. DOUGHNUT CHART  —  En Çok Satan Ürünler
-    // ══════════════════════════════════════════════════════════════════════════
-    const donutCanvas = document.getElementById('doughnutChart');
-    if (donutCanvas && topData.length > 0) {
+            connection.onreconnecting(() => console.info('[SignalR] Yeniden bağlanıyor…'));
+            connection.onreconnected(() => console.info('[SignalR] Yeniden bağlandı.'));
+            connection.onclose(err => {
+                console.warn('[SignalR] Bağlantı kapandı, yeniden başlatılıyor…', err);
+                setTimeout(startConnection, 5000);
+            });
 
-        // Lüks & modern renk paleti
-        const palette = [
-            '#F97316',  // turuncu (accent)
-            '#C5A059',  // altın
-            '#E2C278',  // açık altın
-            '#3B82F6',  // mavi vurgu
-            isDark ? '#CBD5E1' : '#64748B'  // gri/krem
-        ];
-
-        new Chart(donutCanvas.getContext('2d'), {
-            type: 'doughnut',
-            data: {
-                labels:   topData.map(p => p.name),
-                datasets: [{
-                    data:             topData.map(p => p.quantity),
-                    backgroundColor:  palette,
-                    borderColor:      isDark ? '#161A20' : '#fff',
-                    borderWidth:      3,
-                    hoverBorderWidth: 3,
-                    hoverOffset:      8
-                }]
-            },
-            options: {
-                responsive:          true,
-                maintainAspectRatio: false,
-                cutout:              '70%',
-                animation: {
-                    duration:          800,
-                    animateRotate:     true,
-                    animateScale:      false
-                },
-                plugins: {
-                    legend: {
-                        display: false  // Kendi listemi kullanıyoruz
-                    },
-                    tooltip: {
-                        backgroundColor: isDark ? '#1E242C' : '#fff',
-                        borderColor:     isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-                        borderWidth:     1,
-                        titleColor:      isDark ? '#EEF0F3' : '#141A22',
-                        bodyColor:       textColor,
-                        padding:         10,
-                        callbacks: {
-                            label: ctx => ` ${ctx.parsed} adet`
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    // ── Tema değiştiğinde grafikleri yenile ─────────────────────────────────
-    // site.css'teki theme toggle butonu tetiklediğinde sayfayı yenile
-    const themeToggleBtn = document.getElementById('themeToggle');
-    if (themeToggleBtn) {
-        themeToggleBtn.addEventListener('click', () => {
-            setTimeout(() => location.reload(), 100);
-        });
-    }
+            startConnection();
+        }();
     </script>
 }

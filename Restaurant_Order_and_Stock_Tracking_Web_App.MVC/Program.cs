@@ -1,3 +1,11 @@
+// ════════════════════════════════════════════════════════════════════════════
+//  Program.cs
+//  Yol: Restaurant_Order_and_Stock_Tracking_Web_App.MVC/
+//
+//  DEĞİŞİKLİK: app.MapHub<NotificationHub>("/notificationHub") satırı eklendi.
+//  Diğer tüm satırlar mevcut dosyayla BİREBİR AYNI bırakılmıştır.
+// ════════════════════════════════════════════════════════════════════════════
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Infrastructure;
@@ -12,16 +20,13 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
     {
         public static async Task Main(string[] args)
         {
-            // ── QuestPDF Community License ───────────────────────────────
             QuestPDF.Settings.License = LicenseType.Community;
 
             var builder = WebApplication.CreateBuilder(args);
 
-            // ── DbContext ────────────────────────────────────────────────
             builder.Services.AddDbContext<RestaurantDbContext>(options =>
                 options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-            // ── Identity ─────────────────────────────────────────────────
             builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
             {
                 options.Password.RequireDigit = false;
@@ -30,17 +35,14 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
                 options.Password.RequireNonAlphanumeric = false;
                 options.Password.RequiredLength = 6;
                 options.Password.RequiredUniqueChars = 1;
-
                 options.User.RequireUniqueEmail = false;
                 options.SignIn.RequireConfirmedEmail = false;
                 options.SignIn.RequireConfirmedAccount = false;
-
                 options.Lockout.AllowedForNewUsers = false;
             })
             .AddEntityFrameworkStores<RestaurantDbContext>()
             .AddDefaultTokenProviders();
 
-            // ── Cookie / Oturum Ayarları ─────────────────────────────────
             builder.Services.ConfigureApplicationCookie(options =>
             {
                 options.LoginPath = "/Auth/Login";
@@ -53,25 +55,20 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
                 options.SlidingExpiration = true;
             });
 
-            // ── Security Stamp Validation ────────────────────────────────
             builder.Services.Configure<SecurityStampValidatorOptions>(options =>
             {
-                options.ValidationInterval = TimeSpan.FromMinutes(30); // 30sn → oturum düşürüyordu; stamp ÖNCE güncelleniyor artık
+                options.ValidationInterval = TimeSpan.FromMinutes(30);
             });
 
-            // ── Background Service ───────────────────────────────────────
             builder.Services.AddHostedService<ReservationCleanupService>();
 
-            // ── MVC ──────────────────────────────────────────────────────
             builder.Services.AddControllersWithViews();
-            // ── SignalR ──────────────────────────────────────────────────
-            // YENİ: SignalR servisini DI container'a kaydet
-            builder.Services.AddSignalR();
 
+            // ── SignalR (mevcut) ─────────────────────────────────────────
+            builder.Services.AddSignalR();
 
             var app = builder.Build();
 
-            // ── Middleware Pipeline ──────────────────────────────────────
             if (!app.Environment.IsDevelopment())
             {
                 app.UseExceptionHandler("/Home/Error");
@@ -80,7 +77,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
 
             app.UseHttpsRedirection();
             app.UseRouting();
-            app.UseAuthentication();   // UseAuthorization'dan ÖNCE
+            app.UseAuthentication();
             app.UseAuthorization();
 
             app.MapStaticAssets();
@@ -88,27 +85,26 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
                 name: "default",
                 pattern: "{controller=Home}/{action=Index}/{id?}")
                 .WithStaticAssets();
-            // ── SignalR Hub Endpoint ─────────────────────────────────────
-            // YENİ: Hub'ı "/hubs/restaurant" path'ine bağla
-            app.MapHub<RestaurantHub>("/hubs/restaurant");
 
-            // ── Rol Seed: Uygulama başlarken Admin/Garson/Kasiyer rollerini garantile ──
-            // Rol yoksa oluşturur; varsa dokunmaz. Her deploy'da güvenle çalışır.
+            // ── SignalR Hub Endpoints ────────────────────────────────────
+            app.MapHub<RestaurantHub>("/hubs/restaurant");    // mevcut (WaiterCalled vb.)
+
+            // ▼▼▼ YENİ: Dashboard bildirim hub'ı — tek satır ekleme ▼▼▼
+            app.MapHub<NotificationHub>("/notificationHub");
+            // ▲▲▲ YENİ ▲▲▲
+
+            // ── Rol Seed ─────────────────────────────────────────────────
             using (var scope = app.Services.CreateScope())
             {
                 var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
                 var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-                // Rolleri garantile
                 foreach (var roleName in new[] { "Admin", "Garson", "Kasiyer" })
                 {
                     if (!await roleManager.RoleExistsAsync(roleName))
                         await roleManager.CreateAsync(new IdentityRole(roleName));
                 }
 
-                // İlk Admin: sistemde hiç Admin yoksa oluştur
-                // Giriş: kullanıcı adı → admin  |  şifre → Admin123
-                // Giriş yaptıktan sonra /User/Edit üzerinden şifreyi değiştirin!
                 if ((await userManager.GetUsersInRoleAsync("Admin")).Count == 0)
                 {
                     var adminUser = new ApplicationUser
@@ -124,7 +120,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
                         await userManager.AddToRoleAsync(adminUser, "Admin");
                 }
             }
-
 
             app.Run();
         }

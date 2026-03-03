@@ -1,6 +1,13 @@
 ﻿// ════════════════════════════════════════════════════════════════════════════
-//  Controllers/HomeController.cs
+//  Controllers/HomeController.cs  —  PRODUCTION (Gerçek Veri)
 //  Yol: Restaurant_Order_and_Stock_Tracking_Web_App.MVC/Controllers/
+//
+//  Bu dosya tamamen gerçek DB sorgularından oluşmaktadır.
+//  Mock veri içermez. DbContext: RestaurantDbContext
+//  Veritabanı: PostgreSQL (UTC timestamp kullanımı zorunlu)
+//
+//  ⚡ Index.cshtml ve DashboardViewModel ile TAMAMEN UYUMLUDUR.
+//     Razor view'da hiçbir değişiklik gerekmez.
 // ════════════════════════════════════════════════════════════════════════════
 
 using Microsoft.AspNetCore.Authorization;
@@ -16,145 +23,394 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
     {
         private readonly RestaurantDbContext _db;
 
-        public HomeController(RestaurantDbContext db)
-        {
-            _db = db;
-        }
+        // ── Sipariş durum sabitleri (ReportsController ile tutarlı) ─────────
+        private const string STATUS_OPEN = "open";
+        private const string STATUS_PAID = "paid";
 
-        // ── GET: /Home/Index (Dashboard) ─────────────────────────────────────
+        // ── Table.TableStatus integer sabitleri ──────────────────────────────
+        private const int TABLE_EMPTY = 0;
+        private const int TABLE_OCCUPIED = 1;
+        private const int TABLE_RESERVED = 2;
+
+        // ── Türkçe gün adları (WeeklyTrend DayLabel için) ───────────────────
+        private static readonly string[] TurkishDayNames =
+            { "Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt" };
+
+        public HomeController(RestaurantDbContext db) => _db = db;
+
+        // ════════════════════════════════════════════════════════════════════
+        //  GET  /Home/Index  —  Dashboard ana sayfa
+        // ════════════════════════════════════════════════════════════════════
         public async Task<IActionResult> Index()
         {
             ViewData["Title"] = "Dashboard";
 
-            // ── Tarih aralıkları ──────────────────────────────────────────────
-            // PostgreSQL UTC kullandığı için DateTime.UtcNow; SQL Server kullananlar
-            // DateTime.Today kullanabilir. Projenizin timezone ayarına göre düzeltin.
-            var todayStart = DateTime.UtcNow.Date;
-            var todayEnd = todayStart.AddDays(1);
-            var yesterdayStart = todayStart.AddDays(-1);
-            var yesterdayEnd = todayStart;
+            // ── UTC zaman aralıkları ─────────────────────────────────────────
+            // PostgreSQL UTC kullandığı için DateTime.Today.ToUniversalTime()
+            // kullanıyoruz. SQL Server projelerinde DateTime.Today kullanılabilir.
+            var todayLocal = DateTime.Today;
+            var todayUtcStart = todayLocal.ToUniversalTime();
+            var todayUtcEnd = todayLocal.AddDays(1).ToUniversalTime();
 
-            // ── 1. BUGÜNÜN SİPARİŞ VERİLERİNİ ÇEK ───────────────────────────
-            // Hem "open" hem "paid" siparişler (bugün açılanlar)
+            var yesterdayUtcStart = todayLocal.AddDays(-1).ToUniversalTime();
+            var yesterdayUtcEnd = todayUtcStart;
+
+            // ════════════════════════════════════════════════════════════════
+            //  1. TEPE METRİKLER
+            //     Tek sorguda bugünkü siparişlerin tüm KPI verisini çek.
+            // ════════════════════════════════════════════════════════════════
+
+            // Bugün açılan tüm siparişler (open + paid) — hafif projeksiyon
             var todayOrders = await _db.Orders
-                .Where(o => o.OrderOpenedAt >= todayStart && o.OrderOpenedAt < todayEnd)
+                .AsNoTracking()
+                .Where(o => o.OrderOpenedAt >= todayUtcStart &&
+                            o.OrderOpenedAt < todayUtcEnd)
                 .Select(o => new
                 {
                     o.OrderId,
                     o.OrderStatus,
                     o.OrderTotalAmount,
-                    o.OrderOpenedAt,
-                    o.OrderClosedAt
+                    o.OrderOpenedAt
                 })
                 .ToListAsync();
 
-            // Sadece ödenmiş siparişler → ciro hesabı
-            var paidToday = todayOrders.Where(o => o.OrderStatus == "paid").ToList();
+            var paidToday = todayOrders
+                .Where(o => o.OrderStatus == STATUS_PAID)
+                .ToList();
 
             decimal dailyRevenue = paidToday.Sum(o => o.OrderTotalAmount);
             int totalOrders = todayOrders.Count;
-            decimal avgOrderValue = paidToday.Count > 0
-                ? Math.Round(dailyRevenue / paidToday.Count, 2)
-                : 0;
-            int activeOrdersNow = todayOrders.Count(o => o.OrderStatus == "open");
+            int activeOrders = todayOrders.Count(o => o.OrderStatus == STATUS_OPEN);
+            int closedOrders = paidToday.Count;
 
-            // ── 2. DÜN CIRO (Trend hesabı) ───────────────────────────────────
+            decimal avgOrderValue = closedOrders > 0
+                ? Math.Round(dailyRevenue / closedOrders, 2)
+                : 0m;
+
+            // ── Dünkü ciro (trend için) ─────────────────────────────────────
             decimal yesterdayRevenue = await _db.Orders
-                .Where(o => o.OrderStatus == "paid"
-                         && o.OrderClosedAt >= yesterdayStart
-                         && o.OrderClosedAt < yesterdayEnd)
-                .SumAsync(o => o.OrderTotalAmount);
+                .AsNoTracking()
+                .Where(o => o.OrderStatus == STATUS_PAID &&
+                            o.OrderOpenedAt >= yesterdayUtcStart &&
+                            o.OrderOpenedAt < yesterdayUtcEnd)
+                .SumAsync(o => (decimal?)o.OrderTotalAmount) ?? 0m;
 
-            decimal? trendPct = null;
-            if (yesterdayRevenue > 0)
-            {
-                trendPct = Math.Round((dailyRevenue - yesterdayRevenue) / yesterdayRevenue * 100, 1);
-            }
-            else if (dailyRevenue > 0)
-            {
-                trendPct = 100m; // Dün 0, bugün pozitif → %100 artış göster
-            }
+            decimal? trendPct = yesterdayRevenue > 0
+                ? Math.Round((dailyRevenue - yesterdayRevenue) / yesterdayRevenue * 100, 1)
+                : dailyRevenue > 0 ? 100m : null;
 
-            // ── 3. MASA DURUMU ────────────────────────────────────────────────
-            var tableStatusRaw = await _db.Tables
-                .GroupBy(t => t.TableStatus)
-                .Select(g => new { Status = g.Key, Count = g.Count() })
+            // ════════════════════════════════════════════════════════════════
+            //  2. MASA DURUMU
+            //     TableStatus: 0=Boş, 1=Dolu, 2=Rezerve
+            // ════════════════════════════════════════════════════════════════
+
+            // Tüm masaları tek sorguda al — hem status özeti hem ısı haritası için
+            var allTables = await _db.Tables
+                .AsNoTracking()
+                .OrderBy(t => t.TableId)
+                .Select(t => new
+                {
+                    t.TableId,
+                    t.TableName,
+                    t.TableStatus,
+                    t.TableCapacity,
+                    t.IsWaiterCalled,
+                    t.ReservationGuestCount,
+                    t.ReservationTime
+                })
                 .ToListAsync();
 
             var tableStatus = new TableStatusSummaryData
             {
-                Empty = tableStatusRaw.FirstOrDefault(x => x.Status == 0)?.Count ?? 0,
-                Occupied = tableStatusRaw.FirstOrDefault(x => x.Status == 1)?.Count ?? 0,
-                Reserved = tableStatusRaw.FirstOrDefault(x => x.Status == 2)?.Count ?? 0
+                Empty = allTables.Count(t => t.TableStatus == TABLE_EMPTY),
+                Occupied = allTables.Count(t => t.TableStatus == TABLE_OCCUPIED),
+                Reserved = allTables.Count(t => t.TableStatus == TABLE_RESERVED)
             };
 
-            // ── 4. SAATLİK YOĞUNLUK ───────────────────────────────────────────
-            // Restoran için anlamlı saat aralığı: 08:00 - 23:00
-            var hourlyTrends = new List<HourlyTrendPoint>();
-            var currentHour = DateTime.UtcNow.Hour;
+            int waiterCalls = allTables.Count(t => t.IsWaiterCalled);
 
-            for (int h = 8; h <= 23; h++)
-            {
-                var slotStart = todayStart.AddHours(h);
-                var slotEnd = slotStart.AddHours(1);
+            // ════════════════════════════════════════════════════════════════
+            //  3. ISI HARİTASI
+            //     Dolu/Garson masalar için aktif adisyon bilgisi gerekli.
+            //     Tek JOIN sorgusuyla tüm açık adisyonları çek.
+            // ════════════════════════════════════════════════════════════════
 
-                // Henüz gelmemiş saatler için 0 göster ama grafiği bozmamak için dahil et
-                var ordersInSlot = todayOrders
-                    .Where(o => o.OrderOpenedAt >= slotStart && o.OrderOpenedAt < slotEnd)
-                    .ToList();
-
-                decimal slotRevenue = ordersInSlot
-                    .Where(o => o.OrderStatus == "paid")
-                    .Sum(o => o.OrderTotalAmount);
-
-                hourlyTrends.Add(new HourlyTrendPoint
+            // Tüm açık adisyonlar (OrderTotalAmount anlık tutar, OpenedAt süre için)
+            var openOrders = await _db.Orders
+                .AsNoTracking()
+                .Where(o => o.OrderStatus == STATUS_OPEN)
+                .Select(o => new
                 {
-                    HourLabel = $"{h:D2}:00",
-                    OrderCount = ordersInSlot.Count,
-                    Revenue = slotRevenue
-                });
-            }
-
-            // ── 5. EN ÇOK SATAN 5 ÜRÜN ───────────────────────────────────────
-            // Bugün açılan siparişlerin order item'larından hesapla
-            var topProducts = await _db.OrderItems
-                .Where(oi => oi.Order.OrderOpenedAt >= todayStart
-                          && oi.Order.OrderOpenedAt < todayEnd
-                          && oi.CancelledQuantity < oi.OrderItemQuantity) // iptal edilmemişler
-                .GroupBy(oi => new { oi.MenuItemId, oi.MenuItem.MenuItemName })
-                .Select(g => new TopProductPoint
-                {
-                    ProductName = g.Key.MenuItemName,
-                    Quantity = g.Sum(x => x.OrderItemQuantity - x.CancelledQuantity),
-                    Revenue = g.Sum(x => x.OrderItemLineTotal)
+                    o.TableId,
+                    o.OrderTotalAmount,
+                    o.OrderOpenedAt
                 })
-                .OrderByDescending(x => x.Quantity)
-                .Take(5)
                 .ToListAsync();
 
-            // ── 6. GARSON ÇAĞRILARI ────────────────────────────────────────────
-            int waiterCalls = await _db.Tables.CountAsync(t => t.IsWaiterCalled);
+            // TableId → açık adisyon dictionary (bir masada en fazla 1 açık adisyon)
+            var openOrderByTable = openOrders
+                .GroupBy(o => o.TableId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderByDescending(o => o.OrderOpenedAt).First()
+                );
 
-            // ── 7. DÜŞÜK STOK UYARILARI ───────────────────────────────────────
-            int lowStock = await _db.MenuItems.CountAsync(
-                m => !m.IsDeleted
-                  && m.TrackStock
-                  && m.StockQuantity <= m.AlertThreshold
-                  && m.AlertThreshold > 0);
+            var now = DateTime.UtcNow;
 
-            // ── ViewModel Oluştur ─────────────────────────────────────────────
+            var heatmap = allTables.Select(t =>
+            {
+                // Isı haritası durum belirleme
+                string hmStatus = t.TableStatus switch
+                {
+                    TABLE_OCCUPIED => t.IsWaiterCalled ? "waiter" : "occupied",
+                    TABLE_RESERVED => "reserved",
+                    _ => "empty"
+                };
+
+                decimal bill = 0m;
+                string durationTxt = string.Empty;
+                int guestCount = 0;
+
+                if (hmStatus is "occupied" or "waiter" &&
+                    openOrderByTable.TryGetValue(t.TableId, out var activeOrder))
+                {
+                    bill = activeOrder.OrderTotalAmount;
+
+                    // Adisyon açılış süresi hesabı
+                    var elapsed = now - activeOrder.OrderOpenedAt;
+                    durationTxt = elapsed.TotalMinutes < 60
+                        ? $"{(int)elapsed.TotalMinutes}dk"
+                        : $"{(int)elapsed.TotalHours}s {elapsed.Minutes}dk";
+
+                    guestCount = t.TableCapacity; // adisyonda guest yok, kapasite kullanılır
+                }
+                else if (hmStatus == "reserved")
+                {
+                    guestCount = t.ReservationGuestCount ?? t.TableCapacity;
+                }
+
+                return new TableHeatmapItem
+                {
+                    TableId = t.TableId,
+                    TableName = t.TableName,
+                    Status = hmStatus,
+                    CurrentBill = bill,
+                    GuestCount = guestCount,
+                    DurationText = durationTxt,
+                    ReservationTime = t.ReservationTime.HasValue
+                        ? t.ReservationTime.Value.ToLocalTime().ToString("HH:mm")
+                        : null
+                };
+            }).ToList();
+
+            // ════════════════════════════════════════════════════════════════
+            //  4. SAATLİK YOĞUNLUK  (AreaChart — 08:00 – 23:00)
+            //     todayOrders zaten bellekte; GroupBy ile DB'ye gidilmez.
+            // ════════════════════════════════════════════════════════════════
+
+            var hourlyTrends = Enumerable.Range(8, 16) // 8..23
+                .Select(h =>
+                {
+                    var slotStart = todayUtcStart.AddHours(h);
+                    var slotEnd = slotStart.AddHours(1);
+
+                    var inSlot = todayOrders
+                        .Where(o => o.OrderOpenedAt >= slotStart &&
+                                    o.OrderOpenedAt < slotEnd)
+                        .ToList();
+
+                    return new HourlyTrendPoint
+                    {
+                        HourLabel = $"{h:D2}:00",
+                        OrderCount = inSlot.Count,
+                        Revenue = inSlot
+                            .Where(o => o.OrderStatus == STATUS_PAID)
+                            .Sum(o => o.OrderTotalAmount)
+                    };
+                })
+                .ToList();
+
+            // ════════════════════════════════════════════════════════════════
+            //  5. EN ÇOK SATANLAR  (Doughnut Chart)
+            //     Bugünkü siparişlerin order_items'larını DB tarafında grupluyoruz.
+            //     todayOrders zaten bellekte; ID listesi küçük olduğundan
+            //     WHERE IN ile gönderilmesi EF tarafından otomatik yapılır.
+            // ════════════════════════════════════════════════════════════════
+
+            var todayOrderIds = todayOrders.Select(o => o.OrderId).ToList();
+
+            // todayOrderIds boşsa gereksiz DB turu yapmayalım
+            List<TopProductPoint> topProducts = new();
+
+            if (todayOrderIds.Count > 0)
+            {
+                // DB tarafında gruplama — bellekte tuple anonymous yerine
+                // client-side projection kullanıyoruz çünkü GroupBy translation
+                // EF Core'da daha güvenli bu şekilde çalışır.
+                var rawTopProducts = await _db.OrderItems
+                    .AsNoTracking()
+                    .Where(oi =>
+                        todayOrderIds.Contains(oi.OrderId) &&
+                        oi.CancelledQuantity < oi.OrderItemQuantity)
+                    .Select(oi => new
+                    {
+                        oi.MenuItemId,
+                        ProductName = oi.MenuItem.MenuItemName,
+                        ActiveQty = oi.OrderItemQuantity - oi.CancelledQuantity,
+                        LineTotal = oi.OrderItemLineTotal
+                    })
+                    .ToListAsync();
+
+                topProducts = rawTopProducts
+                    .GroupBy(x => new { x.MenuItemId, x.ProductName })
+                    .Select(g => new TopProductPoint
+                    {
+                        ProductName = g.Key.ProductName,
+                        Quantity = g.Sum(x => x.ActiveQty),
+                        Revenue = g.Sum(x => x.LineTotal)
+                    })
+                    .OrderByDescending(x => x.Quantity)
+                    .Take(5)
+                    .ToList();
+            }
+
+            // ════════════════════════════════════════════════════════════════
+            //  6. HAFTALIK TREND KARŞILAŞTIRMASI  (LineChart)
+            //     Bu hafta: son 7 gün (bugün dahil)
+            //     Geçen hafta: 8–14 gün önce
+            //     Her iki haftanın günlük cirolarını hizalıyoruz.
+            // ════════════════════════════════════════════════════════════════
+
+            var thisWeekStart = todayLocal.AddDays(-6).ToUniversalTime();  // 7 gün penceresi
+            var lastWeekStart = todayLocal.AddDays(-13).ToUniversalTime(); // 7 gün önce başlar
+            var lastWeekEnd = thisWeekStart;
+
+            // Bu haftanın günlük ciroları (paid, OrderOpenedAt bazlı)
+            var thisWeekOrders = await _db.Orders
+                .AsNoTracking()
+                .Where(o => o.OrderStatus == STATUS_PAID &&
+                            o.OrderOpenedAt >= thisWeekStart &&
+                            o.OrderOpenedAt < todayUtcEnd)
+                .Select(o => new { o.OrderOpenedAt, o.OrderTotalAmount })
+                .ToListAsync();
+
+            // Geçen haftanın günlük ciroları
+            var lastWeekOrders = await _db.Orders
+                .AsNoTracking()
+                .Where(o => o.OrderStatus == STATUS_PAID &&
+                            o.OrderOpenedAt >= lastWeekStart &&
+                            o.OrderOpenedAt < lastWeekEnd)
+                .Select(o => new { o.OrderOpenedAt, o.OrderTotalAmount })
+                .ToListAsync();
+
+            // 7 günlük vektörü oluştur (bugün = index 6)
+            var weeklyTrend = Enumerable.Range(0, 7)
+                .Select(i =>
+                {
+                    var dayLocal = todayLocal.AddDays(i - 6); // 6 gün önce → bugün
+
+                    var dayUtcStart = dayLocal.ToUniversalTime();
+                    var dayUtcEnd = dayLocal.AddDays(1).ToUniversalTime();
+
+                    decimal tw = thisWeekOrders
+                        .Where(o => o.OrderOpenedAt >= dayUtcStart &&
+                                    o.OrderOpenedAt < dayUtcEnd)
+                        .Sum(o => o.OrderTotalAmount);
+
+                    // Geçen haftanın aynı haftanın günü (7 gün önce)
+                    var prevDayUtcStart = dayUtcStart.AddDays(-7);
+                    var prevDayUtcEnd = dayUtcEnd.AddDays(-7);
+
+                    decimal lw = lastWeekOrders
+                        .Where(o => o.OrderOpenedAt >= prevDayUtcStart &&
+                                    o.OrderOpenedAt < prevDayUtcEnd)
+                        .Sum(o => o.OrderTotalAmount);
+
+                    return new WeeklyTrendPoint
+                    {
+                        DayLabel = TurkishDayNames[(int)dayLocal.DayOfWeek],
+                        ThisWeek = tw,
+                        LastWeek = lw
+                    };
+                })
+                .ToList();
+
+            // ════════════════════════════════════════════════════════════════
+            //  7. STOK UYARILARI
+            //     TrackStock=true ve silinmemiş ürünlerden
+            //     AlertThreshold'ı aşanları çek; kritik önce sıralanır.
+            // ════════════════════════════════════════════════════════════════
+
+            var stockAlertItems = await _db.MenuItems
+                .AsNoTracking()
+                .Where(m => !m.IsDeleted &&
+                             m.TrackStock &&
+                             m.AlertThreshold > 0 &&
+                             m.StockQuantity <= m.AlertThreshold)
+                .OrderBy(m => m.StockQuantity)   // en kritik üstte
+                .Take(5)
+                .Select(m => new
+                {
+                    m.MenuItemName,
+                    m.StockQuantity,
+                    m.AlertThreshold,
+                    m.CriticalThreshold
+                })
+                .ToListAsync();
+
+            var stockAlerts = stockAlertItems.Select(m =>
+            {
+                string level = m.StockQuantity <= m.CriticalThreshold && m.CriticalThreshold > 0
+                    ? "critical"
+                    : "low";
+
+                return new StockAlertItem
+                {
+                    ProductName = m.MenuItemName,
+                    CurrentQty = m.StockQuantity,
+                    AlertThreshold = m.AlertThreshold,
+                    Unit = "ad",   // Menü ürünleri için varsayılan birim
+                    Level = level
+                };
+            }).ToList();
+
+            // Düşük stok uyarısı sayısı (LowStockAlerts badge için)
+            int lowStockCount = await _db.MenuItems
+                .AsNoTracking()
+                .CountAsync(m => !m.IsDeleted &&
+                                  m.TrackStock &&
+                                  m.AlertThreshold > 0 &&
+                                  m.StockQuantity <= m.AlertThreshold);
+
+            // ════════════════════════════════════════════════════════════════
+            //  ViewModel'i Doldur ve Döndür
+            // ════════════════════════════════════════════════════════════════
+
             var vm = new DashboardViewModel
             {
+                // KPI
                 DailyTotalRevenue = dailyRevenue,
                 RevenueTrendPercentage = trendPct,
+                YesterdayRevenue = yesterdayRevenue,
                 TotalOrdersToday = totalOrders,
+                ActiveOrdersNow = activeOrders,
+                ClosedOrdersToday = closedOrders,
                 AverageOrderValue = avgOrderValue,
-                ActiveOrdersNow = activeOrdersNow,
+                DailyRevenueTarget = 10_000m,  // İleride Settings tablosundan okunabilir
+
+                // Masa
                 TableStatus = tableStatus,
+                TableHeatmap = heatmap,
+
+                // Grafikler
                 HourlyOrderTrends = hourlyTrends,
                 TopSellingProducts = topProducts,
+                WeeklyTrend = weeklyTrend,
+
+                // Stok & uyarılar
+                StockAlerts = stockAlerts,
+                LowStockAlerts = lowStockCount,
                 WaiterCallsActive = waiterCalls,
-                LowStockAlerts = lowStock
             };
 
             return View(vm);
