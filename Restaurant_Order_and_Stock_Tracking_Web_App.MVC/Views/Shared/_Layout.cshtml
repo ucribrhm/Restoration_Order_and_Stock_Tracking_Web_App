@@ -101,6 +101,17 @@
                 </a>
             }
 
+            @* ── Admin + Kitchen: Mutfak Ekranı ─────────────────────────── *@
+            @if (User.IsInRole("Admin") || User.IsInRole("Kitchen"))
+            {
+                <span class="nav-label">Mutfak</span>
+                <a class="nav-item @(ViewContext.RouteData.Values["controller"]?.ToString() == "Kitchen" ? "active" : "")"
+                   asp-controller="Kitchen" asp-action="Display">
+                    <span class="nav-icon">🍳</span>
+                    <span class="nav-text">Mutfak Ekranı</span>
+                </a>
+            }
+
             @* ── Garson / Kasiyer: Sadece Masalar ve Siparişler ─────── *@
             @if (User.IsInRole("Kasiyer"))
             {
@@ -154,6 +165,7 @@
                 var userInitial = displayName.Length > 0 ? displayName[0].ToString().ToUpper() : "?";
                 var userRole = User.IsInRole("Admin") ? "Yönetici"
                 : User.IsInRole("Kasiyer") ? "Kasiyer"
+                : User.IsInRole("Kitchen") ? "Mutfak"
                 : "Garson";
             }
             <div class="avatar">@userInitial</div>

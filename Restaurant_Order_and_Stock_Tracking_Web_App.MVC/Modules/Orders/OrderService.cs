@@ -149,6 +149,19 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders
                 _ = NotifyDashboardAsync("🧾",
                     $"{table.TableName} için yeni adisyon açıldı — ₺{total:N0}", "#f97316");
 
+                // SignalR — KDS: Tam adisyon açıldığında mutfak ekranını güncelle
+                // NewOrderItem'dan farklı olarak tüm adisyonu temsil eder;
+                // Kitchen Display bu event'i alarak kart grid'ini yeniler.
+                _ = _kitchenHub.Clients
+                    .Group(_tenantService.TenantId ?? "")
+                    .SendAsync("NewOrder", new
+                    {
+                        orderId = order.OrderId,
+                        tableName = table.TableName,
+                        itemCount = dto.Items.Count,
+                        total = total
+                    });
+
                 return new(true, "Adisyon açıldı.",
                     new CreateOrderResult(order.OrderId, table.TableName, total));
             }
@@ -187,11 +200,17 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders
                 var noteNorm = string.IsNullOrWhiteSpace(dto.Note) ? null : dto.Note.Trim();
                 int savedItemId;
 
+                // ── [SPRINT-2 FIX] State Transition Guard ──────────────────────────
+                // SORUN: Mevcut satır Served/Preparing/Ready ise miktar artırımı
+                //        geçersiz durum geçişine yol açıyor (Served → Preparing).
+                // ÇÖZÜM: Sadece Pending + ödenmiş değil satırlara birleş;
+                //        diğer durumlarda her zaman yeni Pending satır aç.
                 var existing = order.OrderItems.FirstOrDefault(oi =>
                     oi.MenuItemId == dto.MenuItemId &&
-                    oi.OrderItemStatus != OrderItemStatus.Cancelled && // [ENUM]
+                    oi.OrderItemStatus == OrderItemStatus.Pending && // [FIX] Sadece Pending'e birleş
                     oi.PaidQuantity < oi.OrderItemQuantity &&
                     oi.OrderItemNote == noteNorm);
+                // ───────────────────────────────────────────────────────────────────
 
                 if (existing != null)
                 {
@@ -307,12 +326,18 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders
                     int qty = Math.Max(1, line.Quantity);
                     var noteNorm = string.IsNullOrWhiteSpace(line.Note) ? null : line.Note.Trim();
 
+                    // ── [SPRINT-2 FIX] State Transition Guard ──────────────────────
+                    // SORUN: Served/Preparing/Ready satıra miktar eklenmesi sonraki
+                    //        KDS geçişini Served→Preparing yaparak hata verir.
+                    // ÇÖZÜM: Sadece Pending statüsündeki ve ödenmemiş satırlara birleş;
+                    //        tüm diğer durumlar için yeni Pending satır oluştur.
                     var existing = order.OrderItems.FirstOrDefault(oi =>
                         oi.MenuItemId == line.MenuItemId &&
-                        oi.OrderItemStatus != OrderItemStatus.Cancelled && // [ENUM]
+                        oi.OrderItemStatus == OrderItemStatus.Pending && // [FIX] Sadece Pending'e birleş
                         oi.CancelledQuantity == 0 &&
                         oi.PaidQuantity < oi.OrderItemQuantity &&
                         oi.OrderItemNote == noteNorm);
+                    // ───────────────────────────────────────────────────────────────
 
                     int savedItemId;
                     if (existing != null)

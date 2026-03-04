@@ -122,9 +122,17 @@
                 {
                     <a href="/Home/Index" class="denied-btn">🏠 Ana Sayfa</a>
                 }
-                else
+                else if (User.IsInRole("Kasiyer"))
                 {
                     <a href="/Tables/Index" class="denied-btn">🪑 Masalara Git</a>
+                }
+                else if (User.IsInRole("Kicthen"))
+                {
+                    <a href="/Kitchen/Display" class="denied-btn">Mutfak ölümüne Git</a>
+                }
+                else if (User.IsInRole("Garson"))
+                {
+                    <a href="/Kitchen/Display" class="denied-btn">🪑 Masalara Git</a>
                 }
                 <form asp-controller="Auth" asp-action="Logout" method="post" style="margin:0">
                     @Html.AntiForgeryToken()

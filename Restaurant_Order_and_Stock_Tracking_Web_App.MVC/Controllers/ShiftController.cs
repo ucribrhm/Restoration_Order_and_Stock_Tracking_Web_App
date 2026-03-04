@@ -145,6 +145,21 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             if (shift == null)
                 return NotFound(new { success = false, message = "Vardiya bulunamadı veya zaten kapalı." });
 
+            // ── [SPRINT-1] Vardiya Kapatma Kilidi ────────────────────────────
+            // Bu vardiya süresince açılmış ve hâlâ Open durumunda olan sipariş
+            // var mı? Varsa kapatmaya izin verme.
+            var hasOpenOrders = await _db.Orders
+                .AnyAsync(o => o.OrderStatus == OrderStatus.Open
+                            && o.OrderOpenedAt >= shift.OpenedAt);
+
+            if (hasOpenOrders)
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Açık masalar varken vardiya kapatılamaz. Lütfen önce tüm hesapları kapatın."
+                });
+            // ─────────────────────────────────────────────────────────────────
+
             var user = await _userManager.GetUserAsync(User);
             var closedAt = DateTime.UtcNow;
 

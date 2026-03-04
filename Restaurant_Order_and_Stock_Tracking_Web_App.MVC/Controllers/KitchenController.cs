@@ -23,7 +23,7 @@ using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Hubs;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
 {
-    [AllowAnonymous]
+    [Authorize(Roles = "Admin,Kitchen")]
     public class KitchenController : Controller
     {
         private readonly RestaurantDbContext _db;
