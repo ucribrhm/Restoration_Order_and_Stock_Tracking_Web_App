@@ -19,7 +19,7 @@ using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.ViewModels.Dashboard;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
 {
-    [Authorize]
+    [Authorize(Roles = "Admin")] // Bu satır çok kritik!
     public class HomeController : Controller
     {
         private readonly RestaurantDbContext _db;

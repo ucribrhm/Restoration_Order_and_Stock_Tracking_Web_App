@@ -98,6 +98,11 @@ public class AuthController : Controller
 
                 return RedirectToAction("Index", "Tables");
             }
+            else if (roles.Contains("Kitchen"))
+            {
+
+                return RedirectToAction("Display", "Kitchen");
+            }
             // Güvenlik: Hiçbirine uymuyorsa yetkisiz erişim sayfasına veya ana sayfaya at
             return RedirectToAction("AccessDenied", "Auth");
             //return RedirectToAction("Index", "Tables");

@@ -154,6 +154,18 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             if (dto == null || dto.Items == null || !dto.Items.Any())
                 return Json(new { success = false, message = "En az bir ürün eklemelisiniz." });
 
+            // ── [SPRINT-1] Sipariş Alma Kilidi ───────────────────────────────
+            // Aktif (açık) bir vardiya olmadan yeni sipariş açılamaz.
+            // Patron dükkanı açmadan kimse kasaya para atamaz.
+            var hasActiveShift = await _db.ShiftLogs.AnyAsync(s => !s.IsClosed);
+            if (!hasActiveShift)
+                return Json(new
+                {
+                    success = false,
+                    message = "Aktif vardiya bulunamadı. Sipariş açabilmek için önce vardiyayı başlatın."
+                });
+            // ─────────────────────────────────────────────────────────────────
+
             var currentUser = await _userManager.GetUserAsync(User);
             var openedBy = currentUser?.FullName?.Trim();
             if (string.IsNullOrWhiteSpace(openedBy))

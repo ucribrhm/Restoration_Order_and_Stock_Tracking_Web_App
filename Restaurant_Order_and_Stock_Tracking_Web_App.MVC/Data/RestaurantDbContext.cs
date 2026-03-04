@@ -272,7 +272,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                 entity.Property(o => o.OrderItemStatus)
                     .HasConversion(orderItemStatusConverter)
                     .HasMaxLength(20)
-                    .HasDefaultValueSql("pending")
+                    .HasDefaultValueSql("'pending'")
                     .IsRequired();
 
                 entity.Property(o => o.OrderItemAddedAt).HasDefaultValueSql("NOW()").IsRequired();

@@ -669,6 +669,44 @@
           showToast(`🍽️ ${esc(d.tableName)} — ${esc(d.menuItemName)} × ${d.quantity}`, 'blue');
         });
 
+        // ── [SPRINT-1] Yeni Sipariş — Tam adisyon açıldığında ekranı yenile ──
+        // OrderService'in yaydığı 'NewOrder' olayını dinle:
+        // Sayfa DOM'u tamamen güncellenir; yeni masa kartı otomatik görünür.
+        // ── [SPRINT-2] Yeni Adisyon — Debounced Grid Refresh ────────────────
+        // CreateOrderAsync'ten gelen NewOrder event'ini dinle.
+        // setTimeout yerine debounce kullanarak burst protection sağlanır:
+        // 300ms içinde birden fazla NewOrder gelirse yalnızca 1 fetch yapılır.
+        let _refreshTimer = null;
+        async function refreshGrid() {
+          try {
+            const res = await fetch('/Kitchen/Display');
+            if (!res.ok) return;
+            const html = await res.text();
+            const tmp = document.createElement('html');
+            tmp.innerHTML = html;
+            const newGrid = tmp.querySelector('#cardsGrid');
+            if (newGrid) {
+              document.getElementById('cardsGrid').innerHTML = newGrid.innerHTML;
+              checkEmpty();
+              updateAllTimers();
+              setLastUpdate();
+            }
+          } catch(e) { console.error('KDS refreshGrid hatası:', e); }
+        }
+
+        function debouncedRefresh() {
+          if (_refreshTimer) clearTimeout(_refreshTimer);
+          _refreshTimer = setTimeout(refreshGrid, 300);
+        }
+
+        connection.on('NewOrder', d => {
+          playBeep();
+          showToast(`🆕 Yeni adisyon: ${esc(d.tableName || 'Yeni Masa')} (${d.itemCount} kalem)`, 'blue');
+          debouncedRefresh();
+        });
+        // ─────────────────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────────
+
         // Hazır bildirimini de KDS dinler (bilgi amaçlı; garson ekranı asıl tetikleyici)
         connection.on('OrderReadyForPickup', d => {
           playReadyChime();

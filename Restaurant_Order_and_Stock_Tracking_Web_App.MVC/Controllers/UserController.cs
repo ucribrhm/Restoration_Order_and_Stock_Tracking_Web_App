@@ -13,7 +13,9 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers;
 public class UserController : Controller
 {
     // ── Sistemde izin verilen roller — tek kaynak gerçek ────────────
-    private static readonly string[] AllowedRoles = { "Admin", "Garson", "Kasiyer" };
+    // [SPRINT-2] "Kitchen" rolü eklendi; Kullanıcı oluşturma/düzenleme
+    // formlarında dropdown'a otomatik yansır.
+    private static readonly string[] AllowedRoles = { "Admin", "Garson", "Kasiyer", "Kitchen" };
 
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly RoleManager<IdentityRole> _roleManager;

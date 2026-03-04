@@ -149,7 +149,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
                 var db = scope.ServiceProvider.GetRequiredService<RestaurantDbContext>();
 
                 // ── Roller ───────────────────────────────────────────────
-                foreach (var roleName in new[] { "Admin", "Garson", "Kasiyer" })
+                foreach (var roleName in new[] { "Admin", "Garson", "Kasiyer", "Kitchen" })
                 {
                     if (!await roleManager.RoleExistsAsync(roleName))
                         await roleManager.CreateAsync(new IdentityRole(roleName));
