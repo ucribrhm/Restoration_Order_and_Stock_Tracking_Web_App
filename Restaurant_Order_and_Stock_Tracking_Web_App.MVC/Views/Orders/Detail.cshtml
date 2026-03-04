@@ -1,14 +1,15 @@
-﻿@model Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models.Order
+﻿@using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common
+@model Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models.Order
 @using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models
 @{
     ViewData["Title"] = ViewData["Title"]?.ToString();
     var categories = (List<Category>)ViewBag.Categories;
-    var isOpen = Model.OrderStatus == "open";
+    var isOpen = Model.OrderStatus == OrderStatus.Open;
     var minutesOpen = (int)(DateTime.UtcNow - Model.OrderOpenedAt).TotalMinutes;
     var totalPaid = Model.Payments?.Sum(p => p.PaymentsAmount) ?? 0;
     var remaining = Model.OrderTotalAmount - totalPaid;
 
-    var activeItems = Model.OrderItems.Where(i => i.OrderItemStatus != "cancelled").ToList();
+    var activeItems = Model.OrderItems.Where(i => i.OrderItemStatus != OrderItemStatus.Cancelled).ToList();
     var unpaidItems = activeItems.Where(i => i.RemainingQuantity > 0).ToList();
     var paidItems = activeItems.Where(i => i.RemainingQuantity <= 0 && i.ActiveQuantity > 0).ToList();
     var cancelledItems = Model.OrderItems.Where(i => i.CancelledQuantity > 0).ToList();
@@ -16,7 +17,7 @@
 
     bool allItemsCancelled = !Model.OrderItems.Any() ||
         Model.OrderItems.All(oi =>
-            oi.OrderItemStatus == "cancelled" ||
+            oi.OrderItemStatus == OrderItemStatus.Cancelled ||
             (oi.OrderItemQuantity - oi.CancelledQuantity) <= 0);
 
     bool canCloseZero = isOpen && Model.OrderTotalAmount <= 0.001m && allItemsCancelled;
@@ -26,9 +27,9 @@
         && totalPaid > 0
         && (Model.OrderTotalAmount - totalPaid) <= 0.001m;
 
-    int StatusOrder(string s) => s switch { "preparing" => 1, "served" => 2, "cancelled" => 99, _ => 0 };
-    string StatusClass(string s) => s switch { "preparing" => "s-preparing", "served" => "s-served", "cancelled" => "s-cancelled", _ => "s-pending" };
-    string StatusLabel(string s) => s switch { "preparing" => "Hazırlanıyor", "served" => "Servis Edildi", "cancelled" => "İptal", _ => "Bekliyor" };
+    int StatusOrder(OrderItemStatus s) => s switch { OrderItemStatus.Preparing => 1, OrderItemStatus.Served => 2, OrderItemStatus.Cancelled => 99, _ => 0 };
+    string StatusClass(OrderItemStatus s) => s switch { OrderItemStatus.Preparing => "s-preparing", OrderItemStatus.Served => "s-served", OrderItemStatus.Cancelled => "s-cancelled", _ => "s-pending" };
+    string StatusLabel(OrderItemStatus s) => s switch { OrderItemStatus.Preparing => "Hazırlanıyor", OrderItemStatus.Served => "Servis Edildi", OrderItemStatus.Cancelled => "İptal", _ => "Bekliyor" };
     string PayMethodLabel(int m) => m switch { 1 => "💳 Kredi Kartı", 2 => "🏦 Banka Kartı", 3 => "🔄 Diğer", _ => "💵 Nakit" };
 }
 
@@ -133,7 +134,7 @@
                     {
                         <div class="status-flow">
                             <span class="sflow-current @StatusClass(item.OrderItemStatus)">@StatusLabel(item.OrderItemStatus)</span>
-                            @if (item.OrderItemStatus == "pending")
+                            @if (item.OrderItemStatus == OrderItemStatus.Pending)
                             {
                                 <span class="sflow-arrow">→</span>
                                 <button type="button" class="sflow-btn sflow-btn-prepare"
@@ -141,7 +142,7 @@
                                     Hazırlıyor
                                 </button>
                             }
-                            else if (item.OrderItemStatus == "preparing")
+                            else if (item.OrderItemStatus == OrderItemStatus.Preparing)
                             {
                                 <span class="sflow-arrow">→</span>
                                 <button type="button" class="sflow-btn sflow-btn-serve"
@@ -156,12 +157,12 @@
                             {
                                 <button type="button" class="sflow-btn sflow-btn-cancel"
                                         onclick="openCancelModal(
-                                                        @item.OrderItemId,
-                                                        '@Html.Raw(item.MenuItem?.MenuItemName?.Replace("'", "&#39;") ?? "")',
-                                                        @item.OrderItemUnitPrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
-                                                        @cancelable,
-                                                        @(item.MenuItem?.TrackStock == true ? "true" : "false")
-                                                    )">
+                                                                    @item.OrderItemId,
+                                                                    '@Html.Raw(item.MenuItem?.MenuItemName?.Replace("'", "&#39;") ?? "")',
+                                                                    @item.OrderItemUnitPrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
+                                                                    @cancelable,
+                                                                    @(item.MenuItem?.TrackStock == true ? "true" : "false")
+                                                                )">
                                     ✕ İptal
                                 </button>
                             }
@@ -216,7 +217,7 @@
 
                 @foreach (var item in cancelledItems)
                 {
-                    bool fullyC = item.OrderItemStatus == "cancelled";
+                    bool fullyC = item.OrderItemStatus == OrderItemStatus.Cancelled;
                     <div class="cancel-item-row">
                         <div class="cancel-item-icon">✕</div>
                         <div class="cancel-item-info">

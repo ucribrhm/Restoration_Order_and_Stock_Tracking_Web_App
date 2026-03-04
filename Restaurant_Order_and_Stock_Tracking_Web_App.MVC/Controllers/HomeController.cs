@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.ViewModels.Dashboard;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
@@ -24,8 +25,8 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
         private readonly RestaurantDbContext _db;
 
         // ── Sipariş durum sabitleri (ReportsController ile tutarlı) ─────────
-        private const string STATUS_OPEN = "open";
-        private const string STATUS_PAID = "paid";
+        // [ENUM] STATUS_OPEN kaldırıldı — OrderStatus.Open kullanın
+        // [ENUM] STATUS_PAID kaldırıldı — OrderStatus.Paid kullanın
 
         // ── Table.TableStatus integer sabitleri ──────────────────────────────
         private const int TABLE_EMPTY = 0;
@@ -75,12 +76,12 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                 .ToListAsync();
 
             var paidToday = todayOrders
-                .Where(o => o.OrderStatus == STATUS_PAID)
+                .Where(o => o.OrderStatus == OrderStatus.Paid)
                 .ToList();
 
             decimal dailyRevenue = paidToday.Sum(o => o.OrderTotalAmount);
             int totalOrders = todayOrders.Count;
-            int activeOrders = todayOrders.Count(o => o.OrderStatus == STATUS_OPEN);
+            int activeOrders = todayOrders.Count(o => o.OrderStatus == OrderStatus.Open);
             int closedOrders = paidToday.Count;
 
             decimal avgOrderValue = closedOrders > 0
@@ -90,7 +91,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             // ── Dünkü ciro (trend için) ─────────────────────────────────────
             decimal yesterdayRevenue = await _db.Orders
                 .AsNoTracking()
-                .Where(o => o.OrderStatus == STATUS_PAID &&
+                .Where(o => o.OrderStatus == OrderStatus.Paid &&
                             o.OrderOpenedAt >= yesterdayUtcStart &&
                             o.OrderOpenedAt < yesterdayUtcEnd)
                 .SumAsync(o => (decimal?)o.OrderTotalAmount) ?? 0m;
@@ -138,7 +139,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             // Tüm açık adisyonlar (OrderTotalAmount anlık tutar, OpenedAt süre için)
             var openOrders = await _db.Orders
                 .AsNoTracking()
-                .Where(o => o.OrderStatus == STATUS_OPEN)
+                .Where(o => o.OrderStatus == OrderStatus.Open)
                 .Select(o => new
                 {
                     o.TableId,
@@ -224,7 +225,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                         HourLabel = $"{h:D2}:00",
                         OrderCount = inSlot.Count,
                         Revenue = inSlot
-                            .Where(o => o.OrderStatus == STATUS_PAID)
+                            .Where(o => o.OrderStatus == OrderStatus.Paid)
                             .Sum(o => o.OrderTotalAmount)
                     };
                 })
@@ -288,7 +289,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             // Bu haftanın günlük ciroları (paid, OrderOpenedAt bazlı)
             var thisWeekOrders = await _db.Orders
                 .AsNoTracking()
-                .Where(o => o.OrderStatus == STATUS_PAID &&
+                .Where(o => o.OrderStatus == OrderStatus.Paid &&
                             o.OrderOpenedAt >= thisWeekStart &&
                             o.OrderOpenedAt < todayUtcEnd)
                 .Select(o => new { o.OrderOpenedAt, o.OrderTotalAmount })
@@ -297,7 +298,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             // Geçen haftanın günlük ciroları
             var lastWeekOrders = await _db.Orders
                 .AsNoTracking()
-                .Where(o => o.OrderStatus == STATUS_PAID &&
+                .Where(o => o.OrderStatus == OrderStatus.Paid &&
                             o.OrderOpenedAt >= lastWeekStart &&
                             o.OrderOpenedAt < lastWeekEnd)
                 .Select(o => new { o.OrderOpenedAt, o.OrderTotalAmount })

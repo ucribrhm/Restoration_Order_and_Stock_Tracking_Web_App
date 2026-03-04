@@ -1,4 +1,5 @@
-﻿@model IEnumerable<Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models.Table>
+﻿@using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common
+@model IEnumerable<Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models.Table>
 @using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models
 @{
     ViewData["Title"] = "Masalar";
@@ -60,9 +61,9 @@ else
                 && localResTime.Value <= DateTime.Now.AddMinutes(30)
                 && localResTime.Value >= DateTime.Now;
 
-            var openOrder    = table.Orders?.FirstOrDefault(o => o.OrderStatus == "open");
+            var openOrder    = table.Orders?.FirstOrDefault(o => o.OrderStatus == OrderStatus.Open);
             var mergedItems  = openOrder?.OrderItems
-                .Where(i => i.OrderItemStatus != "cancelled")
+                .Where(i => i.OrderItemStatus != OrderItemStatus.Cancelled)
                 .GroupBy(i => i.MenuItemId)
                 .Select(g => new {
                     Name = g.First().MenuItem?.MenuItemName ?? "?",
@@ -312,9 +313,9 @@ else
         id             = t.TableId,
         name           = t.TableName,
         status         = t.TableStatus,
-        total          = t.Orders?.FirstOrDefault(o => o.OrderStatus == "open")?.OrderTotalAmount ?? 0,
-        itemCount      = t.Orders?.FirstOrDefault(o => o.OrderStatus == "open")
-                         ?.OrderItems.Count(i => i.OrderItemStatus != "cancelled") ?? 0,
+        total          = t.Orders?.FirstOrDefault(o => o.OrderStatus == OrderStatus.Open)?.OrderTotalAmount ?? 0,
+        itemCount      = t.Orders?.FirstOrDefault(o => o.OrderStatus == OrderStatus.Open)
+                         ?.OrderItems.Count(i => i.OrderItemStatus != OrderItemStatus.Cancelled) ?? 0,
         isWaiterCalled = t.IsWaiterCalled,
         waiterCalledAt = t.WaiterCalledAt.HasValue
                          ? t.WaiterCalledAt.Value.ToString("o")

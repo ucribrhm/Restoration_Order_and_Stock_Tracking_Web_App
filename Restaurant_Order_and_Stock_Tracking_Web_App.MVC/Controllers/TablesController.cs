@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Dtos.Tables;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Hubs;
@@ -35,7 +36,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             ViewData["OccupiedCount"] = await _db.Tables.CountAsync(t => t.TableStatus == 1);
 
             var tables = await _db.Tables
-                .Include(t => t.Orders.Where(o => o.OrderStatus == "open"))
+                .Include(t => t.Orders.Where(o => o.OrderStatus == OrderStatus.Open))
                     .ThenInclude(o => o.OrderItems)
                         .ThenInclude(oi => oi.MenuItem)
                 .ToListAsync();
@@ -208,7 +209,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                 .Include(o => o.OrderItems)
                 .Include(o => o.Payments)
                 .Include(o => o.Table)
-                .FirstOrDefaultAsync(o => o.TableId == dto.SourceTableId && o.OrderStatus == "open");
+                .FirstOrDefaultAsync(o => o.TableId == dto.SourceTableId && o.OrderStatus == OrderStatus.Open);
 
             if (sourceOrder == null)
                 return Json(new { success = false, message = "Kaynak masada açık adisyon bulunamadı." });
@@ -222,7 +223,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             {
                 var targetOrder = await _db.Orders
                     .Include(o => o.OrderItems)
-                    .FirstOrDefaultAsync(o => o.TableId == dto.TargetTableId && o.OrderStatus == "open");
+                    .FirstOrDefaultAsync(o => o.TableId == dto.TargetTableId && o.OrderStatus == OrderStatus.Open);
 
                 if (targetOrder == null)
                 {
@@ -264,10 +265,10 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
 
                 await _db.SaveChangesAsync();
                 targetOrder.OrderTotalAmount = await _db.OrderItems
-                    .Where(oi => oi.OrderId == targetOrder.OrderId && oi.OrderItemStatus != "cancelled")
+                    .Where(oi => oi.OrderId == targetOrder.OrderId && oi.OrderItemStatus != OrderItemStatus.Cancelled)
                     .SumAsync(oi => oi.OrderItemLineTotal);
 
-                sourceOrder.OrderStatus = "cancelled";
+                sourceOrder.OrderStatus = OrderStatus.Cancelled;
                 sourceOrder.OrderClosedAt = DateTime.UtcNow;
                 sourceOrder.OrderTotalAmount = 0;
                 sourceOrder.Table.TableStatus = 0;
@@ -317,11 +318,12 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             return Json(new { success = true });
         }
 
-        private static int StatusPriority(string status) => status switch
+        // ── DÜZELTİLEN METOT: string parametre yerine OrderItemStatus enum'ı alır ──
+        private static int StatusPriority(OrderItemStatus status) => status switch
         {
-            "pending" => 0,
-            "preparing" => 1,
-            "served" => 2,
+            OrderItemStatus.Pending => 0,
+            OrderItemStatus.Preparing => 1,
+            OrderItemStatus.Served => 2,
             _ => 3
         };
     }

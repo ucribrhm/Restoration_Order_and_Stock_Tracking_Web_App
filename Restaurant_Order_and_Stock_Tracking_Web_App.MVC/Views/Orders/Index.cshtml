@@ -1,4 +1,5 @@
-﻿@using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models
+﻿@using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common
+@using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models
 @{
     ViewData["Title"] = "Siparişler";
 
@@ -123,15 +124,16 @@
                 var minutes = MinutesOpen(order.OrderOpenedAt);
                 var isHot = minutes > 30;
 
+                // FIX: "open" stringi yerine Enum (OrderItemStatus.Pending) kullanıldı
                 var dominantStatus = order.OrderItems.Any()
-                ? order.OrderItems.Where(i => i.OrderItemStatus != "cancelled")
+                ? order.OrderItems.Where(i => i.OrderItemStatus != OrderItemStatus.Cancelled)
                 .GroupBy(i => i.OrderItemStatus)
                 .OrderByDescending(g => g.Count())
-                .FirstOrDefault()?.Key ?? "open"
-                : "open";
+                .FirstOrDefault()?.Key ?? OrderItemStatus.Pending
+                : OrderItemStatus.Pending;
 
-                string BadgeClass(string s) => s switch { "preparing" => "s-preparing", "served" => "s-served", _ => "s-open" };
-                string BadgeLabel(string s) => s switch { "preparing" => "Hazırlanıyor", "served" => "Servis Edildi", _ => "Açık" };
+                string BadgeClass(OrderItemStatus s) => s switch { OrderItemStatus.Preparing => "s-preparing", OrderItemStatus.Served => "s-served", _ => "s-open" };
+                string BadgeLabel(OrderItemStatus s) => s switch { OrderItemStatus.Preparing => "Hazırlanıyor", OrderItemStatus.Served => "Servis Edildi", _ => "Açık" };
 
                 <div class="order-card @(isHot ? "overdue" : "")">
                     <div class="card-head">
@@ -153,7 +155,7 @@
 
                         <div class="items-box">
                             @{
-                                var visItems = order.OrderItems.Where(i => i.OrderItemStatus != "cancelled").ToList();
+                                var visItems = order.OrderItems.Where(i => i.OrderItemStatus != OrderItemStatus.Cancelled).ToList();
                                 var showItems = visItems.Take(5).ToList();
                                 var moreCount = visItems.Count - showItems.Count;
                             }
@@ -207,7 +209,7 @@
     {
         // Masa birleştirmesi sonucu oluşan cancelled+toplam=0 adisyonları gizle
         var visiblePast = pastOrders
-        .Where(o => !(o.OrderStatus == "cancelled" && o.OrderTotalAmount == 0))
+        .Where(o => !(o.OrderStatus == OrderStatus.Cancelled && o.OrderTotalAmount == 0))
         .ToList();
 
         var grouped = visiblePast
@@ -219,7 +221,7 @@
             {
                 var groupDate = group.Key;
                 var groupLabel = groupDate == today ? "Bugün" : groupDate.ToString("dd MMMM yyyy", new System.Globalization.CultureInfo("tr-TR"));
-                var groupRevenue = group.Where(o => o.OrderStatus == "paid").Sum(o => o.OrderTotalAmount);
+                var groupRevenue = group.Where(o => o.OrderStatus == OrderStatus.Paid).Sum(o => o.OrderTotalAmount);
 
                 <div class="date-group-header">
                     <div class="date-group-line"></div>
@@ -235,7 +237,7 @@
                     var closedMins = order.OrderClosedAt.HasValue
                     ? (int)(order.OrderClosedAt.Value - order.OrderOpenedAt).TotalMinutes : 0;
 
-                    <div class="order-card @(order.OrderStatus == "paid" ? "card-paid" : "")">
+                    <div class="order-card @(order.OrderStatus == OrderStatus.Paid ? "card-paid" : "")">
                         <div class="card-head">
                             <div class="card-head-left">
                                 <span class="card-num">#@order.OrderId</span>
@@ -243,8 +245,8 @@
                             </div>
                             <div class="card-head-right">
                                 <span class="time-badge">@closedMins dk</span>
-                                <span class="status-badge @(order.OrderStatus == "paid" ? "s-paid" : "s-cancelled")">
-                                    @(order.OrderStatus == "paid" ? "Ödendi" : "İptal")
+                                <span class="status-badge @(order.OrderStatus == OrderStatus.Paid ? "s-paid" : "s-cancelled")">
+                                    @(order.OrderStatus == OrderStatus.Paid ? "Ödendi" : "İptal")
                                 </span>
                             </div>
                         </div>
@@ -257,7 +259,7 @@
 
                             <div class="items-box">
                                 @{
-                                    var pastVisItems = order.OrderItems.Where(i => i.OrderItemStatus != "cancelled").ToList();
+                                    var pastVisItems = order.OrderItems.Where(i => i.OrderItemStatus != OrderItemStatus.Cancelled).ToList();
                                     var pastShowItems = pastVisItems.Take(5).ToList();
                                     var pastMoreCount = pastVisItems.Count - pastShowItems.Count;
                                 }
@@ -292,7 +294,7 @@
                         </div>
 
                         <div class="card-foot">
-                            <span class="card-total @(order.OrderStatus == "cancelled" ? "muted" : "")">
+                            <span class="card-total @(order.OrderStatus == OrderStatus.Cancelled ? "muted" : "")">
                                 ₺@order.OrderTotalAmount.ToString("N2")
                             </span>
                             <a asp-controller="Orders" asp-action="Detail" asp-route-id="@order.OrderId" class="btn-detail">Detay →</a>

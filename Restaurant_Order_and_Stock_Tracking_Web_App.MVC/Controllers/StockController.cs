@@ -5,6 +5,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Dtos.Stock;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
 
@@ -87,7 +88,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                 .Where(oi =>
                     allIds.Contains(oi.MenuItemId) &&
                     oi.OrderItemAddedAt >= thirtyDaysAgo &&
-                    oi.OrderItemStatus != "cancelled")
+                    oi.OrderItemStatus != OrderItemStatus.Cancelled)
                 .GroupBy(oi => oi.MenuItemId)
                 .Select(g => new { MenuItemId = g.Key, Consumed = g.Sum(oi => oi.OrderItemQuantity - oi.CancelledQuantity) })
                 .ToDictionaryAsync(g => g.MenuItemId, g => g.Consumed);

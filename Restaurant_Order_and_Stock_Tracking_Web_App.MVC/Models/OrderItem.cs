@@ -1,12 +1,24 @@
-﻿namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
+﻿// ============================================================================
+//  Models/OrderItem.cs
+//  DEĞİŞİKLİK — FAZ 1 FİNAL: String → Enum Geçişi
+//
+//  [ENUM-2] OrderItemStatus tipi: string → OrderItemStatus enum
+//           DB'de hâlâ "pending"/"preparing"/"ready"/"served"/"cancelled"
+//           (Value Converter — bkz. RestaurantDbContext.cs)
+//
+//  KORUNAN: İptal/iade alanları, hesaplanan özellikler, diğer tüm alanlar
+// ============================================================================
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common;
+
+namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
 
 public class OrderItem
 {
     public int OrderItemId { get; set; }
     public int OrderId { get; set; }
-    public virtual Order Order { get; set; }
+    public virtual Order Order { get; set; } = null!;
     public int MenuItemId { get; set; }
-    public virtual MenuItem MenuItem { get; set; }
+    public virtual MenuItem MenuItem { get; set; } = null!;
 
     /// <summary>Sipariş edilen toplam adet</summary>
     public int OrderItemQuantity { get; set; }
@@ -14,7 +26,7 @@ public class OrderItem
     /// <summary>Bu kalem için ödenmiş adet</summary>
     public int PaidQuantity { get; set; } = 0;
 
-    // ── İPTAL / İADE ALANLARI ─────────────────────────────────────────
+    // ── İPTAL / İADE ALANLARI ─────────────────────────────────────────────────
 
     /// <summary>
     /// Kısmi veya tam iptal edilen adet.
@@ -34,7 +46,7 @@ public class OrderItem
     /// </summary>
     public bool? IsWasted { get; set; }
 
-    // ── FİYAT / DURUM ─────────────────────────────────────────────────
+    // ── FİYAT / DURUM ─────────────────────────────────────────────────────────
 
     public decimal OrderItemUnitPrice { get; set; }
 
@@ -45,10 +57,17 @@ public class OrderItem
     public decimal OrderItemLineTotal { get; set; }
 
     public string? OrderItemNote { get; set; }
-    public string OrderItemStatus { get; set; }
+
+    // ── [ENUM-2] String → Enum ─────────────────────────────────────────────────
+    // C# tarafı: OrderItemStatus enum (type-safe)
+    // DB tarafı : "pending" / "preparing" / "ready" / "served" / "cancelled"
+    // KDS JS    : string karşılaştırmalar DB'den gelen string'le çalışır
+    // Dönüşüm   : RestaurantDbContext.OnModelCreating → Value Converter
+    public OrderItemStatus OrderItemStatus { get; set; } = OrderItemStatus.Pending;
+
     public DateTime OrderItemAddedAt { get; set; }
 
-    // ── Hesaplanan özellikler — DB'ye yazılmaz ────────────────────────
+    // ── Hesaplanan özellikler — DB'ye yazılmaz ─────────────────────────────────
 
     /// <summary>İptal edilmemiş aktif adet</summary>
     public int ActiveQuantity => OrderItemQuantity - CancelledQuantity;

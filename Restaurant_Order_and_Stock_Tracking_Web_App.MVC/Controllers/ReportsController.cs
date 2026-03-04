@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.ViewModels.Reports;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -16,9 +17,9 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
         private readonly RestaurantDbContext _context;
 
         // ── Sabitler ──────────────────────────────────────────────────────────
-        private const string StatusOpen = "open";
-        private const string StatusPaid = "paid";
-        private const string StatusCancelled = "cancelled";
+        // [ENUM] StatusOpen kaldırıldı — OrderStatus.Open kullanın
+        // [ENUM] StatusPaid kaldırıldı — OrderStatus.Paid kullanın
+        // [ENUM] StatusCancelled kaldırıldı — OrderStatus.Cancelled kullanın
         private const string MovementOut = "Çıkış";
         private const string MovementFix = "Düzeltme";
 
@@ -43,7 +44,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
 
             // Bugünkü kapatılmış (paid) adisyonlar — tek sorgu
             var todayPaidOrders = await _context.Orders
-                .Where(o => o.OrderStatus == StatusPaid
+                .Where(o => o.OrderStatus == OrderStatus.Paid
                          && o.OrderClosedAt >= fromUtc
                          && o.OrderClosedAt < toUtc)
                 .Select(o => new
@@ -149,7 +150,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             {
                 TodayGrossSales = todayPaidOrders.Sum(o => o.OrderTotalAmount),
                 TodayNetCollected = todayPayments.Sum(p => p.PaymentsAmount),
-                OpenOrderCount = await _context.Orders.CountAsync(o => o.OrderStatus == StatusOpen),
+                OpenOrderCount = await _context.Orders.CountAsync(o => o.OrderStatus == OrderStatus.Open),
                 TopSellingItemToday = topProducts.FirstOrDefault()?.ProductName ?? "—",
                 CriticalStockCount = await _context.MenuItems.CountAsync(m =>
                                             !m.IsDeleted && m.TrackStock
@@ -227,7 +228,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                     Date = sl.CreatedAt,
                     CancelReason = sl.Note ?? "",
                     SourceType = "SiparişKaynaklı",
-                    OrderId = sl.OrderId                            // adisyon no raporda görünür
+                    OrderId = sl.OrderId                             // adisyon no raporda görünür
                 })
                 .OrderByDescending(x => x.Date)
                 .ToListAsync();
@@ -340,7 +341,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             {
                 var orderConsumption = await _context.OrderItems
                     .Where(oi => oi.OrderItemAddedAt >= fromUtc && oi.OrderItemAddedAt < toUtc
-                              && oi.OrderItemStatus != StatusCancelled)
+                              && oi.OrderItemStatus != OrderItemStatus.Cancelled)
                     .GroupBy(oi => oi.MenuItemId)
                     .Select(g => new { MenuItemId = g.Key, Consumed = g.Sum(oi => oi.OrderItemQuantity - oi.CancelledQuantity) })
                     .ToDictionaryAsync(x => x.MenuItemId, x => x.Consumed);
@@ -385,7 +386,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             var toUtc = filter.ToUtc;
 
             var orders = await _context.Orders
-                .Where(o => o.OrderStatus == StatusPaid
+                .Where(o => o.OrderStatus == OrderStatus.Paid
                          && o.OrderClosedAt >= fromUtc
                          && o.OrderClosedAt < toUtc)
                 .Include(o => o.Table)
@@ -461,9 +462,9 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             var toUtc = filter.ToUtc;
             bool isToday = preset == "today";
 
-            var statuses = includeCancelled
-                ? new[] { StatusPaid, StatusCancelled }
-                : new[] { StatusPaid };
+            OrderStatus[] statuses = includeCancelled
+                ? new[] { OrderStatus.Paid, OrderStatus.Cancelled }
+                : new[] { OrderStatus.Paid };
 
             var orders = await _context.Orders
                 .Where(o => statuses.Contains(o.OrderStatus)
@@ -579,7 +580,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             var result = await _context.OrderItems
                 .Where(oi => oi.OrderItemAddedAt >= fromUtc
                           && oi.OrderItemAddedAt < toUtc
-                          && oi.OrderItemStatus != StatusCancelled)
+                          && oi.OrderItemStatus != OrderItemStatus.Cancelled)
                 .GroupBy(oi => new { oi.MenuItemId, oi.MenuItem.MenuItemName })
                 .Select(g => new
                 {
@@ -612,7 +613,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             var result = await _context.OrderItems
                 .Where(oi => oi.OrderItemAddedAt >= fromUtc
                           && oi.OrderItemAddedAt < toUtc
-                          && oi.OrderItemStatus != StatusCancelled)
+                          && oi.OrderItemStatus != OrderItemStatus.Cancelled)
                 .GroupBy(oi => oi.MenuItem.Category.CategoryName)
                 .Select(g => new { Category = g.Key, Revenue = g.Sum(x => x.OrderItemLineTotal) })
                 .ToListAsync();
@@ -950,9 +951,9 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             var fromUtc = vm.Filter.FromUtc;
             var toUtc = vm.Filter.ToUtc;
 
-            var statuses = vm.Filter.IncludeCancelled
-                ? new[] { StatusPaid, StatusCancelled }
-                : new[] { StatusPaid };
+            OrderStatus[] statuses = vm.Filter.IncludeCancelled
+                ? new[] { OrderStatus.Paid, OrderStatus.Cancelled }
+                : new[] { OrderStatus.Paid };
 
             var orders = await _context.Orders
                 .Where(o => statuses.Contains(o.OrderStatus)
@@ -972,7 +973,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             var totalPayments = payments.Sum(p => p.Total);
 
             var topProducts = await _context.OrderItems
-                .Where(oi => orderIds.Contains(oi.OrderId) && oi.OrderItemStatus != StatusCancelled)
+                .Where(oi => orderIds.Contains(oi.OrderId) && oi.OrderItemStatus != OrderItemStatus.Cancelled)
                 .GroupBy(oi => new { oi.MenuItemId, oi.MenuItem.MenuItemName, oi.MenuItem.Category.CategoryName })
                 .Select(g => new TopProductDto
                 {
@@ -986,7 +987,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                 .ToListAsync();
 
             var catSales = await _context.OrderItems
-                .Where(oi => orderIds.Contains(oi.OrderId) && oi.OrderItemStatus != StatusCancelled)
+                .Where(oi => orderIds.Contains(oi.OrderId) && oi.OrderItemStatus != OrderItemStatus.Cancelled)
                 .GroupBy(oi => oi.MenuItem.Category.CategoryName)
                 .Select(g => new { Category = g.Key, Revenue = g.Sum(x => x.OrderItemLineTotal) })
                 .ToListAsync();
@@ -996,7 +997,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             vm.GrossSales = orders.Sum(o => o.OrderTotalAmount);
             vm.NetCollected = totalPayments;
             vm.TotalOrderCount = orders.Count;
-            vm.CancelledOrderCount = orders.Count(o => o.OrderStatus == StatusCancelled);
+            vm.CancelledOrderCount = orders.Count(o => o.OrderStatus == OrderStatus.Cancelled);
             vm.PaymentBreakdown = payments.Select(p => new PaymentMethodDto
             {
                 MethodName = PaymentMethodNames.TryGetValue(p.Method, out var n) ? n : $"Yöntem {p.Method}",
@@ -1020,7 +1021,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             var toUtc = filter.ToUtc;
 
             var orders = await _context.Orders
-                .Where(o => (o.OrderStatus == StatusPaid || (filter.IncludeCancelled && o.OrderStatus == StatusCancelled))
+                .Where(o => (o.OrderStatus == OrderStatus.Paid || (filter.IncludeCancelled && o.OrderStatus == OrderStatus.Cancelled))
                          && o.OrderClosedAt >= fromUtc
                          && o.OrderClosedAt < toUtc)
                 .Include(o => o.Table)
@@ -1043,7 +1044,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                 o.TableName,
                 o.Gross,
                 o.Net,
-                o.OrderStatus
+                o.OrderStatus.ToString() // <--- BURASI DÜZELTİLDİ: .ToString() eklendi
             )).ToList();
         }
 
@@ -1101,7 +1102,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
 
             var consumption = await _context.OrderItems
                 .Where(oi => oi.OrderItemAddedAt >= fromUtc && oi.OrderItemAddedAt < toUtc
-                          && oi.OrderItemStatus != StatusCancelled)
+                          && oi.OrderItemStatus != OrderItemStatus.Cancelled)
                 .GroupBy(oi => oi.MenuItemId)
                 .Select(g => new { MenuItemId = g.Key, Consumed = g.Sum(oi => oi.OrderItemQuantity - oi.CancelledQuantity) })
                 .ToDictionaryAsync(x => x.MenuItemId, x => x.Consumed);
@@ -1124,7 +1125,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             var toUtc = filter.ToUtc;
 
             var orders = await _context.Orders
-                .Where(o => o.OrderStatus == StatusPaid && o.OrderClosedAt >= fromUtc && o.OrderClosedAt < toUtc)
+                .Where(o => o.OrderStatus == OrderStatus.Paid && o.OrderClosedAt >= fromUtc && o.OrderClosedAt < toUtc)
                 .Include(o => o.Table)
                 .Select(o => new { o.Table.TableName, o.OrderTotalAmount, o.OrderOpenedAt, o.OrderClosedAt })
                 .ToListAsync();

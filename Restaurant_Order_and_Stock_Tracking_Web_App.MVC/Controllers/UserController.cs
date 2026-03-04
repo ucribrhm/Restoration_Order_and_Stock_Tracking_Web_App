@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.ViewModels.Users;
 
@@ -265,7 +266,7 @@ public class UserController : Controller
         }
 
         var hasActiveOrders = await _db.Orders
-            .AnyAsync(o => o.OrderOpenedBy == user.FullName && o.OrderStatus == "open");
+            .AnyAsync(o => o.OrderOpenedBy == user.FullName && o.OrderStatus == OrderStatus.Open);
         if (hasActiveOrders)
         {
             TempData["Error"] = $"'{user.FullName}' adına açık siparişler var. Önce kapatın.";

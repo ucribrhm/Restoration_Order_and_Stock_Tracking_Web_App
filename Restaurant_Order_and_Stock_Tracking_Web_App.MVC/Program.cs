@@ -101,6 +101,10 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
             // IClaimsTransformation: Login sırasında TenantId'yi Claims'e yazar
             // Döngüsel bağımlılığı önleyen mekanizmanın kalbi
             builder.Services.AddScoped<IClaimsTransformation, TenantClaimsTransformation>();
+
+            // [MOD] Modüler Monolith — Sipariş servisi
+            builder.Services.AddScoped<Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders.IOrderService,
+                Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders.OrderService>();
             // ────────────────────────────────────────────────────────────────────────
 
             builder.Services.AddControllersWithViews();

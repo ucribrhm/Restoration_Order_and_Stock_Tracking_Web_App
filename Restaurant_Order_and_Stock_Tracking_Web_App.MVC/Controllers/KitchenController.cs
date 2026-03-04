@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Hubs;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
@@ -40,10 +41,10 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
         public async Task<IActionResult> Display()
         {
             var orders = await _db.Orders
-                .Where(o => o.OrderStatus == "open")
+                .Where(o => o.OrderStatus == OrderStatus.Open)
                 .Include(o => o.Table)
                 .Include(o => o.OrderItems
-                    .Where(oi => oi.OrderItemStatus == "pending" || oi.OrderItemStatus == "preparing"))
+                    .Where(oi => oi.OrderItemStatus == OrderItemStatus.Pending || oi.OrderItemStatus == OrderItemStatus.Preparing))
                     .ThenInclude(oi => oi.MenuItem)
                 .OrderBy(o => o.OrderOpenedAt)
                 .ToListAsync();
@@ -69,8 +70,12 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             if (item is null)
                 return NotFound(new { message = "Sipariş kalemi bulunamadı." });
 
-            bool gecerli = (item.OrderItemStatus == "pending" && dto.NewStatus == "preparing")
-                        || (item.OrderItemStatus == "preparing" && dto.NewStatus == "ready");
+            // dto.NewStatus HTTP'den string geliyor; önce enum'a parse et
+            if (!Enum.TryParse<OrderItemStatus>(dto.NewStatus, ignoreCase: true, out var parsedNew))
+                return BadRequest(new { message = $"Geçersiz durum değeri: '{dto.NewStatus}'" });
+
+            bool gecerli = (item.OrderItemStatus == OrderItemStatus.Pending && parsedNew == OrderItemStatus.Preparing)
+                        || (item.OrderItemStatus == OrderItemStatus.Preparing && parsedNew == OrderItemStatus.Ready);
 
             if (!gecerli)
                 return BadRequest(new
@@ -87,7 +92,8 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             var tenantId = item.Order?.TenantId ?? "";
             // ──────────────────────────────────────────────────────────────
 
-            item.OrderItemStatus = dto.NewStatus == "ready" ? "served" : dto.NewStatus;
+            // Ready gelirse KDS "served" olarak işaretler (garson teslim etti)
+            item.OrderItemStatus = parsedNew == OrderItemStatus.Ready ? OrderItemStatus.Served : parsedNew;
             await _db.SaveChangesAsync();
 
             // ── [SIG] Clients.All → Clients.Group(tenantId) ───────────────
@@ -99,7 +105,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                 menuItemName
             });
 
-            if (dto.NewStatus == "ready")
+            if (parsedNew == OrderItemStatus.Ready)
             {
                 await _hub.Clients.Group(tenantId).SendAsync("OrderReadyForPickup", new
                 {

@@ -1,41 +1,39 @@
 ﻿// ============================================================================
 //  Models/Order.cs
-//  DEĞİŞİKLİK — FAZ 1 ADIM 2: Multi-Tenancy
+//  DEĞİŞİKLİK — FAZ 1 FİNAL: String → Enum Geçişi
 //
-//  EKLENEN: TenantId (zorunlu string, FK → tenants.TenantId)
-//  EF Core Global Query Filter bu alan üzerinden izolasyonu sağlar.
-//  DİĞER TÜM ALANLAR AYNEN KORUNDU.
+//  [ENUM-1] OrderStatus tipi: string → OrderStatus enum
+//           DB'de hâlâ "open"/"paid"/"cancelled" olarak saklanır
+//           (Value Converter — bkz. RestaurantDbContext.cs)
+//
+//  KORUNAN: TenantId, Tenant navigation, diğer tüm alanlar
 // ============================================================================
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common;
+
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
 
 public class Order
 {
     public int OrderId { get; set; }
     public int TableId { get; set; }
-    public virtual Table Table { get; set; }
+    public virtual Table Table { get; set; } = null!;
 
-    // ── FAZ 1 ADIM 2: Multi-Tenancy ─────────────────────────────────────────
-    /// <summary>
-    /// Bu adisyonun ait olduğu restoranın TenantId'si.
-    /// FK → tenants.TenantId
-    /// EF Core Global Query Filter bu sütunu kullanarak tenant izolasyonunu
-    /// otomatik olarak uygular — geliştirici Where() yazmayı unutsa bile.
-    ///
-    /// NOT: OrderItem ve Payment bu tablo üzerinden JOIN ile izole edilir;
-    /// o tablolara ayrıca TenantId eklenmez (performans optimizasyonu).
-    /// </summary>
+    // ── Multi-Tenancy ─────────────────────────────────────────────────────────
     public string TenantId { get; set; } = string.Empty;
-
-    /// <summary>Navigasyon. İsteğe bağlı kullanım.</summary>
     public virtual Tenant? Tenant { get; set; }
-    // ─────────────────────────────────────────────────────────────────────────
 
-    public string OrderStatus { get; set; }
-    public string OrderOpenedBy { get; set; }
+    // ── [ENUM-1] String → Enum ────────────────────────────────────────────────
+    // C# tarafı: OrderStatus enum (type-safe, IntelliSense desteği)
+    // DB tarafı : "open" / "paid" / "cancelled"  (JS frontend uyumlu)
+    // Dönüşüm   : RestaurantDbContext.OnModelCreating → Value Converter
+    public OrderStatus OrderStatus { get; set; } = OrderStatus.Open;
+
+    public string? OrderOpenedBy { get; set; }
     public string? OrderNote { get; set; }
     public decimal OrderTotalAmount { get; set; }
     public DateTime OrderOpenedAt { get; set; }
     public DateTime? OrderClosedAt { get; set; }
-    public virtual ICollection<OrderItem> OrderItems { get; set; }
-    public virtual ICollection<Payment> Payments { get; set; }
+
+    public virtual ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
+    public virtual ICollection<Payment> Payments { get; set; } = new List<Payment>();
 }

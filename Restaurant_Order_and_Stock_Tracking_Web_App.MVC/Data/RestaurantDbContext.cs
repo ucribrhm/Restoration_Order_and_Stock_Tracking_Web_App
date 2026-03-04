@@ -1,34 +1,30 @@
 ﻿// ============================================================================
 //  Data/RestaurantDbContext.cs
-//  DEĞİŞİKLİK — FAZ 1 ADIM 2: Multi-Tenancy
-//  DÜZELTME — EF Core Global Query Filter uyarıları giderildi
+//  DEĞİŞİKLİK — FAZ 1 FİNAL: Enum Converter + StockLog Restrict
 //
-//  UYARI KAYNAKLARI VE ÇÖZÜMLERİ:
-//  ─────────────────────────────────────────────────────────────────────────
-//  [WARN-1] MenuItem (filtered) → OrderItem (unfiltered) ilişkisi
-//           Çözüm: OrderItem'a MenuItem üzerinden eşleşen filtre eklendi.
+//  EKLENEN / DEĞİŞTİRİLEN:
+//  [ENUM-CONV-1] Order.OrderStatus      → Value Converter (enum ↔ "open"|"paid"|"cancelled")
+//  [ENUM-CONV-2] OrderItem.OrderItemStatus → Value Converter (enum ↔ "pending"|...)
+//  [RESTRICT]    StockLog → MenuItem   OnDelete: Cascade → Restrict
+//                Ürün silindiğinde stok geçmişi KORUNUR (audit kaydı)
 //
-//  [WARN-2] Order (filtered) → Payment (unfiltered) ilişkisi
-//           Çözüm: Payment'a Order üzerinden eşleşen filtre eklendi.
-//
-//  [WARN-3] MenuItem (filtered) → StockLog (unfiltered) ilişkisi
-//           Çözüm: StockLog'a MenuItem üzerinden eşleşen filtre eklendi.
-//
-//  [WARN-4] RestaurantType enum için sentinel değer uyarısı
-//           Çözüm: HasDefaultValue kaldırıldı, CLR default (FastFood=0) korundu.
-//           Sentinel sorununu önlemek için CasualDining varsayılan değeri
-//           model seviyesinde (Tenant.cs) set edilir.
+//  KORUNAN:
+//  - Tüm Global Query Filter'lar (Multi-Tenancy)
+//  - ShiftLog konfigürasyonu
+//  - Diğer tüm OnDelete, HasMaxLength, HasPrecision ayarları
 // ============================================================================
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
 {
     public class RestaurantDbContext : IdentityDbContext<ApplicationUser>
     {
-        // ── Mevcut DbSet'ler ─────────────────────────────────────────────────
+        // ── DbSet'ler ─────────────────────────────────────────────────────────
         public DbSet<Table> Tables { get; set; }
         public DbSet<Category> Categories { get; set; }
         public DbSet<Order> Orders { get; set; }
@@ -36,13 +32,11 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
         public DbSet<OrderItem> OrderItems { get; set; }
         public DbSet<Payment> Payments { get; set; }
         public DbSet<StockLog> StockLogs { get; set; }
-        public DbSet<ShiftLog> ShiftLogs { get; set; } // Kasa vardiyası kayıtları
-
-        // ── Yeni SaaS DbSet'leri ─────────────────────────────────────────────
+        public DbSet<ShiftLog> ShiftLogs { get; set; }
         public DbSet<Tenant> Tenants { get; set; }
         public DbSet<TenantConfig> TenantConfigs { get; set; }
 
-        // ── ITenantService ───────────────────────────────────────────────────
+        // ── ITenantService ────────────────────────────────────────────────────
         private readonly ITenantService _tenantService;
 
         public RestaurantDbContext(
@@ -58,6 +52,39 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
             base.OnModelCreating(modelBuilder);
 
             // ════════════════════════════════════════════════════════════════
+            //  [ENUM-CONV-1] OrderStatus Value Converter
+            //
+            //  Amaç: C# enum ↔ DB lowercase string dönüşümü
+            //  Neden: KDS ve QR Menü JS frontend'leri string bekliyor.
+            //         Enum eklenirken DB şeması ve JS BOZMADAN tip güvenliği
+            //         kazanılır.
+            //
+            //  Dönüşüm tablosu:
+            //    OrderStatus.Open      ↔ "open"
+            //    OrderStatus.Paid      ↔ "paid"
+            //    OrderStatus.Cancelled ↔ "cancelled"
+            // ════════════════════════════════════════════════════════════════
+            var orderStatusConverter = new ValueConverter<OrderStatus, string>(
+                enumVal => enumVal.ToString().ToLowerInvariant(),          // C# → DB
+                dbStr => Enum.Parse<OrderStatus>(dbStr, true)              // DB → C# (ignoreCase isimlendirmesi kaldırıldı)
+            );
+
+            // ════════════════════════════════════════════════════════════════
+            //  [ENUM-CONV-2] OrderItemStatus Value Converter
+            //
+            //  Dönüşüm tablosu:
+            //    OrderItemStatus.Pending    ↔ "pending"
+            //    OrderItemStatus.Preparing  ↔ "preparing"
+            //    OrderItemStatus.Ready      ↔ "ready"
+            //    OrderItemStatus.Served     ↔ "served"
+            //    OrderItemStatus.Cancelled  ↔ "cancelled"
+            // ════════════════════════════════════════════════════════════════
+            var orderItemStatusConverter = new ValueConverter<OrderItemStatus, string>(
+                enumVal => enumVal.ToString().ToLowerInvariant(),
+                dbStr => Enum.Parse<OrderItemStatus>(dbStr, true)          // (ignoreCase isimlendirmesi kaldırıldı)
+            );
+
+            // ════════════════════════════════════════════════════════════════
             //  Tenant & TenantConfig
             // ════════════════════════════════════════════════════════════════
             modelBuilder.Entity<Tenant>(entity =>
@@ -71,17 +98,12 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                 entity.Property(t => t.IsActive).HasDefaultValue(true).IsRequired();
                 entity.Property(t => t.CreatedAt).HasDefaultValueSql("NOW()").IsRequired();
                 entity.Property(t => t.TrialEndsAt);
-
-                // [WARN-4 DÜZELTME] HasDefaultValue kaldırıldı — sentinel çakışması önlendi.
-                // Varsayılan değer (CasualDining) Tenant.cs'teki property initializer'da set edilir.
                 entity.Property(t => t.RestaurantType)
                     .HasConversion<int>()
                     .IsRequired();
-
                 entity.HasIndex(t => t.Subdomain)
                     .IsUnique()
                     .HasDatabaseName("uq_tenants_subdomain");
-
                 entity.HasOne(t => t.Config)
                     .WithOne(c => c.Tenant)
                     .HasForeignKey<TenantConfig>(c => c.TenantId)
@@ -138,7 +160,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                     .WithMany()
                     .HasForeignKey(t => t.TenantId)
                     .OnDelete(DeleteBehavior.Restrict);
-
                 entity.HasQueryFilter(t =>
                     _tenantService.TenantId == null ||
                     t.TenantId == _tenantService.TenantId);
@@ -162,7 +183,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                     .WithMany()
                     .HasForeignKey(c => c.TenantId)
                     .OnDelete(DeleteBehavior.Restrict);
-
                 entity.HasQueryFilter(c =>
                     _tenantService.TenantId == null ||
                     c.TenantId == _tenantService.TenantId);
@@ -194,20 +214,28 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                     .WithMany()
                     .HasForeignKey(m => m.TenantId)
                     .OnDelete(DeleteBehavior.Restrict);
-
                 entity.HasQueryFilter(m =>
                     _tenantService.TenantId == null ||
                     m.TenantId == _tenantService.TenantId);
             });
 
             // ════════════════════════════════════════════════════════════════
-            //  Order — Global Query Filter
+            //  Order — Global Query Filter + [ENUM-CONV-1] Value Converter
             // ════════════════════════════════════════════════════════════════
             modelBuilder.Entity<Order>(entity =>
             {
                 entity.ToTable("orders");
                 entity.HasKey(o => o.OrderId);
-                entity.Property(o => o.OrderStatus).HasMaxLength(20).HasDefaultValue("open").IsRequired();
+
+                // [ENUM-CONV-1] OrderStatus enum → "open"/"paid"/"cancelled" string
+                // HasDefaultValue burada DB default değerini belirtir; converter bunu
+                // enum'a çevirmez (seed değeri doğrudan DB'ye yazılır).
+                entity.Property(o => o.OrderStatus)
+                    .HasConversion(orderStatusConverter)
+                    .HasMaxLength(20)
+                    .HasDefaultValueSql("'open'")
+                    .IsRequired();
+
                 entity.Property(o => o.OrderOpenedBy).HasMaxLength(100);
                 entity.Property(o => o.OrderNote).HasColumnType("text");
                 entity.Property(o => o.OrderTotalAmount).HasPrecision(12, 2).HasDefaultValue(0).IsRequired();
@@ -221,21 +249,14 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                     .WithMany()
                     .HasForeignKey(o => o.TenantId)
                     .OnDelete(DeleteBehavior.Restrict);
-
                 entity.HasQueryFilter(o =>
                     _tenantService.TenantId == null ||
                     o.TenantId == _tenantService.TenantId);
             });
 
             // ════════════════════════════════════════════════════════════════
-            //  OrderItem
-            //  [WARN-1 DÜZELTME] MenuItem'a filtre uygulandı → OrderItem'a
-            //  eşleşen filtre eklenmeli. MenuItem.TenantId üzerinden kontrol.
-            //
-            //  Filtre mantığı:
-            //    TenantId null (migration/seed) → filtre yok, tüm kayıtlar döner
-            //    TenantId dolu → yalnızca o tenant'ın MenuItem'larına bağlı
-            //    OrderItem'lar döner (= doğru tenant'ın sipariş kalemleri)
+            //  OrderItem — [ENUM-CONV-2] Value Converter
+            //  [WARN-1 DÜZELTME] MenuItem üzerinden Global Query Filter
             // ════════════════════════════════════════════════════════════════
             modelBuilder.Entity<OrderItem>(entity =>
             {
@@ -246,7 +267,14 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                 entity.Property(o => o.OrderItemUnitPrice).HasPrecision(10, 2).IsRequired();
                 entity.Property(o => o.OrderItemLineTotal).HasPrecision(12, 2).IsRequired();
                 entity.Property(o => o.OrderItemNote).HasColumnType("text");
-                entity.Property(o => o.OrderItemStatus).HasMaxLength(20).HasDefaultValue("pending").IsRequired();
+
+                // [ENUM-CONV-2] OrderItemStatus enum → "pending"/"preparing"/... string
+                entity.Property(o => o.OrderItemStatus)
+                    .HasConversion(orderItemStatusConverter)
+                    .HasMaxLength(20)
+                    .HasDefaultValueSql("pending")
+                    .IsRequired();
+
                 entity.Property(o => o.OrderItemAddedAt).HasDefaultValueSql("NOW()").IsRequired();
                 entity.Property(o => o.CancelledQuantity).IsRequired().HasDefaultValue(0);
                 entity.Property(o => o.CancelReason).HasColumnType("text");
@@ -273,8 +301,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
 
             // ════════════════════════════════════════════════════════════════
             //  Payment
-            //  [WARN-2 DÜZELTME] Order'a filtre uygulandı → Payment'a
-            //  eşleşen filtre eklenmeli. Order.TenantId üzerinden kontrol.
+            //  [WARN-2 DÜZELTME] Order üzerinden Global Query Filter
             // ════════════════════════════════════════════════════════════════
             modelBuilder.Entity<Payment>(entity =>
             {
@@ -289,8 +316,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                     .WithMany(p => p.Payments)
                     .HasForeignKey(o => o.OrderId)
                     .OnDelete(DeleteBehavior.Restrict);
-
-                // [WARN-2 DÜZELTME] Order filtresiyle eşleşen filtre
                 entity.HasQueryFilter(p =>
                     _tenantService.TenantId == null ||
                     p.Order.TenantId == _tenantService.TenantId);
@@ -298,8 +323,15 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
 
             // ════════════════════════════════════════════════════════════════
             //  StockLog
-            //  [WARN-3 DÜZELTME] MenuItem'a filtre uygulandı → StockLog'a
-            //  eşleşen filtre eklenmeli. MenuItem.TenantId üzerinden kontrol.
+            //  [WARN-3 DÜZELTME] MenuItem üzerinden Global Query Filter
+            //  [RESTRICT] OnDelete: Cascade → Restrict
+            //
+            //  GEREKÇE: Ürün silindiğinde stok geçmişi (StockLog) kayıtları
+            //  SİLİNMEMELİ. Bu kayıtlar mali ve audit amaçlı tutulur.
+            //  Cascade ile tüm stok geçmişi kayboluyordu — kritik veri kaybı.
+            //
+            //  YENİ DAVRANIM: MenuItem.IsDeleted = true (soft-delete) yapılır,
+            //  fiziksel silme yapılmaz. StockLog'lar korunur.
             // ════════════════════════════════════════════════════════════════
             modelBuilder.Entity<StockLog>(entity =>
             {
@@ -314,10 +346,12 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                 entity.Property(s => s.SourceType).HasMaxLength(30);
                 entity.Property(s => s.OrderId);
                 entity.Property(s => s.UnitPrice).HasColumnType("numeric(18,2)");
+
+                // [RESTRICT] Cascade → Restrict: ürün silinse bile stok geçmişi korunur
                 entity.HasOne(s => s.MenuItem)
                     .WithMany()
                     .HasForeignKey(s => s.MenuItemId)
-                    .OnDelete(DeleteBehavior.Cascade);
+                    .OnDelete(DeleteBehavior.Restrict);
 
                 // [WARN-3 DÜZELTME] MenuItem filtresiyle eşleşen filtre
                 entity.HasQueryFilter(s =>
@@ -326,10 +360,8 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
             });
 
             // ════════════════════════════════════════════════════════════════
-            //  ShiftLog — Kasa Vardiyası
-            //  [MT] TenantId FK + Global Query Filter eklendi.
-            //  Önceki durumda ShiftLog izole değildi: herhangi bir tenant'ın
-            //  admin'i başka tenant'ın Z-Raporlarını görebiliyordu.
+            //  ShiftLog — Kasa Vardiyası (Faz 1 Adım 3)
+            //  [MT] TenantId FK + Global Query Filter
             // ════════════════════════════════════════════════════════════════
             modelBuilder.Entity<ShiftLog>(entity =>
             {
@@ -351,27 +383,19 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data
                 entity.Property(s => s.Notes).HasColumnType("text");
                 entity.Property(s => s.IsClosed).HasDefaultValue(false).IsRequired();
                 entity.Property(s => s.IsLocked).HasDefaultValue(false).IsRequired();
-
                 entity.HasOne(s => s.OpenedByUser)
                     .WithMany()
                     .HasForeignKey(s => s.OpenedByUserId)
                     .OnDelete(DeleteBehavior.Restrict);
-
                 entity.HasOne(s => s.ClosedByUser)
                     .WithMany()
                     .HasForeignKey(s => s.ClosedByUserId)
                     .OnDelete(DeleteBehavior.Restrict);
-
-                // [MT] TenantId FK
                 entity.Property(s => s.TenantId).HasMaxLength(100).IsRequired();
                 entity.HasOne(s => s.Tenant)
                     .WithMany()
                     .HasForeignKey(s => s.TenantId)
                     .OnDelete(DeleteBehavior.Restrict);
-
-                // [MT] Global Query Filter — THE SHIELD
-                // TenantId null (migration/seed) → filtre yok
-                // TenantId dolu → yalnızca o tenant'ın vardiyaları görünür
                 entity.HasQueryFilter(s =>
                     _tenantService.TenantId == null ||
                     s.TenantId == _tenantService.TenantId);

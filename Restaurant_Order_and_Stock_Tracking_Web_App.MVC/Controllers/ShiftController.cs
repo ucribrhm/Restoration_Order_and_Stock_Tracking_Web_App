@@ -1,17 +1,18 @@
 ﻿using Microsoft.AspNetCore.Authorization;
-using QuestPDF.Fluent;
-using QuestPDF.Helpers;
-using QuestPDF.Infrastructure;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Dtos.Shift;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Hubs;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
-using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.ViewModels.Shift;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.ViewModels.Shift;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
 {
@@ -151,7 +152,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             // Vardiya aralığındaki (OpenedAt..closedAt) paid Order'ları al
             var paidOrders = await _db.Orders
                 .Include(o => o.Payments)
-                .Where(o => o.OrderStatus == "paid"
+                .Where(o => o.OrderStatus == OrderStatus.Paid // FIX: Enum olarak değiştirildi
                          && o.OrderClosedAt >= shift.OpenedAt
                          && o.OrderClosedAt <= closedAt)
                 .ToListAsync();
@@ -247,7 +248,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
 
             var paidOrders = await _db.Orders
                 .Include(o => o.Payments)
-                .Where(o => o.OrderStatus == "paid"
+                .Where(o => o.OrderStatus == OrderStatus.Paid // FIX: Enum olarak değiştirildi
                          && o.OrderClosedAt >= shift.OpenedAt
                          && o.OrderClosedAt <= now)
                 .ToListAsync();
@@ -589,7 +590,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                 .Include(o => o.OrderItems)
                     .ThenInclude(oi => oi.MenuItem)
                         .ThenInclude(mi => mi.Category)
-                .Where(o => o.OrderStatus == "paid"
+                .Where(o => o.OrderStatus == OrderStatus.Paid // FIX: Enum olarak değiştirildi
                          && o.OrderClosedAt >= shift.OpenedAt
                          && o.OrderClosedAt <= closedAt)
                 .ToListAsync();
@@ -602,7 +603,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             decimal other = allPayments.Where(p => p.PaymentsMethod == 3).Sum(p => p.PaymentsAmount);
 
             // İptal & zayi kalemleri — tüm siparişler (açık dahil)
-            var cancelledItemsQuery = await _db.OrderItems // BURASI DÜZELTİLDİ
+            var cancelledItemsQuery = await _db.OrderItems
                 .Include(oi => oi.Order)
                 .Include(oi => oi.MenuItem)
                 .Where(oi => oi.CancelledQuantity > 0
@@ -610,10 +611,10 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                           && oi.Order.OrderOpenedAt <= closedAt)
                 .ToListAsync();
 
-            int cancelledCount = cancelledItemsQuery.Sum(oi => oi.CancelledQuantity); // BURASI DÜZELTİLDİ
+            int cancelledCount = cancelledItemsQuery.Sum(oi => oi.CancelledQuantity);
 
             // FIX: OrderItemUnitPrice 0 ise MenuItem.MenuItemPrice kullan
-            decimal wasteAmount = cancelledItemsQuery // BURASI DÜZELTİLDİ
+            decimal wasteAmount = cancelledItemsQuery
                 .Where(oi => oi.IsWasted == true)
                 .Sum(oi =>
                 {
