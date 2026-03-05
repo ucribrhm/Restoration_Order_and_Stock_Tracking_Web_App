@@ -74,12 +74,24 @@ else
             var itemCount    = mergedItems?.Count ?? 0;
             var showLimit    = 5;
 
+            @* ── [SPRINT-4] DB'den gelen Ready statüsü — sayfa yenilense de kalıcı *@
+            var hasReadyItems = openOrder?.OrderItems
+                .Any(i => i.OrderItemStatus == OrderItemStatus.Ready) ?? false;
+
             @* ── DEĞIŞIKLIK 1: data-waiter-called-at attribute eklendi ── *@
-<div class="table-card @sc @(warningSoon ? "warning-soon" : "") @(table.IsWaiterCalled ? "waiter-called" : "")"
+<div class="table-card @sc @(warningSoon ? "warning-soon" : "") @(table.IsWaiterCalled ? "waiter-called" : "") @(hasReadyItems ? "order-ready" : "")"
      data-status="@sc"
      data-table-id="@table.TableId"
      data-table-name="@table.TableName"
      data-waiter-called-at="@(table.WaiterCalledAt.HasValue ? table.WaiterCalledAt.Value.ToString("o") : "")">
+
+    @* ── [SPRINT-4] Kalıcı 'Sipariş Hazır' rozeti — DB'den, F5'e dayanıklı *@
+    @if (hasReadyItems)
+    {
+        <div class="order-ready-badge" id="ready-badge-@table.TableId">
+            🍽️ Sipariş Hazır!
+        </div>
+    }
 
     @* ── DEĞIŞIKLIK 2: waiter-bell-badge içine SLA timer span eklendi ── *@
     @if (table.IsWaiterCalled)
@@ -173,6 +185,16 @@ else
                         <button type="button" class="card-btn dismiss-waiter"
                                 onclick="dismissWaiter('@Html.Raw(table.TableName.Replace("'", "\\'"))')">
                             ✅ İlgilenildi (Tamam)
+                        </button>
+                    }
+
+                    @* ── [MADDE-2 & 3] DB'den kalıcı "Servis Et" butonu ── *@
+                    @if (hasReadyItems)
+                    {
+                        <button type="button" class="card-btn serve-order-btn"
+                                data-table-id="@table.TableId"
+                                onclick="serveOrder(@table.TableId, '@Html.Raw(table.TableName.Replace("'", "\\'"))')">
+                            🍽️ Servis Et
                         </button>
                     }
                 </div>
