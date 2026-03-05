@@ -227,11 +227,20 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
 
                 if (targetOrder == null)
                 {
+                    var oldOrderId = sourceOrder.OrderId;
                     sourceOrder.TableId = dto.TargetTableId;
                     sourceOrder.Table.TableStatus = 0;
                     targetTable.TableStatus = 1;
                     await _db.SaveChangesAsync();
                     await transaction.CommitAsync();
+
+                    // ── [SPRINT-4] Taşıma: eski kart kaldır, yeni kart yükle ───
+                    var tg = _tenantService.TenantId ?? "";
+                    // Eski masa adıyla gösterilen KDS kartını kaldır
+                    _ = _hub.Clients.Group(tg).SendAsync("RemoveOrderCard", new { orderId = oldOrderId });
+                    // Aynı adisyon yeni masaya taşındı — KDS'te yeni masa adıyla göster
+                    _ = _hub.Clients.Group(tg).SendAsync("OrderUpdated", new { orderId = oldOrderId });
+                    // ─────────────────────────────────────────────────────────────
 
                     return Json(new
                     {
@@ -277,6 +286,12 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                 await _db.SaveChangesAsync();
                 await transaction.CommitAsync();
 
+                // ── [SPRINT-4] Birleştirme: kaynak kartı kaldır, hedef kartı yenile
+                var tg2 = _tenantService.TenantId ?? "";
+                _ = _hub.Clients.Group(tg2).SendAsync("RemoveOrderCard", new { orderId = sourceOrder.OrderId });
+                _ = _hub.Clients.Group(tg2).SendAsync("OrderUpdated", new { orderId = targetOrder.OrderId });
+                // ─────────────────────────────────────────────────────────────────
+
                 return Json(new
                 {
                     success = true,
@@ -289,6 +304,60 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
                 await transaction.RollbackAsync();
                 return Json(new { success = false, message = "Birleştirme sırasında hata oluştu: " + ex.Message });
             }
+        }
+
+
+        // ── POST /Tables/ServeReadyItems ──────────────────────────────────
+        // [MADDE-2 & 3] Tables ekranındaki "Servis Et" butonundan çağrılır.
+        // O masanın açık adisyonundaki tüm Ready kalemleri Served yapar.
+        // SignalR: OrderServed + (gerekirse) RemoveOrderCard fırlatılır.
+        // ──────────────────────────────────────────────────────────────────
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> ServeReadyItems([FromBody] ServeReadyItemsDto dto)
+        {
+            var order = await _db.Orders
+                .Where(o => o.TableId == dto.TableId && o.OrderStatus == OrderStatus.Open)
+                .Include(o => o.Table)
+                .Include(o => o.OrderItems)
+                .FirstOrDefaultAsync();
+
+            if (order == null)
+                return Json(new { success = false, message = "Açık adisyon bulunamadı." });
+
+            var readyItems = order.OrderItems
+                .Where(oi => oi.OrderItemStatus == OrderItemStatus.Ready)
+                .ToList();
+
+            if (!readyItems.Any())
+                return Json(new { success = false, message = "Servis edilecek hazır ürün yok." });
+
+            foreach (var item in readyItems)
+                item.OrderItemStatus = OrderItemStatus.Served;
+
+            await _db.SaveChangesAsync();
+
+            var tg = _tenantService.TenantId ?? "";
+            var tableName = order.Table?.TableName ?? $"#{order.TableId}";
+
+            // Garson rozeti kaldır (artık Ready kalem yok)
+            _ = _hub.Clients.Group(tg).SendAsync("OrderServed", new
+            {
+                orderId = order.OrderId,
+                tableId = dto.TableId,
+                tableName
+            });
+
+            // KDS: hâlâ Pending/Preparing kalem varsa kartı güncelle, yoksa kaldır
+            bool hasKitchenItems = order.OrderItems.Any(oi =>
+                oi.OrderItemStatus == OrderItemStatus.Pending ||
+                oi.OrderItemStatus == OrderItemStatus.Preparing);
+
+            if (hasKitchenItems)
+                _ = _hub.Clients.Group(tg).SendAsync("OrderUpdated", new { orderId = order.OrderId });
+            else
+                _ = _hub.Clients.Group(tg).SendAsync("RemoveOrderCard", new { orderId = order.OrderId });
+
+            return Json(new { success = true, message = $"{readyItems.Count} ürün servis edildi." });
         }
 
         // ── POST /Tables/DismissWaiter ─────────────────────────────────
@@ -327,4 +396,10 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
             _ => 3
         };
     }
+
+    public class ServeReadyItemsDto
+    {
+        public int TableId { get; set; }
+    }
+
 }

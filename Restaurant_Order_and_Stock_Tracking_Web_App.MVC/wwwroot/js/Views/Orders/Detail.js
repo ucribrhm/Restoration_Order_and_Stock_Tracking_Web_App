@@ -686,3 +686,36 @@
     }, 3000);
 
 });
+// ═══════════════════════════════════════════════════════════
+// [SPRINT-4] SignalR — Detail sayfasında OrderReady bildirimi
+// Mutfak "Hazır" dediğinde garson, sayfayı yenilemeden "Servis
+// Edildi" butonunu görür (location.reload ile sayfa güncellenir).
+// ═══════════════════════════════════════════════════════════
+(function initDetailSignalR() {
+    if (typeof signalR === 'undefined') return;
+
+    const cfg = JSON.parse(document.getElementById('orderConfigData').textContent);
+    const currentOrderId = parseInt(cfg.orderId);
+
+    const conn = new signalR.HubConnectionBuilder()
+        .withUrl('/hubs/restaurant')
+        .withAutomaticReconnect([0, 2000, 5000])
+        .configureLogging(signalR.LogLevel.Warning)
+        .build();
+
+    // Mutfak bu adisyondaki bir kalemi Hazır yaptı → sayfayı yenile
+    conn.on('OrderReady', function (payload) {
+        if (parseInt(payload.orderId) === currentOrderId) location.reload();
+    });
+
+    // Başka terminalden Served yapıldı → yenile
+    conn.on('OrderServed', function (payload) {
+        if (parseInt(payload.orderId) === currentOrderId) location.reload();
+    });
+
+    async function start() {
+        try { await conn.start(); }
+        catch { setTimeout(start, 5000); }
+    }
+    start();
+})();

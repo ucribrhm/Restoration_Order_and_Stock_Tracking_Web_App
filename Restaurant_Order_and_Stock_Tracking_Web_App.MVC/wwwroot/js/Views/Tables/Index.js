@@ -406,6 +406,23 @@ tickSlaTimers();
 setInterval(tickSlaTimers, 15000);
 
 
+
+// ── [MADDE-3] Sipariş Servis Et ─────────────────────────────────────────
+// Tables/Index'teki "Servis Et" butonu çağırır → OrderService.UpdateItemStatusAsync
+async function serveOrder(tableId, tableName) {
+    try {
+        // O masanın açık adisyonundaki Ready kalemleri bul ve Served yap
+        const data = await postJson('/Tables/ServeReadyItems', { tableId });
+        if (!data.success) {
+            console.warn('ServeReadyItems başarısız:', data.message);
+            showToast('toast-serve-err', 'danger', '⚠️', 'Hata', data.message || 'Servis işlemi başarısız', 4000);
+        }
+        // Başarı durumunda UI, SignalR'dan gelen "OrderServed" eventi ile güncellenir.
+    } catch (err) {
+        console.error('serveOrder hatası:', err);
+    }
+}
+
 // ── Garson Çağrısını Onayla (Garson → DismissWaiter) ────────────────────
 async function dismissWaiter(tableName) {
     try {
@@ -483,6 +500,69 @@ async function dismissWaiter(tableName) {
         card.querySelector('.dismiss-waiter')?.remove();
     });
 
+
+    // ── [MADDE-3] OrderReady: Mutfak siparişi hazırladı → masa kartına rozet + buton ──
+    connection.on("OrderReady", function (payload) {
+        const card = document.querySelector(`.table-card[data-table-id="${payload.tableId}"]`);
+        if (!card) return;
+
+        card.classList.add('order-ready');
+
+        // Rozet ekle (yoksa)
+        if (!card.querySelector('.order-ready-badge')) {
+            const badge = document.createElement('div');
+            badge.className = 'order-ready-badge';
+            badge.id = `ready-badge-${payload.tableId}`;
+            badge.textContent = '🍽️ Sipariş Hazır!';
+            card.prepend(badge);
+        }
+
+        // "Servis Et" butonu ekle (card-actions içine, yoksa)
+        const actions = card.querySelector('.card-actions');
+        if (actions && !actions.querySelector('.serve-order-btn')) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'card-btn serve-order-btn';
+            btn.setAttribute('data-table-id', payload.tableId);
+            btn.innerHTML = '🍽️ Servis Et';
+            btn.onclick = () => serveOrder(payload.tableId, payload.tableName);
+            actions.insertBefore(btn, actions.firstChild);
+        }
+
+        // Toast: geçici bilgi
+        showToast(
+            'toast-ready-' + payload.tableId,
+            'success', '🍽️',
+            `${payload.tableName} — Sipariş Hazır`,
+            `${payload.menuItemName} servis için hazır!`,
+            8000
+        );
+    });
+
+    // ── [MADDE-3] OrderServed: Garson servis etti → rozeti ve butonu kaldır ────────
+    connection.on("OrderServed", function (payload) {
+        const card = document.querySelector(`.table-card[data-table-id="${payload.tableId}"]`);
+        if (!card) return;
+
+        card.classList.remove('order-ready');
+        card.querySelector(`#ready-badge-${payload.tableId}`)?.remove();
+        card.querySelector('.serve-order-btn')?.remove();
+    });
+
+    // ── [MADDE-4] RemoveOrderCard: İptal/Birleştirme → masa kartını anında temizle ──
+    // (Tables/Index sadece masa kartı gösterir; KDS kartı değil)
+    // Bu event masa durumu değiştiğinde veya birleştirmede tetiklenir.
+    // Tables/Index'teki masa kartı state'i zaten allTablesData'dan geliyor;
+    // tam kart refresh için partial endpoint kullanıyoruz.
+    connection.on("RemoveOrderCard", function (payload) {
+        // Birleştirmede eski masanın durum güncellenmesi gerekiyor (zaten redirect var)
+        // Tables/Index'de kart DOM'u etkilenmez — masa kartı tableId ile tanınır, orderId ile değil
+    });
+
+    connection.on("OrderUpdated", function (payload) {
+        // Tables/Index: kart state'i DB'den; merkezi refresh tetiklenebilir
+        // Şimdilik: birleştirme zaten location.reload yapıyor; iptal için masa kartı değişmez
+    });
     // ── Bağlantıyı Başlat ────────────────────────────────────────────────
     async function startConnection() {
         try {

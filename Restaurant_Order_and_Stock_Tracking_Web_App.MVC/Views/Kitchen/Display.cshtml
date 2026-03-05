@@ -6,16 +6,12 @@
 @using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models
 @model IEnumerable<Order>
 @{
-    Layout = null;
+    Layout = "_Layout";
+    ViewData["Title"] = "🍳 KDS — Mutfak Ekranı";
 }
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>🍳 KDS — Mutfak Ekranı</title>
+@section Styles {
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
     <style>
         /* ── Arka plan dokusu ───────────────────────────────────────────────────── */
         body {
@@ -192,565 +188,595 @@
             border-radius: 3px;
         }
     </style>
-</head>
-<body class="text-white">
+}
+<header class="sticky top-0 z-50 flex items-center justify-between px-6 py-3"
+        style="background:rgba(8,12,20,.85);backdrop-filter:blur(24px);border-bottom:1px solid rgba(255,255,255,.06);">
+    <div class="flex items-center gap-3">
+        <span class="text-2xl">🍳</span>
+        <div>
+            <h1 class="text-lg font-bold tracking-tight leading-none">Mutfak Ekranı</h1>
+            <p class="text-xs text-slate-500 mt-0.5">Kitchen Display System</p>
+        </div>
+    </div>
 
-    <header class="sticky top-0 z-50 flex items-center justify-between px-6 py-3"
-            style="background:rgba(8,12,20,.85);backdrop-filter:blur(24px);border-bottom:1px solid rgba(255,255,255,.06);">
-        <div class="flex items-center gap-3">
-            <span class="text-2xl">🍳</span>
-            <div>
-                <h1 class="text-lg font-bold tracking-tight leading-none">Mutfak Ekranı</h1>
-                <p class="text-xs text-slate-500 mt-0.5">Kitchen Display System</p>
-            </div>
+    <div class="flex items-center gap-4">
+        <div class="text-center">
+            <div id="activeCount" class="text-2xl font-black tabular-nums text-sky-400">@Model.Count()</div>
+            <div class="text-xs text-slate-500">aktif masa</div>
         </div>
 
-        <div class="flex items-center gap-4">
-            <div class="text-center">
-                <div id="activeCount" class="text-2xl font-black tabular-nums text-sky-400">@Model.Count()</div>
-                <div class="text-xs text-slate-500">aktif masa</div>
-            </div>
-
-            <div class="text-right hidden sm:block">
-                <div class="text-xs text-slate-500">Son güncelleme</div>
-                <div id="lastUpdate" class="text-xs font-mono text-slate-300">—</div>
-            </div>
-
-            <div class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold"
-                 style="background:rgba(255,255,255,.06);" id="connBadge">
-                <span class="led led-yellow" id="connLed"></span>
-                <span id="connText">Bağlanıyor…</span>
-            </div>
+        <div class="text-right hidden sm:block">
+            <div class="text-xs text-slate-500">Son güncelleme</div>
+            <div id="lastUpdate" class="text-xs font-mono text-slate-300">—</div>
         </div>
-    </header>
 
-    <main id="cardsGrid"
-          class="grid gap-5 p-5"
-          style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold"
+             style="background:rgba(255,255,255,.06);" id="connBadge">
+            <span class="led led-yellow" id="connLed"></span>
+            <span id="connText">Bağlanıyor…</span>
+        </div>
 
-        @if (!Model.Any())
-        {
-            <div id="emptyState" class="col-span-full flex flex-col items-center justify-center py-24 gap-4 text-slate-600">
-                <span class="text-6xl">🎉</span>
-                <p class="text-xl font-semibold">Mutfakta bekleyen sipariş yok</p>
-                <p class="text-sm">Yeni sipariş geldiğinde otomatik görünecek</p>
-            </div>
-        }
 
-        @foreach (var order in Model)
-        {
-            @if (!order.OrderItems.Any()) { continue; }
+        
+    </div>
+</header>
 
-            var oldestUtc = order.OrderItems.Min(i => i.OrderItemAddedAt);
-            var mins = (DateTime.UtcNow - oldestUtc).TotalMinutes;
-            var glowClass = mins < 10 ? "glow-green" : mins < 20 ? "glow-orange" : "glow-red";
-            var accentColor = mins < 10 ? "#4ade80" : mins < 20 ? "#fb923c" : "#f87171";
-            var oldestUnix = ((DateTimeOffset)DateTime.SpecifyKind(oldestUtc, DateTimeKind.Utc)).ToUnixTimeSeconds();
+<main id="cardsGrid"
+      class="grid gap-5 p-5"
+      style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
 
-            <div class="glass-card @glowClass card-enter"
-                 id="order-card-@order.OrderId"
-                 data-order-id="@order.OrderId"
-                 data-oldest="@oldestUnix">
+    @if (!Model.Any())
+    {
+        <div id="emptyState" class="col-span-full flex flex-col items-center justify-center py-24 gap-4 text-slate-600">
+            <span class="text-6xl">🎉</span>
+            <p class="text-xl font-semibold">Mutfakta bekleyen sipariş yok</p>
+            <p class="text-sm">Yeni sipariş geldiğinde otomatik görünecek</p>
+        </div>
+    }
 
-                <div class="px-5 pt-5 pb-4 flex items-start justify-between gap-3"
-                     style="border-bottom:1px solid rgba(255,255,255,.07);">
-                    <div>
-                        <div class="time-chip" id="timer-@order.OrderId"
-                             data-oldest="@oldestUnix"
-                             style="color:@accentColor">
-                            @{
-                                var elapsed = DateTime.UtcNow - oldestUtc;
-                                var dispMin = (int)elapsed.TotalMinutes;
-                                var dispSec = elapsed.Seconds;
-                            }
-                            @dispMin<span class="text-base font-normal opacity-60">dk @dispSec.ToString("D2")sn</span>
-                        </div>
-                        <div class="text-xs text-slate-500 mt-1">bekliyor</div>
+    @foreach (var order in Model)
+    {
+        @if (!order.OrderItems.Any()) { continue; }
+
+        var oldestUtc = order.OrderItems.Min(i => i.OrderItemAddedAt);
+        var mins = (DateTime.UtcNow - oldestUtc).TotalMinutes;
+        var glowClass = mins < 10 ? "glow-green" : mins < 20 ? "glow-orange" : "glow-red";
+        var accentColor = mins < 10 ? "#4ade80" : mins < 20 ? "#fb923c" : "#f87171";
+        var oldestUnix = ((DateTimeOffset)DateTime.SpecifyKind(oldestUtc, DateTimeKind.Utc)).ToUnixTimeSeconds();
+
+        <div class="glass-card @glowClass card-enter"
+             id="order-card-@order.OrderId"
+             data-order-id="@order.OrderId"
+             data-oldest="@oldestUnix">
+
+            <div class="px-5 pt-5 pb-4 flex items-start justify-between gap-3"
+                 style="border-bottom:1px solid rgba(255,255,255,.07);">
+                <div>
+                    <div class="time-chip" id="timer-@order.OrderId"
+                         data-oldest="@oldestUnix"
+                         style="color:@accentColor">
+                        @{
+                            var elapsed = DateTime.UtcNow - oldestUtc;
+                            var dispMin = (int)elapsed.TotalMinutes;
+                            var dispSec = elapsed.Seconds;
+                        }
+                        @dispMin<span class="text-base font-normal opacity-60">dk @dispSec.ToString("D2")sn</span>
                     </div>
-
-                    <div class="text-right flex-shrink-0">
-                        <div class="text-xl font-black tracking-tight">@(order.Table?.TableName ?? $"#{order.OrderId}")</div>
-                        <div class="text-xs text-slate-500 mt-0.5 font-mono">
-                            @order.OrderOpenedAt.ToLocalTime().ToString("HH:mm")
-                        </div>
-                    </div>
+                    <div class="text-xs text-slate-500 mt-1">bekliyor</div>
                 </div>
 
-                <div class="px-4 py-3 flex flex-col gap-0" id="card-body-@order.OrderId">
-                    @foreach (var item in order.OrderItems.OrderBy(i => i.OrderItemAddedAt))
-                    {
-                        var isPending = item.OrderItemStatus == OrderItemStatus.Pending;
-                        var isPreparing = item.OrderItemStatus == OrderItemStatus.Preparing;
+                <div class="text-right flex-shrink-0">
+                    <div class="text-xl font-black tracking-tight">@(order.Table?.TableName ?? $"#{order.OrderId}")</div>
+                    <div class="text-xs text-slate-500 mt-0.5 font-mono">
+                        @order.OrderOpenedAt.ToLocalTime().ToString("HH:mm")
+                    </div>
+                </div>
+            </div>
 
-                        <div class="item-row flex items-start justify-between gap-3 py-3"
-                             id="item-row-@item.OrderItemId"
-                             data-item-id="@item.OrderItemId"
-                             data-status="@item.OrderItemStatus">
+            <div class="px-4 py-3 flex flex-col gap-0" id="card-body-@order.OrderId">
+                @foreach (var item in order.OrderItems.OrderBy(i => i.OrderItemAddedAt))
+                {
+                    var isPending = item.OrderItemStatus == OrderItemStatus.Pending;
+                    var isPreparing = item.OrderItemStatus == OrderItemStatus.Preparing;
 
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-2 flex-wrap">
-                                    <span class="text-xs font-black px-2 py-0.5 rounded-md"
-                                          style="background:rgba(255,255,255,.1);">
-                                        ×@item.ActiveQuantity
-                                    </span>
-                                    <span class="font-bold text-base truncate">
-                                        @(item.MenuItem?.MenuItemName ?? "Ürün")
-                                    </span>
-                                </div>
-                                @if (!string.IsNullOrWhiteSpace(item.OrderItemNote))
-                                {
-                                    <div class="text-xs mt-1.5 px-2 py-1 rounded-lg w-fit"
-                                         style="background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.2);">
-                                        📝 @item.OrderItemNote
-                                    </div>
-                                }
-                                <div class="mt-2">
-                                    @if (isPending)
-                                    {
-                                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
-                                              style="background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.2);">
-                                            ⏳ Bekliyor
-                                        </span>
-                                    }
-                                    else if (isPreparing)
-                                    {
-                                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
-                                              style="background:rgba(251,146,60,.15);color:#fb923c;border:1px solid rgba(251,146,60,.25);">
-                                            🔥 Ocakta
-                                        </span>
-                                    }
-                                </div>
+                    <div class="item-row flex items-start justify-between gap-3 py-3"
+                         id="item-row-@item.OrderItemId"
+                         data-item-id="@item.OrderItemId"
+                         data-status="@item.OrderItemStatus">
+
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-xs font-black px-2 py-0.5 rounded-md"
+                                      style="background:rgba(255,255,255,.1);">
+                                    ×@item.ActiveQuantity
+                                </span>
+                                <span class="font-bold text-base truncate">
+                                    @(item.MenuItem?.MenuItemName ?? "Ürün")
+                                </span>
                             </div>
-
-                            <div class="flex-shrink-0 flex flex-col items-end justify-center"
-                                 id="btn-area-@item.OrderItemId">
+                            @if (!string.IsNullOrWhiteSpace(item.OrderItemNote))
+                            {
+                                <div class="text-xs mt-1.5 px-2 py-1 rounded-lg w-fit"
+                                     style="background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.2);">
+                                    📝 @item.OrderItemNote
+                                </div>
+                            }
+                            <div class="mt-2">
                                 @if (isPending)
                                 {
-                                    <button class="btn-kitchen text-sm font-bold px-4 py-2.5 rounded-xl whitespace-nowrap"
-                                            style="background:linear-gradient(135deg,#6366f1,#8b5cf6);box-shadow:0 4px 15px rgba(139,92,246,.3);"
-                                            onclick="updateStatus(@item.OrderItemId,'preparing')">
-                                        Ocağa Al
-                                    </button>
+                                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                                          style="background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.2);">
+                                        ⏳ Bekliyor
+                                    </span>
                                 }
                                 else if (isPreparing)
                                 {
-                                    <button class="btn-kitchen text-sm font-bold px-4 py-2.5 rounded-xl whitespace-nowrap"
-                                            style="background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 4px 15px rgba(34,197,94,.35);"
-                                            onclick="updateStatus(@item.OrderItemId,'ready')">
-                                        🔔 Hazır — Garsonu Çağır
-                                    </button>
+                                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                                          style="background:rgba(251,146,60,.15);color:#fb923c;border:1px solid rgba(251,146,60,.25);">
+                                        🔥 Ocakta
+                                    </span>
                                 }
                             </div>
-
                         </div>
-                    }
-                </div>
 
-                <div class="px-5 py-3 flex items-center justify-between text-xs text-slate-600"
-                     style="border-top:1px solid rgba(255,255,255,.05);">
-                    <span>@order.OrderItems.Count() kalem</span>
-                    <span class="font-mono">Adisyon #@order.OrderId</span>
-                </div>
+                        <div class="flex-shrink-0 flex flex-col items-end justify-center"
+                             id="btn-area-@item.OrderItemId">
+                            @if (isPending)
+                            {
+                                <button class="btn-kitchen text-sm font-bold px-4 py-2.5 rounded-xl whitespace-nowrap"
+                                        style="background:linear-gradient(135deg,#6366f1,#8b5cf6);box-shadow:0 4px 15px rgba(139,92,246,.3);"
+                                        onclick="updateStatus(@item.OrderItemId,'preparing')">
+                                    Ocağa Al
+                                </button>
+                            }
+                            else if (isPreparing)
+                            {
+                                <button class="btn-kitchen text-sm font-bold px-4 py-2.5 rounded-xl whitespace-nowrap"
+                                        style="background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 4px 15px rgba(34,197,94,.35);"
+                                        onclick="updateStatus(@item.OrderItemId,'ready')">
+                                    🔔 Hazır — Garsonu Çağır
+                                </button>
+                            }
+                        </div>
+
+                    </div>
+                }
             </div>
-        }
-    </main>
 
-    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-3 pointer-events-none"></div>
-
-    <script>
-        // ── Kısa WAV bip (base64) ────────────────────────────────────────────────────
-        const BIP_URI="data:audio/wav;base64,UklGRl9vT1dBVkVmbXQhEAAAAQABAACAAABAAAA9AAACABAAZGF0YVBvT1cAAAAA";
-        // Daha güvenilir: AudioContext ile 200ms sine dalga üret
-        function playBeep() {
-          try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain); gain.connect(ctx.destination);
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(880, ctx.currentTime);
-            gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.4, ctx.currentTime + 0.01);
-            gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 0.22);
-            setTimeout(() => ctx.close(), 500);
-          } catch(e) {}
-        }
-
-        function playReadyChime() {
-          try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            [523,659,784,1047].forEach((freq, i) => {
-              const osc = ctx.createOscillator();
-              const gain = ctx.createGain();
-              osc.connect(gain); gain.connect(ctx.destination);
-              osc.type = 'sine';
-              osc.frequency.value = freq;
-              const t = ctx.currentTime + i * 0.12;
-              gain.gain.setValueAtTime(0.0001, t);
-              gain.gain.exponentialRampToValueAtTime(0.3, t + 0.01);
-              gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
-              osc.start(t); osc.stop(t + 0.25);
-            });
-            setTimeout(() => ctx.close(), 1000);
-          } catch(e) {}
-        }
-
-        // ── Yardımcı: HTML escape ─────────────────────────────────────────────────────
-        function esc(s) {
-          if (!s) return '';
-          return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-        }
-
-        // ── Son güncelleme ────────────────────────────────────────────────────────────
-        function setLastUpdate() {
-          document.getElementById('lastUpdate').textContent =
-            new Date().toLocaleTimeString('tr-TR');
-        }
-
-        // ── Aktif masa sayacı ─────────────────────────────────────────────────────────
-        function refreshActiveCount() {
-          const n = document.querySelectorAll('.glass-card').length;
-          document.getElementById('activeCount').textContent = n;
-        }
-
-        // ── Boş durum kontrolü ────────────────────────────────────────────────────────
-        function checkEmpty() {
-          const grid = document.getElementById('cardsGrid');
-          const cards = grid.querySelectorAll('.glass-card');
-          const empty = document.getElementById('emptyState');
-          if (cards.length === 0 && !empty) {
-            const d = document.createElement('div');
-            d.id = 'emptyState';
-            d.className = 'col-span-full flex flex-col items-center justify-center py-24 gap-4 text-slate-600';
-            d.innerHTML = '<span class="text-6xl">🎉</span><p class="text-xl font-semibold">Mutfakta bekleyen sipariş yok</p><p class="text-sm">Yeni sipariş geldiğinde otomatik görünecek</p>';
-            grid.appendChild(d);
-          } else if (cards.length > 0 && empty) {
-            empty.remove();
-          }
-          refreshActiveCount();
-        }
-
-        // ══ CANLI SAYAÇLAR (her saniye tüm kartlarda güncellenir) ════════════════════
-        function updateAllTimers() {
-          document.querySelectorAll('[data-oldest]').forEach(el => {
-            if (!el.id?.startsWith('timer-')) return;
-            const oldest = parseInt(el.dataset.oldest, 10);
-            if (!oldest) return;
-            const diffSec = Math.floor(Date.now() / 1000) - oldest;
-            const mins = Math.floor(diffSec / 60);
-            const secs = diffSec % 60;
-
-            // Renk güncelle
-            const card = el.closest('.glass-card');
-            if (card) {
-              const color = mins < 10 ? '#4ade80' : mins < 20 ? '#fb923c' : '#f87171';
-              el.style.color = color;
-              card.classList.remove('glow-green','glow-orange','glow-red');
-              card.classList.add(mins < 10 ? 'glow-green' : mins < 20 ? 'glow-orange' : 'glow-red');
-            }
-
-            el.innerHTML = `${mins}<span class="text-base font-normal opacity-60">dk ${String(secs).padStart(2,'0')}sn</span>`;
-          });
-        }
-        setInterval(updateAllTimers, 1000);
-
-        // ══ DURUM GÜNCELLE (sunucuya POST) ══════════════════════════════════════════
-        async function updateStatus(itemId, newStatus) {
-          const btnArea = document.getElementById('btn-area-' + itemId);
-          if (btnArea) {
-            const btn = btnArea.querySelector('button');
-            if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
-          }
-          try {
-            const res = await fetch('/Kitchen/UpdateStatus', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ orderItemId: itemId, newStatus })
-            });
-            if (!res.ok) {
-              const err = await res.json().catch(() => ({}));
-              showToast('⚠️ ' + (err.message || 'Güncelleme başarısız'), 'red');
-              if (btnArea) { const btn = btnArea.querySelector('button'); if (btn) { btn.disabled = false; btn.style.opacity = '1'; } }
-              return;
-            }
-            // Başarılı → UI güncelle (SignalR da gelecek, idempotent)
-            applyStatusChange(itemId, newStatus);
-          } catch(e) {
-            showToast('🔌 Bağlantı hatası', 'red');
-            if (btnArea) { const btn = btnArea.querySelector('button'); if (btn) { btn.disabled = false; btn.style.opacity = '1'; } }
-          }
-        }
-
-        // ══ DURUM DEĞİŞİKLİĞİNİ UI'YA UYGULA ════════════════════════════════════════
-        function applyStatusChange(itemId, newStatus) {
-          const row = document.getElementById('item-row-' + itemId);
-          if (!row) return;
-          const btnArea = document.getElementById('btn-area-' + itemId);
-          if (!btnArea) return;
-
-          if (newStatus === 'preparing') {
-            // Durum rozetini güncelle
-            const badge = row.querySelector('.item-row span[class*="rounded-full"]');
-            if (badge) {
-              badge.style.cssText = 'background:rgba(251,146,60,.15);color:#fb923c;border:1px solid rgba(251,146,60,.25);';
-              badge.textContent = '🔥 Ocakta';
-            }
-            // Butonu değiştir
-            btnArea.innerHTML = `<button class="btn-kitchen text-sm font-bold px-4 py-2.5 rounded-xl whitespace-nowrap"
-              style="background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 4px 15px rgba(34,197,94,.35);"
-              onclick="updateStatus(${itemId},'ready')">🔔 Hazır — Garsonu Çağır</button>`;
-            row.dataset.status = 'preparing';
-
-          } else if (newStatus === 'ready') {
-            // Satırı animasyonla kaldır
-            row.style.transition = 'opacity .3s, transform .3s';
-            row.style.opacity = '0';
-            row.style.transform = 'translateX(12px)';
-            setTimeout(() => {
-              row.remove();
-              // Kart boşaldıysa kartı da kaldır
-              const card = document.querySelector(`[data-order-id="${row.closest('[data-order-id]')?.dataset?.orderId}"]`);
-              if (card) {
-                const remaining = card.querySelectorAll('[id^="item-row-"]');
-                if (remaining.length === 0) dismissCard(card);
-              }
-              checkEmpty();
-            }, 350);
-            row.dataset.status = 'served';
-          }
-          setLastUpdate();
-        }
-
-        // Kartı animasyonla kaldır
-        function dismissCard(cardEl) {
-          cardEl.classList.add('card-dismiss');
-          setTimeout(() => { cardEl.remove(); checkEmpty(); }, 600);
-        }
-
-        // ══ YENİ SİPARİŞ KALEMİ EKLE (SignalR NewOrderItem) ═════════════════════════
-        function addNewItem(data) {
-          const grid = document.getElementById('cardsGrid');
-          let card = document.getElementById('order-card-' + data.orderId);
-
-          // Kart yoksa oluştur
-          if (!card) {
-            const nowUnix = Math.floor(Date.now() / 1000);
-            card = document.createElement('div');
-            card.className = 'glass-card glow-green card-enter';
-            card.id = 'order-card-' + data.orderId;
-            card.dataset.orderId = data.orderId;
-            card.dataset.oldest  = nowUnix;
-            card.innerHTML = `
-              <div class="px-5 pt-5 pb-4 flex items-start justify-between gap-3" style="border-bottom:1px solid rgba(255,255,255,.07);">
-                <div>
-                  <div class="time-chip" id="timer-${data.orderId}" data-oldest="${nowUnix}" style="color:#4ade80;">
-                    0<span class="text-base font-normal opacity-60">dk 00sn</span>
-                  </div>
-                  <div class="text-xs text-slate-500 mt-1">bekliyor</div>
-                </div>
-                <div class="text-right flex-shrink-0">
-                  <div class="text-xl font-black tracking-tight">${esc(data.tableName)}</div>
-                  <div class="text-xs text-slate-500 mt-0.5 font-mono">${new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</div>
-                </div>
-              </div>
-              <div class="px-4 py-3 flex flex-col gap-0" id="card-body-${data.orderId}"></div>
-              <div class="px-5 py-3 flex items-center justify-between text-xs text-slate-600" style="border-top:1px solid rgba(255,255,255,.05);">
-                <span id="item-count-${data.orderId}">0 kalem</span>
-                <span class="font-mono">Adisyon #${data.orderId}</span>
-              </div>`;
-            const empty = document.getElementById('emptyState');
-            if (empty) empty.remove();
-            grid.appendChild(card);
-          }
-
-          // Satır zaten var mı?
-          if (document.getElementById('item-row-' + data.orderItemId)) return;
-
-          const body = document.getElementById('card-body-' + data.orderId);
-          if (!body) return;
-
-          const noteHtml = data.note
-            ? `<div class="text-xs mt-1.5 px-2 py-1 rounded-lg w-fit" style="background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.2);">📝 ${esc(data.note)}</div>`
-            : '';
-
-          const row = document.createElement('div');
-          row.className = 'item-row flex items-start justify-between gap-3 py-3';
-          row.id = 'item-row-' + data.orderItemId;
-          row.dataset.itemId = data.orderItemId;
-          row.dataset.status = 'pending';
-          row.innerHTML = `
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 flex-wrap">
-                <span class="text-xs font-black px-2 py-0.5 rounded-md" style="background:rgba(255,255,255,.1);">×${data.quantity}</span>
-                <span class="font-bold text-base truncate">${esc(data.menuItemName)}</span>
-              </div>
-              ${noteHtml}
-              <div class="mt-2">
-                <span class="text-xs font-semibold px-2 py-0.5 rounded-full" style="background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.2);">⏳ Bekliyor</span>
-              </div>
+            <div class="px-5 py-3 flex items-center justify-between text-xs text-slate-600"
+                 style="border-top:1px solid rgba(255,255,255,.05);">
+                <span>@order.OrderItems.Count() kalem</span>
+                <span class="font-mono">Adisyon #@order.OrderId</span>
             </div>
-            <div class="flex-shrink-0 flex flex-col items-end justify-center" id="btn-area-${data.orderItemId}">
-              <button class="btn-kitchen text-sm font-bold px-4 py-2.5 rounded-xl whitespace-nowrap"
-                style="background:linear-gradient(135deg,#6366f1,#8b5cf6);box-shadow:0 4px 15px rgba(139,92,246,.3);"
-                onclick="updateStatus(${data.orderItemId},'preparing')">Ocağa Al</button>
-            </div>`;
-          body.appendChild(row);
+        </div>
+    }
+</main>
 
-          // Kalem sayısını güncelle
-          const cntEl = document.getElementById('item-count-' + data.orderId);
-          if (cntEl) {
-            const cnt = body.querySelectorAll('[id^="item-row-"]').length;
-            cntEl.textContent = cnt + ' kalem';
+<div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-3 pointer-events-none"></div>
+
+<script>
+    // ── Kısa WAV bip (base64) ────────────────────────────────────────────────────
+    const BIP_URI="data:audio/wav;base64,UklGRl9vT1dBVkVmbXQhEAAAAQABAACAAABAAAA9AAACABAAZGF0YVBvT1cAAAAA";
+    // Daha güvenilir: AudioContext ile 200ms sine dalga üret
+    function playBeep() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.4, ctx.currentTime + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.22);
+        setTimeout(() => ctx.close(), 500);
+      } catch(e) {}
+    }
+
+    function playReadyChime() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        [523,659,784,1047].forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          const t = ctx.currentTime + i * 0.12;
+          gain.gain.setValueAtTime(0.0001, t);
+          gain.gain.exponentialRampToValueAtTime(0.3, t + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+          osc.start(t); osc.stop(t + 0.25);
+        });
+        setTimeout(() => ctx.close(), 1000);
+      } catch(e) {}
+    }
+
+    // ── Yardımcı: HTML escape ─────────────────────────────────────────────────────
+    function esc(s) {
+      if (!s) return '';
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── Son güncelleme ────────────────────────────────────────────────────────────
+    function setLastUpdate() {
+      document.getElementById('lastUpdate').textContent =
+        new Date().toLocaleTimeString('tr-TR');
+    }
+
+    // ── Aktif masa sayacı ─────────────────────────────────────────────────────────
+    function refreshActiveCount() {
+      const n = document.querySelectorAll('.glass-card').length;
+      document.getElementById('activeCount').textContent = n;
+    }
+
+    // ── Boş durum kontrolü ────────────────────────────────────────────────────────
+    function updateActiveCount() {
+      const cnt = document.querySelectorAll('[id^="order-card-"]').length;
+      const el = document.getElementById('activeCount');
+      if (el) el.textContent = cnt;
+    }
+
+    function checkEmpty() {
+      const grid = document.getElementById('cardsGrid');
+      const cards = grid.querySelectorAll('.glass-card');
+      const empty = document.getElementById('emptyState');
+      if (cards.length === 0 && !empty) {
+        const d = document.createElement('div');
+        d.id = 'emptyState';
+        d.className = 'col-span-full flex flex-col items-center justify-center py-24 gap-4 text-slate-600';
+        d.innerHTML = '<span class="text-6xl">🎉</span><p class="text-xl font-semibold">Mutfakta bekleyen sipariş yok</p><p class="text-sm">Yeni sipariş geldiğinde otomatik görünecek</p>';
+        grid.appendChild(d);
+      } else if (cards.length > 0 && empty) {
+        empty.remove();
+      }
+      refreshActiveCount();
+    }
+
+    // ══ CANLI SAYAÇLAR (her saniye tüm kartlarda güncellenir) ════════════════════
+    function updateAllTimers() {
+      document.querySelectorAll('[data-oldest]').forEach(el => {
+        if (!el.id?.startsWith('timer-')) return;
+        const oldest = parseInt(el.dataset.oldest, 10);
+        if (!oldest) return;
+        const diffSec = Math.floor(Date.now() / 1000) - oldest;
+        const mins = Math.floor(diffSec / 60);
+        const secs = diffSec % 60;
+
+        // Renk güncelle
+        const card = el.closest('.glass-card');
+        if (card) {
+          const color = mins < 10 ? '#4ade80' : mins < 20 ? '#fb923c' : '#f87171';
+          el.style.color = color;
+          card.classList.remove('glow-green','glow-orange','glow-red');
+          card.classList.add(mins < 10 ? 'glow-green' : mins < 20 ? 'glow-orange' : 'glow-red');
+        }
+
+        el.innerHTML = `${mins}<span class="text-base font-normal opacity-60">dk ${String(secs).padStart(2,'0')}sn</span>`;
+      });
+    }
+    setInterval(updateAllTimers, 1000);
+
+    // ══ DURUM GÜNCELLE (sunucuya POST) ══════════════════════════════════════════
+    async function updateStatus(itemId, newStatus) {
+      const btnArea = document.getElementById('btn-area-' + itemId);
+      if (btnArea) {
+        const btn = btnArea.querySelector('button');
+        if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+      }
+      try {
+        const res = await fetch('/Kitchen/UpdateStatus', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderItemId: itemId, newStatus })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          showToast('⚠️ ' + (err.message || 'Güncelleme başarısız'), 'red');
+          if (btnArea) { const btn = btnArea.querySelector('button'); if (btn) { btn.disabled = false; btn.style.opacity = '1'; } }
+          return;
+        }
+        // Başarılı → UI güncelle (SignalR da gelecek, idempotent)
+        applyStatusChange(itemId, newStatus);
+      } catch(e) {
+        showToast('🔌 Bağlantı hatası', 'red');
+        if (btnArea) { const btn = btnArea.querySelector('button'); if (btn) { btn.disabled = false; btn.style.opacity = '1'; } }
+      }
+    }
+
+    // ══ DURUM DEĞİŞİKLİĞİNİ UI'YA UYGULA ════════════════════════════════════════
+    function applyStatusChange(itemId, newStatus) {
+      const row = document.getElementById('item-row-' + itemId);
+      if (!row) return;
+      const btnArea = document.getElementById('btn-area-' + itemId);
+      if (!btnArea) return;
+
+      if (newStatus === 'preparing') {
+        // Durum rozetini güncelle
+        const badge = row.querySelector('.item-row span[class*="rounded-full"]');
+        if (badge) {
+          badge.style.cssText = 'background:rgba(251,146,60,.15);color:#fb923c;border:1px solid rgba(251,146,60,.25);';
+          badge.textContent = '🔥 Ocakta';
+        }
+        // Butonu değiştir
+        btnArea.innerHTML = `<button class="btn-kitchen text-sm font-bold px-4 py-2.5 rounded-xl whitespace-nowrap"
+          style="background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 4px 15px rgba(34,197,94,.35);"
+          onclick="updateStatus(${itemId},'ready')">🔔 Hazır — Garsonu Çağır</button>`;
+        row.dataset.status = 'preparing';
+
+      } else if (newStatus === 'ready') {
+        // Satırı animasyonla kaldır
+        row.style.transition = 'opacity .3s, transform .3s';
+        row.style.opacity = '0';
+        row.style.transform = 'translateX(12px)';
+        setTimeout(() => {
+          row.remove();
+          // Kart boşaldıysa kartı da kaldır
+          const card = document.querySelector(`[data-order-id="${row.closest('[data-order-id]')?.dataset?.orderId}"]`);
+          if (card) {
+            const remaining = card.querySelectorAll('[id^="item-row-"]');
+            if (remaining.length === 0) dismissCard(card);
           }
+          checkEmpty();
+        }, 350);
+        row.dataset.status = 'served';
+      }
+      setLastUpdate();
+    }
 
-          refreshActiveCount();
-          setLastUpdate();
+    // Kartı animasyonla kaldır
+    function dismissCard(cardEl) {
+      cardEl.classList.add('card-dismiss');
+      setTimeout(() => { cardEl.remove(); checkEmpty(); }, 600);
+    }
+
+    // ══ YENİ SİPARİŞ KALEMİ EKLE (SignalR NewOrderItem) ═════════════════════════
+    function addNewItem(data) {
+      const grid = document.getElementById('cardsGrid');
+      let card = document.getElementById('order-card-' + data.orderId);
+
+      // Kart yoksa oluştur
+      if (!card) {
+        const nowUnix = Math.floor(Date.now() / 1000);
+        card = document.createElement('div');
+        card.className = 'glass-card glow-green card-enter';
+        card.id = 'order-card-' + data.orderId;
+        card.dataset.orderId = data.orderId;
+        card.dataset.oldest  = nowUnix;
+        card.innerHTML = `
+          <div class="px-5 pt-5 pb-4 flex items-start justify-between gap-3" style="border-bottom:1px solid rgba(255,255,255,.07);">
+            <div>
+              <div class="time-chip" id="timer-${data.orderId}" data-oldest="${nowUnix}" style="color:#4ade80;">
+                0<span class="text-base font-normal opacity-60">dk 00sn</span>
+              </div>
+              <div class="text-xs text-slate-500 mt-1">bekliyor</div>
+            </div>
+            <div class="text-right flex-shrink-0">
+              <div class="text-xl font-black tracking-tight">${esc(data.tableName)}</div>
+              <div class="text-xs text-slate-500 mt-0.5 font-mono">${new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</div>
+            </div>
+          </div>
+          <div class="px-4 py-3 flex flex-col gap-0" id="card-body-${data.orderId}"></div>
+          <div class="px-5 py-3 flex items-center justify-between text-xs text-slate-600" style="border-top:1px solid rgba(255,255,255,.05);">
+            <span id="item-count-${data.orderId}">0 kalem</span>
+            <span class="font-mono">Adisyon #${data.orderId}</span>
+          </div>`;
+        const empty = document.getElementById('emptyState');
+        if (empty) empty.remove();
+        grid.appendChild(card);
+      }
+
+      // Satır zaten var mı?
+      if (document.getElementById('item-row-' + data.orderItemId)) return;
+
+      const body = document.getElementById('card-body-' + data.orderId);
+      if (!body) return;
+
+      const noteHtml = data.note
+        ? `<div class="text-xs mt-1.5 px-2 py-1 rounded-lg w-fit" style="background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.2);">📝 ${esc(data.note)}</div>`
+        : '';
+
+      const row = document.createElement('div');
+      row.className = 'item-row flex items-start justify-between gap-3 py-3';
+      row.id = 'item-row-' + data.orderItemId;
+      row.dataset.itemId = data.orderItemId;
+      row.dataset.status = 'pending';
+      row.innerHTML = `
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs font-black px-2 py-0.5 rounded-md" style="background:rgba(255,255,255,.1);">×${data.quantity}</span>
+            <span class="font-bold text-base truncate">${esc(data.menuItemName)}</span>
+          </div>
+          ${noteHtml}
+          <div class="mt-2">
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full" style="background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.2);">⏳ Bekliyor</span>
+          </div>
+        </div>
+        <div class="flex-shrink-0 flex flex-col items-end justify-center" id="btn-area-${data.orderItemId}">
+          <button class="btn-kitchen text-sm font-bold px-4 py-2.5 rounded-xl whitespace-nowrap"
+            style="background:linear-gradient(135deg,#6366f1,#8b5cf6);box-shadow:0 4px 15px rgba(139,92,246,.3);"
+            onclick="updateStatus(${data.orderItemId},'preparing')">Ocağa Al</button>
+        </div>`;
+      body.appendChild(row);
+
+      // Kalem sayısını güncelle
+      const cntEl = document.getElementById('item-count-' + data.orderId);
+      if (cntEl) {
+        const cnt = body.querySelectorAll('[id^="item-row-"]').length;
+        cntEl.textContent = cnt + ' kalem';
+      }
+
+      refreshActiveCount();
+      setLastUpdate();
+    }
+
+    // ══ TOAST BİLDİRİMİ ═══════════════════════════════════════════════════════════
+    function showToast(msg, color = 'green') {
+      const colors = {
+        green: 'rgba(34,197,94,.15)', red:   'rgba(248,113,113,.15)',
+        orange:'rgba(251,146,60,.15)', blue:  'rgba(96,165,250,.15)'
+      };
+      const borders = { green:'rgba(34,197,94,.4)', red:'rgba(248,113,113,.4)', orange:'rgba(251,146,60,.4)', blue:'rgba(96,165,250,.4)' };
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = 'pointer-events-auto';
+      toast.style.cssText = `
+        padding:12px 18px; border-radius:14px; font-size:.9rem; font-weight:600;
+        background:${colors[color]||colors.green};
+        border:1px solid ${borders[color]||borders.green};
+        backdrop-filter:blur(20px);
+        box-shadow:0 8px 32px rgba(0,0,0,.4);
+        transform:translateX(120%); transition:transform .35s cubic-bezier(.34,1.56,.64,1);
+        max-width:320px; line-height:1.4;`;
+      toast.textContent = msg;
+      container.appendChild(toast);
+      requestAnimationFrame(() => { toast.style.transform = 'translateX(0)'; });
+      setTimeout(() => {
+        toast.style.transform = 'translateX(120%)';
+        setTimeout(() => toast.remove(), 400);
+      }, 4500);
+    }
+
+    // ══ SİGNALR BAĞLANTISI ════════════════════════════════════════════════════════
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl('/hubs/restaurant')
+      .withAutomaticReconnect([0, 2000, 5000, 10000, 20000])
+      .build();
+
+    const led  = document.getElementById('connLed');
+    const text = document.getElementById('connText');
+
+    connection.onreconnecting(() => {
+      led.className = 'led led-yellow'; text.textContent = 'Yeniden bağlanıyor…';
+    });
+    connection.onreconnected(() => {
+      led.className = 'led led-green'; text.textContent = 'Bağlı';
+      setLastUpdate();
+    });
+    connection.onclose(() => {
+      led.className = 'led led-red'; text.textContent = 'Bağlantı Kesildi';
+      startPolling();
+    });
+
+    // ── [SPRINT-3] Partial View tabanlı kart yenileme ───────────────────
+    // refreshCard(orderId): /Kitchen/GetOrderCardPartial?orderId=N endpoint'inden
+    // güncel kart HTML'ini çeker; DOM'daki eski kartın yerini alır.
+    // Kart artık yoksa (adisyon kapandı) DOM'dan kaldırılır.
+    async function refreshCard(orderId) {
+      try {
+        const res = await fetch(`/Kitchen/GetOrderCardPartial?orderId=${orderId}`);
+        if (!res.ok) return;
+        const html = await res.text();
+        const existing = document.getElementById('order-card-' + orderId);
+        if (!html.trim()) {
+          // Mutfakta bekleyen kalem kalmadı — kartı kaldır
+          existing?.remove();
+        } else {
+          const tmp = document.createElement('div');
+          tmp.innerHTML = html;
+          const newCard = tmp.firstElementChild;
+          if (existing && newCard) {
+            existing.replaceWith(newCard);
+          } else if (newCard) {
+            document.getElementById('cardsGrid').appendChild(newCard);
+          }
         }
-
-        // ══ TOAST BİLDİRİMİ ═══════════════════════════════════════════════════════════
-        function showToast(msg, color = 'green') {
-          const colors = {
-            green: 'rgba(34,197,94,.15)', red:   'rgba(248,113,113,.15)',
-            orange:'rgba(251,146,60,.15)', blue:  'rgba(96,165,250,.15)'
-          };
-          const borders = { green:'rgba(34,197,94,.4)', red:'rgba(248,113,113,.4)', orange:'rgba(251,146,60,.4)', blue:'rgba(96,165,250,.4)' };
-          const container = document.getElementById('toastContainer');
-          const toast = document.createElement('div');
-          toast.className = 'pointer-events-auto';
-          toast.style.cssText = `
-            padding:12px 18px; border-radius:14px; font-size:.9rem; font-weight:600;
-            background:${colors[color]||colors.green};
-            border:1px solid ${borders[color]||borders.green};
-            backdrop-filter:blur(20px);
-            box-shadow:0 8px 32px rgba(0,0,0,.4);
-            transform:translateX(120%); transition:transform .35s cubic-bezier(.34,1.56,.64,1);
-            max-width:320px; line-height:1.4;`;
-          toast.textContent = msg;
-          container.appendChild(toast);
-          requestAnimationFrame(() => { toast.style.transform = 'translateX(0)'; });
-          setTimeout(() => {
-            toast.style.transform = 'translateX(120%)';
-            setTimeout(() => toast.remove(), 400);
-          }, 4500);
-        }
-
-        // ══ SİGNALR BAĞLANTISI ════════════════════════════════════════════════════════
-        const connection = new signalR.HubConnectionBuilder()
-          .withUrl('/hubs/restaurant')
-          .withAutomaticReconnect([0, 2000, 5000, 10000, 20000])
-          .build();
-
-        const led  = document.getElementById('connLed');
-        const text = document.getElementById('connText');
-
-        connection.onreconnecting(() => {
-          led.className = 'led led-yellow'; text.textContent = 'Yeniden bağlanıyor…';
-        });
-        connection.onreconnected(() => {
-          led.className = 'led led-green'; text.textContent = 'Bağlı';
-          setLastUpdate();
-        });
-        connection.onclose(() => {
-          led.className = 'led led-red'; text.textContent = 'Bağlantı Kesildi';
-          startPolling();
-        });
-
-        // Mutfak item durumu değişti
-        connection.on('OrderItemStatusChanged', d => {
-          applyStatusChange(d.orderItemId, d.newStatus);
-        });
-
-        // Yeni ürün eklendi
-        connection.on('NewOrderItem', d => {
-          playBeep();
-          addNewItem(d);
-          showToast(`🍽️ ${esc(d.tableName)} — ${esc(d.menuItemName)} × ${d.quantity}`, 'blue');
-        });
-
-        // ── [SPRINT-1] Yeni Sipariş — Tam adisyon açıldığında ekranı yenile ──
-        // OrderService'in yaydığı 'NewOrder' olayını dinle:
-        // Sayfa DOM'u tamamen güncellenir; yeni masa kartı otomatik görünür.
-        // ── [SPRINT-2] Yeni Adisyon — Debounced Grid Refresh ────────────────
-        // CreateOrderAsync'ten gelen NewOrder event'ini dinle.
-        // setTimeout yerine debounce kullanarak burst protection sağlanır:
-        // 300ms içinde birden fazla NewOrder gelirse yalnızca 1 fetch yapılır.
-        let _refreshTimer = null;
-        async function refreshGrid() {
-          try {
-            const res = await fetch('/Kitchen/Display');
-            if (!res.ok) return;
-            const html = await res.text();
-            const tmp = document.createElement('html');
-            tmp.innerHTML = html;
-            const newGrid = tmp.querySelector('#cardsGrid');
-            if (newGrid) {
-              document.getElementById('cardsGrid').innerHTML = newGrid.innerHTML;
-              checkEmpty();
-              updateAllTimers();
-              setLastUpdate();
-            }
-          } catch(e) { console.error('KDS refreshGrid hatası:', e); }
-        }
-
-        function debouncedRefresh() {
-          if (_refreshTimer) clearTimeout(_refreshTimer);
-          _refreshTimer = setTimeout(refreshGrid, 300);
-        }
-
-        connection.on('NewOrder', d => {
-          playBeep();
-          showToast(`🆕 Yeni adisyon: ${esc(d.tableName || 'Yeni Masa')} (${d.itemCount} kalem)`, 'blue');
-          debouncedRefresh();
-        });
-        // ─────────────────────────────────────────────────────────────────────
-        // ─────────────────────────────────────────────────────────────────────
-
-        // Hazır bildirimini de KDS dinler (bilgi amaçlı; garson ekranı asıl tetikleyici)
-        connection.on('OrderReadyForPickup', d => {
-          playReadyChime();
-          showToast(`✅ ${esc(d.tableName)} — ${esc(d.menuItemName)} servis için hazır!`, 'green');
-        });
-
-        connection.start()
-          .then(() => { led.className = 'led led-green'; text.textContent = 'Bağlı'; setLastUpdate(); })
-          .catch(() => { led.className = 'led led-red'; text.textContent = 'Bağlantı Yok'; startPolling(); });
-
-        // ══ POLLING FALLBACK (15 sn) ══════════════════════════════════════════════════
-        let _pollTimer = null;
-
-        function startPolling() {
-          if (_pollTimer) return;
-          console.warn('KDS: polling modu aktif (15s)');
-          _pollTimer = setInterval(async () => {
-            try {
-              const res = await fetch('/Kitchen/Display');
-              if (!res.ok) return;
-              // Basit: tüm kart grid'ini güncelle
-              const html = await res.text();
-              const tmp = document.createElement('html');
-              tmp.innerHTML = html;
-              const newGrid = tmp.querySelector('#cardsGrid');
-              if (newGrid) {
-                document.getElementById('cardsGrid').innerHTML = newGrid.innerHTML;
-                checkEmpty();
-                updateAllTimers();
-                setLastUpdate();
-              }
-            } catch(e) { console.error('Polling hatası:', e); }
-          }, 15000);
-        }
-
-        connection.onreconnected(() => {
-          if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
-          led.className = 'led led-green'; text.textContent = 'Bağlı';
-        });
-
-        // İlk yükleme
+        checkEmpty();
         updateAllTimers();
         setLastUpdate();
-        checkEmpty();
-    </script>
-</body>
-</html>
+      } catch(e) { console.error('KDS refreshCard hatası:', e); }
+    }
+
+    // Debounce: aynı orderId için 300ms içinde birden fazla event gelirse tek fetch
+    const _cardTimers = {};
+    function debouncedRefreshCard(orderId) {
+      if (_cardTimers[orderId]) clearTimeout(_cardTimers[orderId]);
+      _cardTimers[orderId] = setTimeout(() => {
+        delete _cardTimers[orderId];
+        refreshCard(orderId);
+      }, 300);
+    }
+
+    // ── SignalR Event Handlers ────────────────────────────────────────────
+
+    // Yeni ürün / yeni adisyon → ilgili kartı yenile
+    connection.on('NewOrderItem', d => {
+      playBeep();
+      showToast(`🍽️ ${esc(d.tableName)} — ${esc(d.menuItemName)} × ${d.quantity}`, 'blue');
+      debouncedRefreshCard(d.orderId);
+    });
+
+    connection.on('NewOrder', d => {
+      playBeep();
+      showToast(`🆕 Yeni adisyon: ${esc(d.tableName || 'Yeni Masa')} (${d.itemCount} kalem)`, 'blue');
+      debouncedRefreshCard(d.orderId);
+    });
+
+    // Mutfak item durumu değişti → ilgili kartı yenile
+    connection.on('OrderItemStatusChanged', d => {
+      debouncedRefreshCard(d.orderId);
+    });
+
+    // ── [MADDE-4] İptal / Birleştirme → anlık DOM güncellemesi ────────
+    connection.on('OrderUpdated', d => {
+      debouncedRefreshCard(d.orderId);
+    });
+
+    connection.on('RemoveOrderCard', d => {
+      const card = document.getElementById('order-card-' + d.orderId);
+      if (card) {
+        card.style.transition = 'opacity .3s, transform .3s';
+        card.style.opacity = '0';
+        card.style.transform = 'scale(0.92)';
+        setTimeout(() => { card.remove(); checkEmpty(); updateActiveCount(); }, 320);
+      }
+    });
+    // ─────────────────────────────────────────────────────────────────────
+
+    // Hazır bildirimini de KDS dinler (bilgi amaçlı; garson ekranı asıl tetikleyici)
+    connection.on('OrderReadyForPickup', d => {
+      playReadyChime();
+      showToast(`✅ ${esc(d.tableName)} — ${esc(d.menuItemName)} servis için hazır!`, 'green');
+    });
+
+    connection.start()
+      .then(() => { led.className = 'led led-green'; text.textContent = 'Bağlı'; setLastUpdate(); })
+      .catch(() => { led.className = 'led led-red'; text.textContent = 'Bağlantı Yok'; startPolling(); });
+
+    // ══ POLLING FALLBACK (15 sn) ══════════════════════════════════════════════════
+    let _pollTimer = null;
+
+    function startPolling() {
+      if (_pollTimer) return;
+      console.warn('KDS: polling modu aktif (15s)');
+      _pollTimer = setInterval(async () => {
+        try {
+          const res = await fetch('/Kitchen/Display');
+          if (!res.ok) return;
+          // Basit: tüm kart grid'ini güncelle
+          const html = await res.text();
+          const tmp = document.createElement('html');
+          tmp.innerHTML = html;
+          const newGrid = tmp.querySelector('#cardsGrid');
+          if (newGrid) {
+            document.getElementById('cardsGrid').innerHTML = newGrid.innerHTML;
+            checkEmpty();
+            updateAllTimers();
+            setLastUpdate();
+          }
+        } catch(e) { console.error('Polling hatası:', e); }
+      }, 15000);
+    }
+
+    connection.onreconnected(() => {
+      if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+      led.className = 'led led-green'; text.textContent = 'Bağlı';
+    });
+
+    // İlk yükleme
+    updateAllTimers();
+    setLastUpdate();
+    checkEmpty();
+</script>

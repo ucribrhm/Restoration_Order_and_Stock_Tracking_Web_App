@@ -1,0 +1,130 @@
+﻿@* ════════════════════════════════════════════════════════════════════
+   Views/Kitchen/_OrderCard.cshtml
+   KDS Sipariş Kartı — Partial View
+   GetOrderCardPartial(orderId) tarafından döndürülür.
+   JS: card.outerHTML = await fetch('/Kitchen/GetOrderCardPartial?orderId=N')
+   ════════════════════════════════════════════════════════════════════ *@
+@using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common
+@model Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models.Order
+@{
+    var oldestUtc = Model.OrderItems.Min(i => i.OrderItemAddedAt);
+    var mins = (DateTime.UtcNow - oldestUtc).TotalMinutes;
+    var glowClass = mins < 10 ? "glow-green" : mins < 20 ? "glow-orange" : "glow-red";
+    var accentColor = mins < 10 ? "#4ade80" : mins < 20 ? "#fb923c" : "#f87171";
+    var oldestUnix = ((DateTimeOffset)DateTime.SpecifyKind(oldestUtc, DateTimeKind.Utc)).ToUnixTimeSeconds();
+    var elapsed = DateTime.UtcNow - oldestUtc;
+    var dispMin = (int)elapsed.TotalMinutes;
+    var dispSec = elapsed.Seconds;
+}
+
+<div class="glass-card @glowClass card-enter"
+     id="order-card-@Model.OrderId"
+     data-order-id="@Model.OrderId"
+     data-oldest="@oldestUnix">
+
+    <div class="px-5 pt-5 pb-4 flex items-start justify-between gap-3"
+         style="border-bottom:1px solid rgba(255,255,255,.07);">
+        <div>
+            <div class="time-chip" id="timer-@Model.OrderId"
+                 data-oldest="@oldestUnix"
+                 style="color:@accentColor">
+                @dispMin<span class="text-base font-normal opacity-60">dk @dispSec.ToString("D2")sn</span>
+            </div>
+            <div class="text-xs text-slate-500 mt-1">bekliyor</div>
+        </div>
+        <div class="text-right flex-shrink-0">
+            <div class="text-xl font-black tracking-tight">
+                @(Model.Table?.TableName ?? $"#{Model.OrderId}")
+            </div>
+            <div class="text-xs text-slate-500 mt-0.5 font-mono">
+                @Model.OrderOpenedAt.ToLocalTime().ToString("HH:mm")
+            </div>
+        </div>
+    </div>
+
+    <div class="px-4 py-3 flex flex-col gap-0" id="card-body-@Model.OrderId">
+        @foreach (var item in Model.OrderItems.OrderBy(i => i.OrderItemAddedAt))
+        {
+            var isPending = item.OrderItemStatus == OrderItemStatus.Pending;
+            var isPreparing = item.OrderItemStatus == OrderItemStatus.Preparing;
+            var isReady = item.OrderItemStatus == OrderItemStatus.Ready;
+
+            <div class="item-row flex items-start justify-between gap-3 py-3"
+                 id="item-row-@item.OrderItemId"
+                 data-item-id="@item.OrderItemId"
+                 data-status="@item.OrderItemStatus">
+
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-xs font-black px-2 py-0.5 rounded-md"
+                              style="background:rgba(255,255,255,.1);">
+                            ×@item.ActiveQuantity
+                        </span>
+                        <span class="font-bold text-base truncate">
+                            @(item.MenuItem?.MenuItemName ?? "Ürün")
+                        </span>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(item.OrderItemNote))
+                    {
+                        <div class="text-xs mt-1.5 px-2 py-1 rounded-lg w-fit"
+                             style="background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.2);">
+                            📝 @item.OrderItemNote
+                        </div>
+                    }
+                    <div class="mt-2">
+                        @if (isPending)
+                        {
+                            <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                                  style="background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.2);">
+                                ⏳ Bekliyor
+                            </span>
+                        }
+                        else if (isPreparing)
+                        {
+                            <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                                  style="background:rgba(251,146,60,.15);color:#fb923c;border:1px solid rgba(251,146,60,.25);">
+                                🔥 Ocakta
+                            </span>
+                        }
+                        else if (isReady)
+                        {
+                            <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                                  style="background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.35);">
+                                ✅ Hazır — Garson Bekliyor
+                            </span>
+                        }
+                    </div>
+                </div>
+
+                <div class="flex-shrink-0 flex flex-col items-end justify-center"
+                     id="btn-area-@item.OrderItemId">
+                    @if (isPending)
+                    {
+                        <button class="btn-kitchen text-sm font-bold px-4 py-2.5 rounded-xl whitespace-nowrap"
+                                style="background:linear-gradient(135deg,#6366f1,#8b5cf6);box-shadow:0 4px 15px rgba(139,92,246,.3);"
+                                onclick="updateStatus(@item.OrderItemId,'preparing')">
+                            Ocağa Al
+                        </button>
+                    }
+                    else if (isPreparing)
+                    {
+                        <button class="btn-kitchen text-sm font-bold px-4 py-2.5 rounded-xl whitespace-nowrap"
+                                style="background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 4px 15px rgba(34,197,94,.35);"
+                                onclick="updateStatus(@item.OrderItemId,'ready')">
+                            🔔 Hazır — Garsonu Çağır
+                        </button>
+                    }
+                    @* Ready → Served sadece Masalar ekranından yapılır *@
+                </div>
+
+            </div>
+        }
+    </div>
+
+    <div class="px-5 py-3 flex items-center justify-between text-xs text-slate-600"
+         style="border-top:1px solid rgba(255,255,255,.05);">
+        <span>@Model.OrderItems.Count() kalem</span>
+        <span class="font-mono">Adisyon #@Model.OrderId</span>
+    </div>
+
+</div>
