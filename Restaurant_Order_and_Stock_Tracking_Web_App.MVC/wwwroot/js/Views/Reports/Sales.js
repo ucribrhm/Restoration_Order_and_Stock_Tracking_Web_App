@@ -33,7 +33,7 @@
     }
 
     function applyFilter() {
-        history.replaceState(null, '', `/Reports/Sales?${buildQs()}`);
+        history.replaceState(null, '', `/App/Reports/Sales?${buildQs()}`);
         loadAllCharts();
     }
 
@@ -76,14 +76,14 @@
     const btnCsv = document.getElementById('btnCsv');
     if (btnCsv) {
         btnCsv.addEventListener('click', () => {
-            window.location = `/Reports/ExportCsv?type=sales&${buildQs()}`;
+            window.location = `/App/Reports/ExportCsv?type=sales&${buildQs()}`;
         });
     }
 
     const btnPdf = document.getElementById('btnPdf');
     if (btnPdf) {
         btnPdf.addEventListener('click', () => {
-            window.location = `/Reports/ExportPdf?type=sales&${buildQs()}`;
+            window.location = `/App/Reports/ExportPdf?type=sales&${buildQs()}`;
         });
     }
 
@@ -116,7 +116,7 @@
         if (loadingEl) loadingEl.style.display = 'flex';
 
         try {
-            const res = await fetch(`/Reports/GetSalesChartData?${buildQs()}`);
+            const res = await fetch(`/App/Reports/GetSalesChartData?${buildQs()}`);
             const data = await res.json();
             if (loadingEl) loadingEl.style.display = 'none';
 
@@ -182,7 +182,7 @@
         if (loadingEl) loadingEl.style.display = 'flex';
 
         try {
-            const res = await fetch(`/Reports/GetPaymentChartData?${buildQs()}`);
+            const res = await fetch(`/App/Reports/GetPaymentChartData?${buildQs()}`);
             const data = await res.json();
             if (loadingEl) loadingEl.style.display = 'none';
 
@@ -226,7 +226,7 @@
         if (loadingEl) loadingEl.style.display = 'flex';
 
         try {
-            const res = await fetch(`/Reports/GetTopProductsData?${buildQs()}&top=10`);
+            const res = await fetch(`/App/Reports/GetTopProductsData?${buildQs()}&top=10`);
             const data = await res.json();
             if (loadingEl) loadingEl.style.display = 'none';
 
@@ -270,7 +270,7 @@
         if (loadingEl) loadingEl.style.display = 'flex';
 
         try {
-            const res = await fetch(`/Reports/GetCategorySalesData?${buildQs()}`);
+            const res = await fetch(`/App/Reports/GetCategorySalesData?${buildQs()}`);
             const data = await res.json();
             if (loadingEl) loadingEl.style.display = 'none';
 

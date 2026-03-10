@@ -172,21 +172,23 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
             //
             //  Admin ve App route'ları default'tan ÖNCE tanımlanmalıdır.
             // ════════════════════════════════════════════════════════════════
+            // ════════════════════════════════════════════════════════════════
+            //  [AREAS-ROUTES] Route Tanımları — DÜZELTİLDİ!
+            // ════════════════════════════════════════════════════════════════
 
-            // [ROUTE-1] Admin Area
-            app.MapControllerRoute(
-                name: "Admin",
-                pattern: "Admin/{controller=Home}/{action=Index}/{id?}",
-                defaults: new { area = "Admin" });
+            // [ROUTE-1] Admin Area (Kesin Kısıtlama)
+            app.MapAreaControllerRoute(
+                name: "AdminArea",
+                areaName: "Admin",
+                pattern: "Admin/{controller=Home}/{action=Index}/{id?}");
 
-            // [ROUTE-2] App Area
-            app.MapControllerRoute(
-                name: "App",
-                pattern: "App/{controller=Tables}/{action=Index}/{id?}",
-                defaults: new { area = "App" });
+            // [ROUTE-2] App Area (Kesin Kısıtlama)
+            app.MapAreaControllerRoute(
+                name: "AppArea",
+                areaName: "App",
+                pattern: "App/{controller=Home}/{action=Index}/{id?}");
 
             // [ROUTE-3] Default Route — Landing & Onboarding
-            // [SPRINT-4] controller=Landing — HomeController artık Areas/App içinde
             app.MapControllerRoute(
                 name: "default",
                 pattern: "{controller=Landing}/{action=Index}/{id?}")

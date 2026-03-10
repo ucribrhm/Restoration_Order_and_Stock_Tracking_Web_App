@@ -1,1 +1,411 @@
-﻿<h2>Sistem Yöneticisi (Admin) Girişi</h2>
+﻿@* ============================================================================
+   Areas/Admin/Views/Auth/Login.cshtml
+   GÖREV 2 — SysAdmin Giriş Ekranı
+   
+   • Layout = null  (tamamen bağımsız sayfa, site.css yüklenmez)
+   • Tasarım: Modern Dark Mode — Arka Plan #0D0F12, Vurgu Turuncu #F97316
+   • Sıfırdan Vanilla CSS, <style> bloğu içinde
+   • Flexbox ile tam ekran ortalama
+   ============================================================================ *@
+
+@model Restaurant_Order_and_Stock_Tracking_Web_App.MVC.ViewModels.Auth.LoginViewModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sistem Yöneticisi Girişi — RestaurantOS</title>
+
+    <style>
+        /* ── Reset & Base ─────────────────────────────────────────────── */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg:           #0D0F12;
+            --surface:      #161A21;
+            --surface-2:    #1E232C;
+            --border:       #2A303C;
+            --border-focus: #F97316;
+            --accent:       #F97316;
+            --accent-dim:   rgba(249, 115, 22, 0.12);
+            --accent-glow:  rgba(249, 115, 22, 0.25);
+            --text:         #E8EAF0;
+            --text-muted:   #6B7280;
+            --text-dim:     #9CA3AF;
+            --error:        #EF4444;
+            --error-bg:     rgba(239, 68, 68, 0.08);
+            --success:      #22C55E;
+            --radius:       12px;
+            --radius-sm:    8px;
+            --shadow:       0 24px 60px rgba(0, 0, 0, 0.6);
+            --transition:   180ms ease;
+        }
+
+        html, body {
+            height: 100%;
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            font-size: 15px;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── Full-Screen Flex Center ──────────────────────────────────── */
+        .page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 16px;
+            /* Subtle radial glow behind the card */
+            background:
+                radial-gradient(ellipse 700px 500px at 50% 40%,
+                    rgba(249, 115, 22, 0.06) 0%,
+                    transparent 70%),
+                var(--bg);
+        }
+
+        /* ── Card ─────────────────────────────────────────────────────── */
+        .card {
+            width: 100%;
+            max-width: 420px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 40px 36px;
+            box-shadow: var(--shadow);
+            animation: fadeUp 0.35s ease both;
+        }
+
+        @@keyframes fadeUp {
+            from { opacity: 0; transform: translateY(18px); }
+            to   { opacity: 1; transform: translateY(0);    }
+        }
+
+        /* ── Logo / Brand ─────────────────────────────────────────────── */
+        .brand {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .brand-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 56px;
+            height: 56px;
+            background: var(--accent-dim);
+            border: 1px solid var(--accent-glow);
+            border-radius: var(--radius);
+            font-size: 24px;
+            margin-bottom: 16px;
+        }
+
+        .brand-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -0.3px;
+        }
+
+        .brand-subtitle {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        /* ── Divider ──────────────────────────────────────────────────── */
+        .divider {
+            height: 1px;
+            background: var(--border);
+            margin-bottom: 28px;
+        }
+
+        /* ── Validation Summary ───────────────────────────────────────── */
+        .alert-error {
+            background: var(--error-bg);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            border-radius: var(--radius-sm);
+            padding: 12px 14px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .alert-error-icon {
+            font-size: 16px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .alert-error-text {
+            font-size: 13.5px;
+            color: var(--error);
+            line-height: 1.45;
+        }
+
+        .alert-error ul {
+            list-style: none;
+        }
+
+        /* ── Form ─────────────────────────────────────────────────────── */
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-dim);
+            margin-bottom: 7px;
+            letter-spacing: 0.02em;
+        }
+
+        .input-wrap {
+            position: relative;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 13px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 15px;
+            pointer-events: none;
+            color: var(--text-muted);
+            transition: color var(--transition);
+        }
+
+        .form-input {
+            width: 100%;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-size: 14.5px;
+            padding: 11px 14px 11px 38px;
+            outline: none;
+            transition: border-color var(--transition), box-shadow var(--transition);
+            -webkit-appearance: none;
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-input:focus {
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px var(--accent-dim);
+        }
+
+        .form-input:focus + .input-icon,
+        .input-wrap:focus-within .input-icon {
+            color: var(--accent);
+        }
+
+        /* icon is before input in DOM, use sibling trick differently */
+        .input-wrap .form-input:focus ~ .input-icon { color: var(--accent); }
+
+        /* Field-level validation */
+        .field-error {
+            font-size: 12.5px;
+            color: var(--error);
+            margin-top: 5px;
+        }
+
+        /* ── Remember Me ──────────────────────────────────────────────── */
+        .check-group {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            margin-bottom: 24px;
+        }
+
+        .check-input {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 17px;
+            height: 17px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            cursor: pointer;
+            flex-shrink: 0;
+            position: relative;
+            transition: background var(--transition), border-color var(--transition);
+        }
+
+        .check-input:checked {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .check-input:checked::after {
+            content: '';
+            position: absolute;
+            left: 4px;
+            top: 2px;
+            width: 6px;
+            height: 9px;
+            border: 2px solid #fff;
+            border-top: none;
+            border-left: none;
+            transform: rotate(42deg);
+        }
+
+        .check-label {
+            font-size: 13.5px;
+            color: var(--text-dim);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        /* ── Submit Button ────────────────────────────────────────────── */
+        .btn-submit {
+            width: 100%;
+            padding: 12.5px;
+            background: var(--accent);
+            color: #fff;
+            font-size: 14.5px;
+            font-weight: 600;
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            letter-spacing: 0.02em;
+            transition: background var(--transition), box-shadow var(--transition), transform 80ms ease;
+        }
+
+        .btn-submit:hover {
+            background: #ea6a0a;
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .btn-submit:active {
+            transform: scale(0.985);
+        }
+
+        /* ── Footer Note ──────────────────────────────────────────────── */
+        .card-footer {
+            margin-top: 24px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border);
+            padding-top: 18px;
+        }
+
+        .badge-sys {
+            display: inline-block;
+            background: var(--accent-dim);
+            color: var(--accent);
+            border: 1px solid var(--accent-glow);
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 2px 7px;
+            margin-bottom: 6px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="page">
+        <div class="card">
+
+            <!-- Brand -->
+            <div class="brand">
+                <div class="brand-icon">⚙️</div>
+                <div class="brand-title">RestaurantOS</div>
+                <div class="brand-subtitle">Sistem Yönetim Paneli</div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Validation Summary -->
+            @if (!ViewData.ModelState.IsValid)
+            {
+                <div class="alert-error">
+                    <span class="alert-error-icon">⚠️</span>
+                    <div class="alert-error-text">
+                        @Html.ValidationSummary(false, "", new { @class = "" })
+                    </div>
+                </div>
+            }
+
+            <!-- Login Form -->
+            <form asp-area="Admin" asp-controller="Auth" asp-action="Login"
+                  asp-route-returnUrl="@ViewBag.ReturnUrl"
+                  method="post" novalidate>
+
+                @Html.AntiForgeryToken()
+
+                <!-- Username -->
+                <div class="form-group">
+                    <label asp-for="Username" class="form-label">Kullanıcı Adı</label>
+                    <div class="input-wrap">
+                        <span class="input-icon">👤</span>
+                        <input asp-for="Username"
+                               class="form-input"
+                               autocomplete="username"
+                               spellcheck="false"
+                               placeholder="sysadmin" />
+                    </div>
+                    <span asp-validation-for="Username" class="field-error"></span>
+                </div>
+
+                <!-- Password -->
+                <div class="form-group">
+                    <label asp-for="Password" class="form-label">Şifre</label>
+                    <div class="input-wrap">
+                        <span class="input-icon">🔒</span>
+                        <input asp-for="Password"
+                               class="form-input"
+                               autocomplete="current-password"
+                               placeholder="••••••••" />
+                    </div>
+                    <span asp-validation-for="Password" class="field-error"></span>
+                </div>
+
+                <!-- Remember Me -->
+                <div class="check-group">
+                    <input asp-for="RememberMe" class="check-input" id="RememberMe" />
+                    <label class="check-label" for="RememberMe">Beni Hatırla (30 gün)</label>
+                </div>
+
+                <!-- Submit -->
+                <button type="submit" class="btn-submit">
+                    Giriş Yap →
+                </button>
+
+            </form>
+
+            <!-- Footer -->
+            <div class="card-footer">
+                <div class="badge-sys">SysAdmin</div>
+                <div>Bu alana yalnızca yetkili sistem yöneticileri erişebilir.</div>
+            </div>
+
+        </div>
+    </div>
+
+    @* jQuery validation (opsiyonel, model hatalarını client-side göstermek için) *@
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.21.0/jquery.validate.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validation-unobtrusive/4.0.0/jquery.validate.unobtrusive.min.js"></script>
+
+</body>
+</html>

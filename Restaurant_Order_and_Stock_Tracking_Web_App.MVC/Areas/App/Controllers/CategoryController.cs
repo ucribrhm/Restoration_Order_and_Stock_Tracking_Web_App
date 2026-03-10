@@ -8,6 +8,7 @@ using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
 {
+    [Area("App")]
     [Authorize(Roles = "Admin")]
     public class CategoryController : AppBaseController
     {

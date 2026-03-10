@@ -1,0 +1,522 @@
+﻿@* ============================================================================
+   Areas/Admin/Views/Home/Index.cshtml
+   GÖREV 4 — SysAdmin Dashboard Ana Sayfası
+   
+   Layout: _AdminLayout.cshtml (Areas/Admin/Views/Shared/)
+   
+   Yapı:
+   • 4 İstatistik Kartı (Flexbox/Grid, yan yana)
+   • Sol: Chart.js Restoran Büyüme Grafiği
+   • Sağ: Restoran Listesi Tablosu + "Yeni Restoran Ekle" Butonu
+   ============================================================================ *@
+
+@model Restaurant_Order_and_Stock_Tracking_Web_App.MVC.ViewModels.Admin.AdminDashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+
+    // Chart.js için JSON verisi — Razor → JS
+    var labelsJson = System.Text.Json.JsonSerializer.Serialize(Model.GrowthLabels);
+    var dataJson = System.Text.Json.JsonSerializer.Serialize(Model.GrowthData);
+}
+
+@section Styles {
+    <style>
+        /* ── Dashboard Kök ──────────────────────────────────────────────── */
+        .dash-wrap {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 28px 24px;
+        }
+
+        .dash-header {
+            margin-bottom: 28px;
+        }
+
+            .dash-header h1 {
+                font-size: 22px;
+                font-weight: 700;
+                color: var(--text, #E8EAF0);
+                letter-spacing: -0.3px;
+            }
+
+            .dash-header p {
+                font-size: 13.5px;
+                color: var(--text-muted, #6B7280);
+                margin-top: 4px;
+            }
+
+        /* ── Stat Kartları ──────────────────────────────────────────────── */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        @@media (max-width: 900px) {
+            .stat-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @@media (max-width: 500px) {
+            .stat-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .stat-card {
+            background: var(--surface, #161A21);
+            border: 1px solid var(--border, #2A303C);
+            border-radius: 12px;
+            padding: 20px 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            transition: border-color 160ms ease, transform 160ms ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+            .stat-card:hover {
+                border-color: var(--stat-accent, #F97316);
+                transform: translateY(-2px);
+            }
+
+            .stat-card::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 2px;
+                background: var(--stat-accent, #F97316);
+                opacity: 0.6;
+                border-radius: 12px 12px 0 0;
+            }
+
+            .stat-card.green {
+                --stat-accent: #22C55E;
+            }
+
+            .stat-card.gray {
+                --stat-accent: #6B7280;
+            }
+
+            .stat-card.blue {
+                --stat-accent: #3B82F6;
+            }
+
+            .stat-card.orange {
+                --stat-accent: #F97316;
+            }
+
+        .stat-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .stat-label {
+            font-size: 12.5px;
+            font-weight: 500;
+            color: var(--text-muted, #6B7280);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-icon {
+            font-size: 20px;
+            opacity: 0.8;
+        }
+
+        .stat-value {
+            font-size: 34px;
+            font-weight: 800;
+            color: var(--stat-accent, #F97316);
+            line-height: 1;
+            letter-spacing: -1px;
+        }
+
+        .stat-sub {
+            font-size: 12px;
+            color: var(--text-muted, #6B7280);
+        }
+
+        /* ── İki Sütun Orta Alan ─────────────────────────────────────────── */
+        .mid-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.6fr;
+            gap: 20px;
+            align-items: start;
+        }
+
+        @@media (max-width: 800px) {
+            .mid-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ── Panel (ortak kart kabı) ─────────────────────────────────────── */
+        .panel {
+            background: var(--surface, #161A21);
+            border: 1px solid var(--border, #2A303C);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 20px 14px;
+            border-bottom: 1px solid var(--border, #2A303C);
+        }
+
+        .panel-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text, #E8EAF0);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-body {
+            padding: 20px;
+        }
+
+        /* ── Grafik ──────────────────────────────────────────────────────── */
+        .chart-container {
+            position: relative;
+            height: 240px;
+        }
+
+        /* ── Yeni Restoran Butonu ────────────────────────────────────────── */
+        .btn-new {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #F97316;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 8px;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: background 150ms ease, box-shadow 150ms ease;
+            white-space: nowrap;
+        }
+
+            .btn-new:hover {
+                background: #ea6a0a;
+                box-shadow: 0 0 16px rgba(249,115,22,0.3);
+                color: #fff;
+                text-decoration: none;
+            }
+
+        /* ── Tablo ───────────────────────────────────────────────────────── */
+        .tenant-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13.5px;
+        }
+
+            .tenant-table th {
+                text-align: left;
+                padding: 10px 14px;
+                font-size: 11.5px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+                color: var(--text-muted, #6B7280);
+                border-bottom: 1px solid var(--border, #2A303C);
+                white-space: nowrap;
+            }
+
+            .tenant-table td {
+                padding: 11px 14px;
+                border-bottom: 1px solid var(--border, #2A303C);
+                color: var(--text, #E8EAF0);
+                vertical-align: middle;
+            }
+
+            .tenant-table tr:last-child td {
+                border-bottom: none;
+            }
+
+            .tenant-table tbody tr:hover td {
+                background: rgba(255,255,255,0.02);
+            }
+
+        .tenant-name {
+            font-weight: 600;
+            color: var(--text, #E8EAF0);
+        }
+
+        .tenant-subdomain {
+            font-family: 'Courier New', monospace;
+            font-size: 12.5px;
+            color: #F97316;
+            background: rgba(249,115,22,0.08);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11.5px;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+        }
+
+        .badge-active {
+            background: rgba(34,197,94,0.12);
+            color: #22C55E;
+            border: 1px solid rgba(34,197,94,0.2);
+        }
+
+        .badge-inactive {
+            background: rgba(107,114,128,0.12);
+            color: #9CA3AF;
+            border: 1px solid rgba(107,114,128,0.2);
+        }
+
+        .badge-plan {
+            background: rgba(59,130,246,0.1);
+            color: #60A5FA;
+            border: 1px solid rgba(59,130,246,0.15);
+            font-size: 11px;
+            padding: 2px 7px;
+        }
+
+        .empty-row td {
+            text-align: center;
+            padding: 32px;
+            color: var(--text-muted, #6B7280);
+            font-size: 13px;
+        }
+
+        .date-cell {
+            color: var(--text-muted, #6B7280);
+            font-size: 12.5px;
+        }
+    </style>
+}
+
+<div class="dash-wrap">
+
+    <!-- ── Sayfa Başlığı ────────────────────────────────────────────── -->
+    <div class="dash-header">
+        <h1>📊 SaaS Dashboard</h1>
+        <p>Tüm restoranların genel bakışı — @DateTime.Now.ToString("dd MMMM yyyy, HH:mm", new System.Globalization.CultureInfo("tr-TR"))</p>
+    </div>
+
+    <!-- ── 4 İstatistik Kartı ────────────────────────────────────────── -->
+    <div class="stat-grid">
+
+        <div class="stat-card orange">
+            <div class="stat-top">
+                <span class="stat-label">Toplam Restoran</span>
+                <span class="stat-icon">🏢</span>
+            </div>
+            <div class="stat-value">@Model.TotalTenants</div>
+            <div class="stat-sub">Sistemde kayıtlı</div>
+        </div>
+
+        <div class="stat-card green">
+            <div class="stat-top">
+                <span class="stat-label">Aktif</span>
+                <span class="stat-icon">✅</span>
+            </div>
+            <div class="stat-value">@Model.ActiveTenants</div>
+            <div class="stat-sub">Erişim açık</div>
+        </div>
+
+        <div class="stat-card gray">
+            <div class="stat-top">
+                <span class="stat-label">Pasif</span>
+                <span class="stat-icon">⛔</span>
+            </div>
+            <div class="stat-value">@Model.InactiveTenants</div>
+            <div class="stat-sub">Askıya alınmış</div>
+        </div>
+
+        <div class="stat-card blue">
+            <div class="stat-top">
+                <span class="stat-label">Yeni Kayıt</span>
+                <span class="stat-icon">🆕</span>
+            </div>
+            <div class="stat-value">@Model.NewTenantsLast30Days</div>
+            <div class="stat-sub">Son 30 gün</div>
+        </div>
+
+    </div>
+
+    <!-- ── Orta: Grafik + Tablo ──────────────────────────────────────── -->
+    <div class="mid-grid">
+
+        <!-- Sol: Büyüme Grafiği -->
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">📈 Restoran Büyüme Grafiği</span>
+                <span style="font-size:12px;color:var(--text-muted)">Son 7 gün</span>
+            </div>
+            <div class="panel-body">
+                <div class="chart-container">
+                    <canvas id="growthChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sağ: Restoran Listesi -->
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">🏢 Restoranlar</span>
+                <a asp-area="Admin"
+                   asp-controller="Tenant"
+                   asp-action="Create"
+                   class="btn-new">
+                    + Yeni Restoran Ekle
+                </a>
+            </div>
+
+            <div style="overflow-x:auto;">
+                <table class="tenant-table">
+                    <thead>
+                        <tr>
+                            <th>Restoran Adı</th>
+                            <th>Subdomain</th>
+                            <th>Plan</th>
+                            <th>Kayıt Tarihi</th>
+                            <th>Durum</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.Tenants.Any())
+                        {
+                            <tr class="empty-row">
+                                <td colspan="5">Henüz kayıtlı restoran yok.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var t in Model.Tenants)
+                            {
+                                <tr>
+                                    <td class="tenant-name">@t.Name</td>
+                                    <td>
+                                        <span class="tenant-subdomain">@t.Subdomain</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-plan">
+                                            @t.PlanType.ToUpperInvariant()
+                                        </span>
+                                    </td>
+                                    <td class="date-cell">
+                                        @t.CreatedAt.ToString("dd.MM.yyyy")
+                                    </td>
+                                    <td>
+                                        @if (t.IsActive)
+                                        {
+                                            <span class="badge badge-active">Aktif</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge badge-inactive">Pasif</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+        <!-- / Sağ -->
+
+    </div>
+    <!-- / mid-grid -->
+
+</div>
+<!-- / dash-wrap -->
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script>
+        (function () {
+            'use strict';
+
+            var labels = @Html.Raw(labelsJson);
+            var data   = @Html.Raw(dataJson);
+
+            var ctx = document.getElementById('growthChart').getContext('2d');
+
+            // Gradient dolgu
+            var gradient = ctx.createLinearGradient(0, 0, 0, 240);
+            gradient.addColorStop(0,   'rgba(249,115,22,0.35)');
+            gradient.addColorStop(1,   'rgba(249,115,22,0.0)');
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Yeni Restoran',
+                        data: data,
+                        borderColor:     '#F97316',
+                        backgroundColor: gradient,
+                        borderWidth:     2.5,
+                        pointBackgroundColor: '#F97316',
+                        pointBorderColor:     '#0D0F12',
+                        pointBorderWidth:     2,
+                        pointRadius:          5,
+                        pointHoverRadius:     7,
+                        fill: true,
+                        tension: 0.4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#1E232C',
+                            borderColor:     '#2A303C',
+                            borderWidth:     1,
+                            titleColor:      '#9CA3AF',
+                            bodyColor:       '#E8EAF0',
+                            padding:         10,
+                            callbacks: {
+                                label: function(ctx) {
+                                    return ' ' + ctx.parsed.y + ' restoran';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid:  { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#6B7280', font: { size: 11 } }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid:  { color: 'rgba(255,255,255,0.05)' },
+                            ticks: {
+                                color: '#6B7280',
+                                font:  { size: 11 },
+                                stepSize: 1,
+                                callback: function(v) { return Number.isInteger(v) ? v : null; }
+                            }
+                        }
+                    }
+                }
+            });
+        })();
+    </script>
+}

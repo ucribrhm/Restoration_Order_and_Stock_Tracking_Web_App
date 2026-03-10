@@ -35,9 +35,9 @@
         </button>
         @if (!s.IsClosed)
         {
-            <a asp-action="Close" asp-route-id="@s.ShiftLogId" class="btn-z btn-z-danger">⏹ Vardiyayı Kapat</a>
+            <a asp-area="App" asp-action="Close" asp-route-id="@s.ShiftLogId" class="btn-z btn-z-danger">⏹ Vardiyayı Kapat</a>
         }
-        <a asp-action="Index" class="btn-z btn-z-ghost">← Liste</a>
+        <a asp-area="App" asp-action="Index" class="btn-z btn-z-ghost">← Liste</a>
     </div>
 </div>
 
@@ -344,7 +344,7 @@
 
         // Kilitle/Kilidi Aç
         document.getElementById('btnToggleLock')?.addEventListener('click', async function () {
-            const res = await fetch(`/Shift/ToggleLock/${this.dataset.id}`, { method: 'POST' });
+            const res = await fetch(`/App/Shift/ToggleLock/${this.dataset.id}`, { method: 'POST' });
             const d   = await res.json();
             if (d.success) location.reload();
         });
@@ -355,7 +355,7 @@
             btn.disabled = true;
             btn.innerHTML = `<svg style="width:15px;height:15px;fill:currentColor;animation:spin 1s linear infinite" viewBox="0 0 24 24"><path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg> Hazırlanıyor…`;
             const link = document.createElement('a');
-            link.href     = `/Shift/GeneratePdf/${shiftId}`;
+            link.href     = `/App/Shift/GeneratePdf/${shiftId}`;
             link.download = `z_raporu_vardiya_${shiftId}.pdf`;
             document.body.appendChild(link);
             link.click();

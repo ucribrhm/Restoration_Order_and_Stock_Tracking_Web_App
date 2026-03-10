@@ -11,6 +11,7 @@ using System.Text;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
 {
+
     [Authorize(Roles = "Admin")]
     public class ReportsController : AppBaseController
     {

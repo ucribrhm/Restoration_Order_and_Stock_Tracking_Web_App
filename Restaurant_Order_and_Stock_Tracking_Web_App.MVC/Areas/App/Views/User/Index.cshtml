@@ -44,7 +44,7 @@
 
 <div class="page-header">
     <div class="page-title">👥 Kullanıcı Yönetimi</div>
-    <a asp-action="Create" class="btn-primary">+ Yeni Kullanıcı</a>
+    <a asp-area ="App" asp-controller="User" asp-action="Create" class="btn-primary">+ Yeni Kullanıcı</a>
 </div>
 
 @if (TempData["Success"] != null)

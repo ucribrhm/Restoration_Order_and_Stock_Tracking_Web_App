@@ -25,6 +25,7 @@ using System.Text.RegularExpressions;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
 {
+    [Area("App")]
     [Authorize(Roles = "Admin,Garson,Kasiyer")]
     public class TablesController : AppBaseController
     {

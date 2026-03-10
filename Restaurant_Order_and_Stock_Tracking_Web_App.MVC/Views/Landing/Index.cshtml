@@ -9,8 +9,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RestaurantOS — Restoranınızı Dijitalleştirin</title>
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+
     <style>
+        :root {
+            /* Vurgu */
+            --accent: #F97316;
+            --accent-hover: #EA6C0A;
+            --accent-glow: rgba(249, 115, 22, 0.15);
+            /* Koyu tema (varsayılan) */
+            --bg: #0D0F12;
+            --surface: #161A20;
+            --surface2: #1E242C;
+            --border: rgba(255, 255, 255, 0.07);
+            --text: #EEF0F3;
+            --text-muted: #687080;
+            --text-faint: #3E4A58;
+            --shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+        }
+
         body {
             font-family: 'DM Sans', sans-serif;
             background: var(--bg);
@@ -21,12 +37,17 @@
 
         /* ── NAVBAR ── */
         .nav {
+            box-sizing: border-box;
             display: flex;
             align-items: center;
             justify-content: space-between;
             padding: 1.2rem 2.5rem;
             border-bottom: 1px solid var(--border);
             background: var(--surface);
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
         }
 
         .nav-logo {
@@ -84,7 +105,7 @@
         /* ── HERO ── */
         .hero {
             max-width: 760px;
-            margin: 6rem auto;
+            margin: 6rem auto 4rem;
             text-align: center;
             padding: 0 1.5rem;
         }
@@ -131,41 +152,80 @@
             border-radius: 12px;
         }
 
-        /* ── ÖZELLİKLER ── */
+        /* ── ÖZELLİKLER (3'LÜ GENİŞ GRID DÜZENİ) ── */
         .features {
-            max-width: 1000px;
+            max-width: 1200px; /* Genişliği artırdık ki ekrana yayılsınlar */
             margin: 0 auto 5rem;
             padding: 0 1.5rem;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-            gap: 1.2rem;
+            display: grid; /* Izgara sistemini açtık */
+            grid-template-columns: repeat(3, 1fr); /* Tam 3 eşit parçaya böldük */
+            gap: 1.5rem; /* Kartlar arası boşluk */
         }
 
         .feature-card {
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: 16px;
-            padding: 1.8rem;
+            padding: 1.5rem 1.8rem;
+            display: flex; /* İkon ve yazıyı yan yana tutmak için flex */
+            align-items: center;
+            gap: 1.2rem;
+            transition: transform 0.2s, border-color 0.2s;
         }
 
+            .feature-card:hover {
+                border-color: var(--accent);
+                transform: translateY(-4px); /* Üzerine gelince hafif yukarı kalkar */
+            }
+
         .feature-icon {
-            font-size: 1.8rem;
-            margin-bottom: 0.8rem;
+            font-size: 2.2rem;
+            flex-shrink: 0;
+            background: rgba(255,255,255,0.03);
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+        }
+
+        .feature-text {
+            text-align: left;
         }
 
         .feature-card h3 {
             font-family: 'Syne', sans-serif;
-            font-size: 1rem;
+            font-size: 1.1rem;
             font-weight: 700;
-            margin: 0 0 0.5rem;
+            margin: 0 0 0.4rem;
             color: var(--text);
         }
 
         .feature-card p {
-            font-size: 0.88rem;
+            font-size: 0.9rem;
             color: var(--text-muted);
             margin: 0;
-            line-height: 1.6;
+            line-height: 1.5;
+        }
+
+        /* MOBİL UYUMLULUK (Bunu eklemezsek telefonda da 3 tane yan yana durmaya çalışıp taşar) */
+        @@media (max-width: 992px) {
+            .features
+
+        {
+            grid-template-columns: repeat(2, 1fr); /* Tabletlerde 2'li olsun */
+        }
+
+        }
+
+        @@media (max-width: 768px) {
+            .features
+
+        {
+            grid-template-columns: 1fr; /* Telefonlarda mecbur alt alta 1'li olsun */
+        }
+
         }
 
         /* ── FOOTER ── */
@@ -208,33 +268,45 @@
     <section class="features">
         <div class="feature-card">
             <div class="feature-icon">🪑</div>
-            <h3>Masa Yönetimi</h3>
-            <p>Masaların anlık durumunu takip edin, garson çağrılarını yönetin.</p>
+            <div class="feature-text">
+                <h3>Masa Yönetimi</h3>
+                <p>Masaların anlık durumunu takip, garson çağrılarını yönetin.</p>
+            </div>
         </div>
         <div class="feature-card">
             <div class="feature-icon">🧾</div>
-            <h3>Sipariş Takibi</h3>
-            <p>Açık adisyonları anlık görün, siparişleri kolayca düzenleyin.</p>
+            <div class="feature-text">
+                <h3>Sipariş Takibi</h3>
+                <p>Açık adisyonları anlık görün, siparişleri düzenleyin.</p>
+            </div>
         </div>
         <div class="feature-card">
             <div class="feature-icon">🍳</div>
-            <h3>Mutfak Ekranı</h3>
-            <p>Mutfağa gelen siparişleri ekrandan takip edin, hazır işaretleyin.</p>
+            <div class="feature-text">
+                <h3>Mutfak Ekranı</h3>
+                <p>Mutfağa gelen siparişleri ekrandan takip edin, hazır işaretleyin.</p>
+            </div>
         </div>
         <div class="feature-card">
             <div class="feature-icon">📦</div>
-            <h3>Stok Takibi</h3>
-            <p>Kritik stok uyarıları alın, israfı önleyin.</p>
+            <div class="feature-text">
+                <h3>Stok Takibi</h3>
+                <p>Kritik stok uyarıları alın, israfı önleyin.</p>
+            </div>
         </div>
         <div class="feature-card">
             <div class="feature-icon">📈</div>
-            <h3>Gelir Raporları</h3>
-            <p>Günlük, haftalık ve aylık ciro raporlarını görselleştirin.</p>
+            <div class="feature-text">
+                <h3>Gelir Raporları</h3>
+                <p>Günlük, haftalık ve aylık ciro raporlarını görselleştirin.</p>
+            </div>
         </div>
         <div class="feature-card">
             <div class="feature-icon">👥</div>
-            <h3>Personel Yönetimi</h3>
-            <p>Admin, Garson, Kasiyer ve Mutfak rolleriyle erişimi kontrol edin.</p>
+            <div class="feature-text">
+                <h3>Personel Yönetimi</h3>
+                <p>Admin, Garson, Kasiyer ve Mutfak rolleriyle erişimi yönetin.</p>
+            </div>
         </div>
     </section>
 
