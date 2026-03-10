@@ -28,7 +28,7 @@ using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.ViewModels.Users;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers;
-
+[Area("App")]
 [Authorize(Roles = "Admin")]
 public class UserController : AppBaseController
 {
@@ -93,7 +93,7 @@ public class UserController : AppBaseController
         return View(model);
     }
 
-    // ── GET /User/Create ──────────────────────────────────────────────
+    //// ── GET /User/Create ──────────────────────────────────────────────
     public IActionResult Create()
     {
         ViewData["Title"] = "Yeni Kullanıcı";
@@ -102,11 +102,22 @@ public class UserController : AppBaseController
     }
 
     // ── POST /User/Create ─────────────────────────────────────────────
+    // ── POST /User/Create ─────────────────────────────────────────────
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(UserCreateViewModel model)
     {
-        // Rol izin listesi dışında bir değer form'dan gönderilmeye çalışılırsa reddet
+        // 🚨 1. ADIM: TENANT ID GÜVENLİK DUVARI (Senin İstediğin Kısım) 🚨
+        var currentTenantId = _tenantService.TenantId;
+
+        if (string.IsNullOrWhiteSpace(currentTenantId))
+        {
+            // Eğer dükkan ID'si yoksa anında işlemi iptal et ve hata ver!
+            TempData["Error"] = "Kritik Hata: Dükkan kimliği (TenantId) bulunamadı. Dükkansız personel oluşturulamaz!";
+            return RedirectToAction(nameof(Index));
+        }
+
+        // 2. Rol izin listesi dışında bir değer form'dan gönderilmeye çalışılırsa reddet
         if (!string.IsNullOrEmpty(model.Role) && !AllowedRoles.Contains(model.Role))
             ModelState.AddModelError("Role", "Geçersiz rol seçimi.");
 
@@ -129,15 +140,15 @@ public class UserController : AppBaseController
 
         var user = new ApplicationUser
         {
-            UserName = model.UserName,
-            FullName = model.FullName,
-            Email = model.Email,
+            UserName = model.UserName.Trim(),
+            FullName = model.FullName.Trim(),
+            Email = model.Email?.Trim(),
             PhoneNumber = model.PhoneNumber,
             CreatedAt = DateTime.UtcNow,
             EmailConfirmed = true,
-            TenantId = _tenantService.TenantId   // [G-03] TenantId null kalırsa
-                                                 // login'de Claims boş → tüm
-                                                 // Global Query Filter'lar bypass olur
+
+            // 🚨 3. ADIM: Artık TenantId'nin kesinlikle dolu olduğundan eminiz!
+            TenantId = currentTenantId
         };
 
         var createResult = await _userManager.CreateAsync(user, model.Password);
@@ -162,7 +173,6 @@ public class UserController : AppBaseController
         TempData["Success"] = $"'{user.FullName}' kullanıcısı '{model.Role}' rolüyle oluşturuldu.";
         return RedirectToAction(nameof(Index));
     }
-
     // ── GET /User/Edit/{id} ───────────────────────────────────────────
     public async Task<IActionResult> Edit(string id)
     {
@@ -183,11 +193,13 @@ public class UserController : AppBaseController
         return View(new UserEditViewModel
         {
             Id = user.Id,
-            UserName = user.UserName ?? "",
-            FullName = user.FullName,
-            Email = user.Email,
+            UserName = user.UserName?.Trim() ?? "",
+            FullName = user.FullName.Trim(),
+            Email = user.Email?.Trim(),
             PhoneNumber = user.PhoneNumber,
             Role = roles.FirstOrDefault() ?? ""
+
+            
         });
     }
 

@@ -15,7 +15,8 @@
             &nbsp;·&nbsp; Açan: @(Model.OpenedByUser?.FullName ?? Model.OpenedByUser?.UserName ?? "—")
         </div>
     </div>
-    <a asp-action="Index" class="btn-z btn-z-ghost">← İptal</a>
+   
+    <a asp-area="App" asp-controller="Shift" asp-action="Index" class="btn-z btn-z-ghost">← İptal</a>
 </div>
 
 <div id="alertBox"></div>
@@ -144,7 +145,8 @@
         // ── Sistem verilerini AJAX ile çek ─────────────────────────────────────
         (async function loadPreview() {
             try {
-                const res = await fetch(`/Shift/PreviewTotals/${shiftId}`);
+                // [DÜZELTME] fetch URL'si /App/... olarak güncellendi
+                const res = await fetch(`/App/Shift/PreviewTotals/${shiftId}`);
                 if (!res.ok) { console.warn('PreviewTotals failed', res.status); return; }
                 const d = await res.json();
 
@@ -220,7 +222,8 @@
             this.textContent = 'Kapatılıyor…';
 
             try {
-                const res = await fetch(`/Shift/Close/${shiftId}`, {
+                // [DÜZELTME] fetch URL'si /App/... olarak güncellendi
+                const res = await fetch(`/App/Shift/Close/${shiftId}`, {
                     method:  'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body:    JSON.stringify({ closingBalance, notes, differenceThreshold })
@@ -228,7 +231,8 @@
                 const d = await res.json();
 
                 if (res.ok && d.success) {
-                    window.location.href = `/Shift/Detail/${d.shiftId}`;
+                    // [DÜZELTME] Yönlendirme URL'si /App/... olarak güncellendi
+                    window.location.href = `/App/Shift/Detail/${d.shiftId}`;
                 } else {
                     showAlert(d.message || 'Vardiya kapatılamadı.');
                     this.disabled    = false;

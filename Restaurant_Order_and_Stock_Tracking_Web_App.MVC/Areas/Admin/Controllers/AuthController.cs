@@ -1,4 +1,16 @@
-﻿using Microsoft.AspNetCore.Authentication;
+﻿// ============================================================================
+//  Areas/Admin/Controllers/AuthController.cs
+//  GÖREV 1 — SysAdmin Auth Controller
+//
+//  Mimari Notlar:
+//  • [Area("Admin")] + [AllowAnonymous] — route sistemi ve güvenlik
+//  • Login (GET): AdminAuth scheme'i ile zaten giriş yapıldıysa Dashboard'a yönlendir
+//  • Login (POST): FindByNameAsync → SysAdmin rol kontrolü → AdminAuth cookie
+//  • Logout: YALNIZCA AdminAuth scheme'ini temizler (AppAuth'a dokunmaz)
+//  • TenantId claim kasıtlı eklenmez → Global Query Filter bypass → tüm DB görünür
+// ============================================================================
+
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -9,6 +21,7 @@ using System.Security.Claims;
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.Admin.Controllers;
 
 [Area("Admin")]
+[AllowAnonymous]
 public class AuthController : Controller
 {
     private readonly UserManager<ApplicationUser> _userManager;
@@ -18,18 +31,23 @@ public class AuthController : Controller
         _userManager = userManager;
     }
 
-    [AllowAnonymous]
-    public IActionResult Login(string? returnUrl = null)
+    // ── GET /Admin/Auth/Login ────────────────────────────────────────────────
+    // Kullanıcı zaten AdminAuth ile giriş yapmışsa direkt Dashboard'a yönlendir.
+    // User.Identity.IsAuthenticated yalnızca aktif scheme'e bakar;
+    // ancak burada AdminAuth'u açıkça kontrol ediyoruz.
+    public async Task<IActionResult> Login(string? returnUrl = null)
     {
-        if (User.Identity?.IsAuthenticated == true)
+        // AdminAuth scheme'i ile mevcut bir oturum var mı?
+        var authResult = await HttpContext.AuthenticateAsync("AdminAuth");
+        if (authResult.Succeeded && authResult.Principal?.Identity?.IsAuthenticated == true)
             return RedirectToAction("Index", "Home", new { area = "Admin" });
 
         ViewBag.ReturnUrl = returnUrl;
         return View();
     }
 
+    // ── POST /Admin/Auth/Login ───────────────────────────────────────────────
     [HttpPost]
-    [AllowAnonymous]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Login(LoginViewModel model, string? returnUrl = null)
     {
@@ -38,6 +56,7 @@ public class AuthController : Controller
         if (!ModelState.IsValid)
             return View(model);
 
+        // 1. Kullanıcıyı bul
         var user = await _userManager.FindByNameAsync(model.Username);
         if (user == null)
         {
@@ -45,14 +64,14 @@ public class AuthController : Controller
             return View(model);
         }
 
-        // Lockout kontrolü
+        // 2. Hesap kilitli mi?
         if (await _userManager.IsLockedOutAsync(user))
         {
-            ModelState.AddModelError(string.Empty, "Hesap kilitlendi. 15 dakika sonra tekrar deneyin.");
+            ModelState.AddModelError(string.Empty, "Hesap kilitlendi. Lütfen daha sonra tekrar deneyin.");
             return View(model);
         }
 
-        // Şifre kontrolü
+        // 3. Şifre kontrolü
         var passwordOk = await _userManager.CheckPasswordAsync(user, model.Password);
         if (!passwordOk)
         {
@@ -61,23 +80,30 @@ public class AuthController : Controller
             return View(model);
         }
 
-        // Sadece SysAdmin bu panele girebilir
+        // 4. ── GÜVENLİK DUVARI ──────────────────────────────────────────────
+        //    Şifre doğru olsa bile SysAdmin rolü olmayan kullanıcılar reddedilir.
+        //    Güvenlik sebebiyle genel bir hata mesajı gösterilir.
         var roles = await _userManager.GetRolesAsync(user);
         if (!roles.Contains("SysAdmin"))
         {
-            ModelState.AddModelError(string.Empty, "Bu panele erişim yetkiniz yok.");
+            // Başarısız giriş sayacını artırarak brute-force korumasını aktif tut
+            await _userManager.AccessFailedAsync(user);
+            ModelState.AddModelError(string.Empty, "Kullanıcı adı veya şifre hatalı.");
             return View(model);
         }
 
-        // Başarılı giriş — tekil oturum için stamp güncelle
+        // 5. Başarılı giriş — sayacı sıfırla ve güvenlik stamp'ini güncelle
         await _userManager.ResetAccessFailedCountAsync(user);
         await _userManager.UpdateSecurityStampAsync(user);
 
         user.LastLoginAt = DateTime.UtcNow;
         await _userManager.UpdateAsync(user);
 
-        // AdminAuth scheme ile manuel cookie oluştur
-        // TenantId claim kasıtlı eklenmez → Global Query Filter bypass → tüm tenant'lar görünür
+        // 6. AdminAuth scheme ile manuel cookie oluştur
+        //    ÖNEMLİ: TenantId claim'i kasıtlı olarak EKLENMEZ.
+        //    → ITenantService.TenantId null kalır
+        //    → Global Query Filter "TenantId == null" dalına girer
+        //    → SysAdmin tüm tenant verilerini görebilir
         var claims = new List<Claim>
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id),
@@ -89,11 +115,15 @@ public class AuthController : Controller
         var identity = new ClaimsIdentity(claims, "AdminAuth");
         var principal = new ClaimsPrincipal(identity);
 
-        await HttpContext.SignInAsync("AdminAuth", principal, new AuthenticationProperties
+        var properties = new AuthenticationProperties
         {
             IsPersistent = model.RememberMe,
-            ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
-        });
+            ExpiresUtc = model.RememberMe
+                ? DateTimeOffset.UtcNow.AddDays(30)
+                : DateTimeOffset.UtcNow.AddHours(8)
+        };
+
+        await HttpContext.SignInAsync("AdminAuth", principal, properties);
 
         if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
             return Redirect(returnUrl);
@@ -101,6 +131,9 @@ public class AuthController : Controller
         return RedirectToAction("Index", "Home", new { area = "Admin" });
     }
 
+    // ── POST /Admin/Auth/Logout ──────────────────────────────────────────────
+    // SADECE AdminAuth scheme'ini temizler.
+    // AppAuth (App Area oturumu) bu işlemden etkilenmez.
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Logout()
@@ -109,6 +142,6 @@ public class AuthController : Controller
         return RedirectToAction(nameof(Login), new { area = "Admin" });
     }
 
-    [AllowAnonymous]
+    // ── GET /Admin/Auth/AccessDenied ─────────────────────────────────────────
     public IActionResult AccessDenied() => View();
 }

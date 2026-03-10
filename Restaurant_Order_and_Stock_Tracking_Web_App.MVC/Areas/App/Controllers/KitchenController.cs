@@ -23,6 +23,7 @@ using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Hubs;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
 {
+    [Area("App")]
     [AllowAnonymous]
     public class KitchenController : AppBaseController
     {

@@ -26,6 +26,7 @@ using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
 {
+    [Area("App")]
     [Authorize(Roles = "Admin,Garson,Kasiyer")]
     public class OrdersController : AppBaseController
     {
