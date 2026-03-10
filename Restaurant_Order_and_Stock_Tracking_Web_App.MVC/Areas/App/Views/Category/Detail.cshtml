@@ -1,0 +1,96 @@
+﻿@model Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models.Category
+@{
+    ViewData["Title"] = Model.CategoryName + " — Detay";
+    Layout = "_AppLayout";
+}
+
+@section Styles {
+    <link href="~/css/Views/Category/Detail.css" rel="stylesheet" asp-append-version="true" />
+}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">🗂️ @Model.CategoryName</h1>
+        <div class="page-subtitle">Kategori Detayı</div>
+    </div>
+    <a asp-action="Index" class="btn btn-ghost">← Geri</a>
+</div>
+
+<div class="info-card">
+    <div>
+        <div class="info-item-label">Kategori ID</div>
+        <div class="info-item-value">#@Model.CategoryId</div>
+    </div>
+    <div>
+        <div class="info-item-label">Sıralama</div>
+        <div class="info-item-value">@Model.CategorySortOrder</div>
+    </div>
+    <div>
+        <div class="info-item-label">Durum</div>
+        <div class="info-item-value">
+            @if (Model.IsActive)
+            {
+                <span class="pill pill-green">✓ Aktif</span>
+            }
+            else
+            {
+
+                <span class="pill pill-red">✗ Pasif</span>
+            }
+        </div>
+    </div>
+    <div>
+        <div class="info-item-label">Toplam Ürün</div>
+        <div class="info-item-value">@(Model.MenuItems?.Count ?? 0)</div>
+    </div>
+</div>
+
+<div class="card">
+    <div style="padding:1rem 1.1rem; border-bottom:1px solid var(--border, rgba(255,255,255,.08)); font-weight:600;">
+        Bu kategorideki ürünler
+    </div>
+    <table class="ros-table">
+        <thead>
+            <tr>
+                <th>Ürün Adı</th>
+                <th>Fiyat</th>
+                <th>Stok</th>
+                <th>Durum</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.MenuItems == null || !Model.MenuItems.Any())
+            {
+                <tr><td colspan="4"><div class="empty-state"><div class="empty-state-icon">🍽️</div><div>Bu kategoride ürün yok.</div></div></td></tr>
+            }
+            @foreach (var item in Model.MenuItems ?? Enumerable.Empty<Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models.MenuItem>())
+            {
+                <tr>
+                    <td style="font-weight:600;">@item.MenuItemName</td>
+                    <td><span class="pill pill-indigo">₺@item.MenuItemPrice.ToString("N2")</span></td>
+                    <td>
+                        @if (item.TrackStock)
+                        {
+                            <span class="pill @(item.StockQuantity < 5 ? "pill-red" : "pill-green")">@item.StockQuantity adet</span>
+                        }
+                        else
+                        {
+                            <span style="opacity:.4; font-size:.8rem;">Takip edilmiyor</span>
+                        }
+                    </td>
+                    <td>
+                        @if (item.IsAvailable)
+                        {
+                            <span class="pill pill-green">Mevcut</span>
+                        }
+                        else
+                        {
+
+                            <span class="pill pill-red">Mevcut Değil</span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

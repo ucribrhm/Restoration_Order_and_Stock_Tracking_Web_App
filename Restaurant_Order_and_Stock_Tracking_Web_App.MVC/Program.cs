@@ -2,23 +2,33 @@
 //  Program.cs
 //  Yol: Restaurant_Order_and_Stock_Tracking_Web_App.MVC/
 //
-//  FAZ 1 GÜVENLİK DEĞİŞİKLİKLERİ (3 blok — diğer her satır orijinalle aynı):
+//  FAZ 1 GÜVENLİK DEĞİŞİKLİKLERİ (korundu):
 //  [GÜV-1] AddIdentity → Lockout + Password politikası sıkılaştırıldı.
-//  [GÜV-2] ConfigureApplicationCookie → SecurePolicy Always, SameSite Strict.
-//  [GÜV-3] Admin seed → şifre artık ADMIN_INITIAL_PASSWORD env-var'dan okunuyor;
-//           değişken eksikse uygulama InvalidOperationException fırlatarak durur.
+//  [GÜV-3] Admin seed → şifre ADMIN_INITIAL_PASSWORD env-var'dan okunuyor.
+//
+//  AREAS SPRINT 1:
+//  [AREAS-AUTH]   ConfigureApplicationCookie kaldırıldı.
+//                 AddAuthentication() → AdminAuth + AppAuth çift cookie scheme.
+//  [AREAS-ROUTES] Üç route tanımı: Admin → App → Default (sıralama kritik).
+//
+//  AREAS SPRINT 3:
+//  [AREAS-SEED]   SysAdmin rolü ve sysadmin kullanıcısı seed bloğuna eklendi.
+//
+//  AREAS SPRINT 4:
+//  [SPRINT-4]     ITenantOnboardingService kaydedildi.
+//                 Default route controller=Landing olarak güncellendi.
 // ════════════════════════════════════════════════════════════════════════════
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.RateLimiting;           // [G-06]
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Infrastructure;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Hubs;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;
-using System.Threading.RateLimiting;              // [G-06]
+using System.Threading.RateLimiting;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
 {
@@ -35,31 +45,23 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
 
             // ════════════════════════════════════════════════════════════════
             //  [GÜV-1] Identity — Brute-Force Koruması & Şifre Politikası
-            //
-            //  ÖNCE (güvensiz):
-            //    options.Lockout.AllowedForNewUsers = false;  ← kilitlenme kapalı!
-            //    options.Password.RequireDigit     = false;   ← zayıf şifre
-            //    options.Password.RequireUppercase = false;   ← zayıf şifre
-            //    options.Password.RequiredLength   = 6;       ← çok kısa
-            //
-            //  SONRA (güvenli): Aşağıdaki değerler uygulandı.
             // ════════════════════════════════════════════════════════════════
             builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
             {
                 // ── Şifre Politikası ─────────────────────────────────────
-                options.Password.RequireDigit = true;   // [GÜV-1] rakam zorunlu
+                options.Password.RequireDigit = true;
                 options.Password.RequireLowercase = true;
-                options.Password.RequireUppercase = true;   // [GÜV-1] büyük harf zorunlu
-                options.Password.RequireNonAlphanumeric = false;  // özel karakter opsiyonel
-                options.Password.RequiredLength = 8;      // [GÜV-1] min 8 karakter
+                options.Password.RequireUppercase = true;
+                options.Password.RequireNonAlphanumeric = false;
+                options.Password.RequiredLength = 8;
                 options.Password.RequiredUniqueChars = 1;
 
                 // ── Brute-Force Kilitleme ─────────────────────────────────
-                options.Lockout.AllowedForNewUsers = true;                // [GÜV-1] kilitleme açık
-                options.Lockout.MaxFailedAccessAttempts = 5;                 // [GÜV-1] 5 hatalı → kilit
-                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15); // [GÜV-1] 15 dk kilit
+                options.Lockout.AllowedForNewUsers = true;
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
 
-                // ── Kullanıcı & Giriş Ayarları (değişmedi) ───────────────
+                // ── Kullanıcı & Giriş Ayarları ────────────────────────────
                 options.User.RequireUniqueEmail = false;
                 options.SignIn.RequireConfirmedEmail = false;
                 options.SignIn.RequireConfirmedAccount = false;
@@ -68,25 +70,36 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
             .AddDefaultTokenProviders();
 
             // ════════════════════════════════════════════════════════════════
-            //  [GÜV-2] Cookie Güvenliği
+            //  [AREAS-AUTH] Çift Cookie Scheme — AdminAuth & AppAuth
             //
-            //  ÖNCE (güvensiz):
-            //    SecurePolicy = CookieSecurePolicy.SameAsRequest  ← HTTP'de çerez açıkta!
-            //    SameSite     = SameSiteMode.Lax                  ← CSRF riski
-            //
-            //  SONRA (güvenli): Always + Strict.
+            //  ConfigureApplicationCookie kaldırıldı.
+            //  Giriş işlemleri HttpContext.SignInAsync() ile elle yapılıyor.
+            //  Bir Garson'un AppAuth cookie'si AdminAuth ile korunan
+            //  endpoint'e teknik olarak izin VERMİYOR.
             // ════════════════════════════════════════════════════════════════
-            builder.Services.ConfigureApplicationCookie(options =>
-            {
-                options.LoginPath = "/Auth/Login";
-                options.AccessDeniedPath = "/Auth/AccessDenied";
-                options.Cookie.HttpOnly = true;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;    // [GÜV-2] yalnızca HTTPS
-                options.Cookie.SameSite = SameSiteMode.Strict;          // [GÜV-2] CSRF koruması
-                options.Cookie.Name = "RestaurantOS.Auth";
-                options.ExpireTimeSpan = TimeSpan.FromHours(8);
-                options.SlidingExpiration = true;
-            });
+            builder.Services.AddAuthentication()
+                .AddCookie("AdminAuth", options =>
+                {
+                    options.LoginPath = "/Admin/Auth/Login";
+                    options.AccessDeniedPath = "/Admin/Auth/AccessDenied";
+                    options.Cookie.Name = "RestaurantOS.AdminAuth";
+                    options.Cookie.HttpOnly = true;
+                    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                    options.Cookie.SameSite = SameSiteMode.Strict;
+                    options.ExpireTimeSpan = TimeSpan.FromHours(8);
+                    options.SlidingExpiration = true;
+                })
+                .AddCookie("AppAuth", options =>
+                {
+                    options.LoginPath = "/App/Auth/Login";
+                    options.AccessDeniedPath = "/App/Auth/AccessDenied";
+                    options.Cookie.Name = "RestaurantOS.AppAuth";
+                    options.Cookie.HttpOnly = true;
+                    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                    options.Cookie.SameSite = SameSiteMode.Strict;
+                    options.ExpireTimeSpan = TimeSpan.FromHours(8);
+                    options.SlidingExpiration = true;
+                });
 
             builder.Services.Configure<SecurityStampValidatorOptions>(options =>
             {
@@ -95,55 +108,39 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
 
             builder.Services.AddHostedService<ReservationCleanupService>();
 
-            // ── [MT] Multi-Tenancy Servisleri ─────────────────────────────────────
-            // IHttpContextAccessor: HttpContextTenantService için HTTP bağlamına erişim
+            // ── [MT] Multi-Tenancy Servisleri ─────────────────────────────
             builder.Services.AddHttpContextAccessor();
-            // ITenantService: Global Query Filter'ın TenantId'yi okuduğu servis
             builder.Services.AddScoped<ITenantService, HttpContextTenantService>();
-            // IClaimsTransformation: Login sırasında TenantId'yi Claims'e yazar
-            // Döngüsel bağımlılığı önleyen mekanizmanın kalbi
             builder.Services.AddScoped<IClaimsTransformation, TenantClaimsTransformation>();
+
+            // [SPRINT-4] Tenant Onboarding Servisi
+            builder.Services.AddScoped<ITenantOnboardingService, TenantOnboardingService>();
 
             // [MOD] Modüler Monolith — Sipariş servisi
             builder.Services.AddScoped<Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders.IOrderService,
                 Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders.OrderService>();
-            // ────────────────────────────────────────────────────────────────────────
 
             builder.Services.AddControllersWithViews();
 
-            // ── SignalR (değişmedi) ──────────────────────────────────────
+            // ── SignalR ──────────────────────────────────────────────────
             builder.Services.AddSignalR();
 
-            // ══════════════════════════════════════════════════════════════
-            // [G-06] Rate Limiting — CallWaiter Spam Koruması
-            //
-            // Sorun: Müşteri "Garson Çağır" butonuna art arda basınca
-            //        saniyeler içinde onlarca SignalR bildirimi gidebilir.
-            //        IsWaiterCalled DB kontrolü kısmi koruma sağlasa da
-            //        eşzamanlı istekler bu bayrağı aşabilir.
-            //
-            // Çözüm: Sliding window rate limiter
-            //   • Pencere: 60 saniye
-            //   • Limit   : 2 istek / pencere / IP
-            //   • Kuyruk  : yok (fazla istek → 429 Too Many Requests)
-            //   • Scope   : IP bazlı (müşteri cihazı) — masa bazlı değil,
-            //               çünkü QrMenuController [AllowAnonymous] olup
-            //               kullanıcı kimliği bilinmiyor.
-            // ══════════════════════════════════════════════════════════════
+            // ════════════════════════════════════════════════════════════════
+            //  [G-06] Rate Limiting — CallWaiter Spam Koruması
+            // ════════════════════════════════════════════════════════════════
             builder.Services.AddRateLimiter(options =>
             {
                 options.AddSlidingWindowLimiter(
                     policyName: "WaiterCallPolicy",
                     configureOptions: limiter =>
                     {
-                        limiter.Window = TimeSpan.FromSeconds(60); // [G-06] 60 sn pencere
-                        limiter.PermitLimit = 2;                         // [G-06] maks 2 istek
-                        limiter.SegmentsPerWindow = 6;                         // 10 sn granülasyon
-                        limiter.QueueLimit = 0;                         // kuyruk yok → anında 429
+                        limiter.Window = TimeSpan.FromSeconds(60);
+                        limiter.PermitLimit = 2;
+                        limiter.SegmentsPerWindow = 6;
+                        limiter.QueueLimit = 0;
                         limiter.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
                     });
 
-                // 429 yanıtı: JSON body + açıklayıcı header
                 options.OnRejected = async (context, cancellationToken) =>
                 {
                     context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
@@ -158,31 +155,49 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
 
             if (!app.Environment.IsDevelopment())
             {
-                app.UseExceptionHandler("/Home/Error");
+                app.UseExceptionHandler("/Landing/Index");
                 app.UseHsts();
             }
 
             app.UseHttpsRedirection();
             app.UseRouting();
-            app.UseRateLimiter();       // [G-06] UseRouting'den sonra, UseAuthentication'dan önce
+            app.UseRateLimiter();
             app.UseAuthentication();
             app.UseAuthorization();
 
             app.MapStaticAssets();
+
+            // ════════════════════════════════════════════════════════════════
+            //  [AREAS-ROUTES] Route Tanımları — Sıralama Kritik!
+            //
+            //  Admin ve App route'ları default'tan ÖNCE tanımlanmalıdır.
+            // ════════════════════════════════════════════════════════════════
+
+            // [ROUTE-1] Admin Area
+            app.MapControllerRoute(
+                name: "Admin",
+                pattern: "Admin/{controller=Home}/{action=Index}/{id?}",
+                defaults: new { area = "Admin" });
+
+            // [ROUTE-2] App Area
+            app.MapControllerRoute(
+                name: "App",
+                pattern: "App/{controller=Tables}/{action=Index}/{id?}",
+                defaults: new { area = "App" });
+
+            // [ROUTE-3] Default Route — Landing & Onboarding
+            // [SPRINT-4] controller=Landing — HomeController artık Areas/App içinde
             app.MapControllerRoute(
                 name: "default",
-                pattern: "{controller=Home}/{action=Index}/{id?}")
+                pattern: "{controller=Landing}/{action=Index}/{id?}")
                 .WithStaticAssets();
 
-            // ── SignalR Hub Endpoints (değişmedi) ────────────────────────
+            // ── SignalR Hub Endpoints ────────────────────────────────────
             app.MapHub<RestaurantHub>("/hubs/restaurant");
             app.MapHub<NotificationHub>("/notificationHub");
 
             // ════════════════════════════════════════════════════════════════
-
-            // ════════════════════════════════════════════════════════════════
-            //  Rol, Tenant & Admin Seed
-            //  [MT] Tenant olmadan FK kısıtı ihlal oluyor.
+            //  Rol, Tenant & Kullanıcı Seed
             //  Bu blok her başlangıçta idempotent çalışır (AnyAsync kontrolü).
             // ════════════════════════════════════════════════════════════════
             using (var scope = app.Services.CreateScope())
@@ -192,16 +207,14 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
                 var db = scope.ServiceProvider.GetRequiredService<RestaurantDbContext>();
 
                 // ── Roller ───────────────────────────────────────────────
-                foreach (var roleName in new[] { "Admin", "Garson", "Kasiyer" })
+                // [AREAS-SEED] SysAdmin rolü eklendi
+                foreach (var roleName in new[] { "SysAdmin", "Admin", "Garson", "Kasiyer", "Kitchen" })
                 {
                     if (!await roleManager.RoleExistsAsync(roleName))
                         await roleManager.CreateAsync(new IdentityRole(roleName));
                 }
 
                 // ── [MT] Varsayılan Tenant Seed ──────────────────────────
-                //  FK_tables_tenants_TenantId hatasının kök sebebi:
-                //  tenants tablosunda kayıt yok → masa eklenemez.
-                //  Bu blok ilk çalışmada tenant'ı oluşturur, sonrakilerde atlar.
                 const string defaultTenantId = "varsayilan-restoran";
 
                 if (!await db.Tenants.AnyAsync(t => t.TenantId == defaultTenantId))
@@ -243,7 +256,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
                         FullName = "Sistem Yöneticisi",
                         EmailConfirmed = true,
                         CreatedAt = DateTime.UtcNow,
-                        TenantId = defaultTenantId   // [MT] FK için zorunlu
+                        TenantId = defaultTenantId
                     };
 
                     var createResult = await userManager.CreateAsync(adminUser, adminPassword);
@@ -252,14 +265,36 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
                 }
                 else
                 {
-                    // Mevcut admin'in TenantId'si null ise ata
-                    // (eski DB'den geçiş — bu satır olmadan Claims boş kalır)
+                    // Mevcut admin'in TenantId'si null ise ata (eski DB'den geçiş)
                     var admins = await userManager.GetUsersInRoleAsync("Admin");
                     foreach (var a in admins.Where(a => a.TenantId == null))
                     {
                         a.TenantId = defaultTenantId;
                         await userManager.UpdateAsync(a);
                     }
+                }
+
+                // ── [AREAS-SEED] SysAdmin Kullanıcı Seed ────────────────
+                if ((await userManager.GetUsersInRoleAsync("SysAdmin")).Count == 0)
+                {
+                    var sysAdminPassword = builder.Configuration["SYSADMIN_INITIAL_PASSWORD"]
+                        ?? throw new InvalidOperationException(
+                            "Kritik Konfigürasyon Eksik: 'SYSADMIN_INITIAL_PASSWORD' ortam değişkeni " +
+                            "tanımlanmamış. Uygulamayı başlatmadan önce bu değişkeni ayarlayın. " +
+                            "Örnek: export SYSADMIN_INITIAL_PASSWORD=\"SaasAdmin2024!\"");
+
+                    var sysAdmin = new ApplicationUser
+                    {
+                        UserName = "sysadmin",
+                        FullName = "SaaS Sistem Yöneticisi",
+                        EmailConfirmed = true,
+                        CreatedAt = DateTime.UtcNow,
+                        TenantId = null   // SysAdmin hiçbir tenant'a bağlı değil → Global Query Filter bypass
+                    };
+
+                    var createResult = await userManager.CreateAsync(sysAdmin, sysAdminPassword);
+                    if (createResult.Succeeded)
+                        await userManager.AddToRoleAsync(sysAdmin, "SysAdmin");
                 }
             }
 

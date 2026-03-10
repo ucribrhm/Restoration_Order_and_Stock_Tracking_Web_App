@@ -32,7 +32,7 @@ document.getElementById('editForm')?.addEventListener('submit', async e => {
     };
 
     try {
-        const res = await fetch('/Menu/Edit', {
+        const res = await fetch(window.APP_URLS.menuEdit, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -44,7 +44,7 @@ document.getElementById('editForm')?.addEventListener('submit', async e => {
         btn.disabled = false;
 
         if (data.success) {
-            window.location.href = '/Menu';
+            window.location.href = window.APP_URLS.menuIndex;
         } else {
             const box = document.getElementById('alertBox');
             box.textContent = data.message;
@@ -55,7 +55,7 @@ document.getElementById('editForm')?.addEventListener('submit', async e => {
         document.getElementById('alertBox').textContent = 'Bağlantı hatası oluştu.';
         document.getElementById('alertBox').style.display = 'block';
     }
-    
+
 });
 // ─── Mevcut görseli kaldır ────────────────────────────────────────────────────
 function removeCurrentImage() {
@@ -109,7 +109,7 @@ document.getElementById('editForm')?.addEventListener('submit', async e => {
     }
 
     try {
-        const res = await fetch('/Menu/Edit', {
+        const res = await fetch(window.APP_URLS.menuEdit, {
             method: 'POST',
             headers: { 'RequestVerificationToken': token },
             body: formData
@@ -119,7 +119,7 @@ document.getElementById('editForm')?.addEventListener('submit', async e => {
         if (btn) { btn.disabled = false; btn.textContent = '💾 Güncelle'; }
 
         if (data.success) {
-            window.location.href = '/Menu';
+            window.location.href = window.APP_URLS.menuIndex;
         } else {
             const box = document.getElementById('alertBox');
             if (box) { box.textContent = data.message; box.style.display = 'block'; }

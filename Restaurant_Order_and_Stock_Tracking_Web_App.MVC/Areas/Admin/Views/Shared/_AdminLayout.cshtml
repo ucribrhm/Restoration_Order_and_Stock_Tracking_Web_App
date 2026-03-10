@@ -1,0 +1,164 @@
+﻿@* ============================================================================
+   Areas/Admin/Views/Shared/_AdminLayout.cshtml
+   SaaS Areas Mimarisi — Admin Panel Layout
+
+   Bu layout YALNIZCA Admin Area'ya aittir.
+   AppAuth cookie'siyle erişilen App Area'da bu layout hiçbir zaman
+   render edilmez — her area'nın kendi _ViewStart'ı kendi layout'unu seçer.
+
+   Tasarım dili: Mevcut site.css değişkenleri korunuyor (--bg, --surface, --text vb.)
+   Admin'e özgü renk vurgusu: kırmızımsı-mor ton (#a23b72) sidebar aksan rengi.
+   ============================================================================ *@
+
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models.ApplicationUser> UserManager
+@inject SignInManager<Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models.ApplicationUser> SignInManager
+
+<!DOCTYPE html>
+<html lang="tr" data-theme="dark">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@(ViewData["Title"] != null ? ViewData["Title"] + " — RestaurantOS Admin" : "RestaurantOS Admin")</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+
+    @* Mevcut global stil — CSS değişkenleri bu dosyadan geliyor *@
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+
+    @* Admin'e özgü ek stiller — sidebar aksan rengi, panel başlıkları vb. *@
+    <style>
+        /* Admin area aksan rengi — mevcut CSS değişkenlerini override eder */
+        :root {
+            --admin-accent: #a23b72;
+            --admin-accent-dim: rgba(162, 59, 114, 0.15);
+        }
+
+        /* Sidebar logo altındaki "ADMIN PANEL" etiketi */
+        .admin-area-badge {
+            display: inline-block;
+            margin-top: 4px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: var(--admin-accent-dim);
+            color: var(--admin-accent);
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        /* Aktif nav item — admin aksan rengi */
+        .sidebar .nav-item.active {
+            background: var(--admin-accent-dim);
+            color: var(--admin-accent);
+        }
+
+            .sidebar .nav-item.active .nav-icon {
+                color: var(--admin-accent);
+            }
+    </style>
+
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body>
+
+    @* ── SIDEBAR ──────────────────────────────────────────────────────── *@
+    <aside class="sidebar" id="sidebar">
+
+        <div class="sidebar-logo">
+            <div class="logo-icon">⚙️</div>
+            <span class="logo-text">RestaurantOS</span>
+            <div><span class="admin-area-badge">Admin Panel</span></div>
+        </div>
+
+        <nav class="nav-section">
+
+            <span class="nav-label">Genel Bakış</span>
+
+            <a class="nav-item @(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" ? "active" : "")"
+               asp-area="Admin" asp-controller="Home" asp-action="Index">
+                <span class="nav-icon">📊</span>
+                <span class="nav-text">Dashboard</span>
+            </a>
+
+            <span class="nav-label">SaaS Yönetimi</span>
+
+            <a class="nav-item @(ViewContext.RouteData.Values["controller"]?.ToString() == "Tenant" ? "active" : "")"
+               asp-area="Admin" asp-controller="Tenant" asp-action="Index">
+                <span class="nav-icon">🏢</span>
+                <span class="nav-text">Restoranlar</span>
+                @if (ViewData["TenantCount"] is int tc && tc > 0)
+                {
+                    <span class="badge">@tc</span>
+                }
+            </a>
+
+            <span class="nav-label">Sistem</span>
+
+            <a class="nav-item @(ViewContext.RouteData.Values["controller"]?.ToString() == "SystemUser" ? "active" : "")"
+               asp-area="Admin" asp-controller="SystemUser" asp-action="Index">
+                <span class="nav-icon">👤</span>
+                <span class="nav-text">Sistem Kullanıcıları</span>
+            </a>
+
+        </nav>
+
+        <div class="sidebar-footer">
+            @{
+                var currentUser = SignInManager.IsSignedIn(User)
+                ? await UserManager.GetUserAsync(User)
+                : null;
+                var displayName = currentUser?.FullName?.Trim();
+                if (string.IsNullOrEmpty(displayName))
+                    displayName = currentUser?.UserName ?? "SysAdmin";
+                var userInitial = displayName.Length > 0
+                ? displayName[0].ToString().ToUpper()
+                : "S";
+            }
+            <div class="avatar" style="background: var(--admin-accent);">@userInitial</div>
+            <div class="avatar-info">
+                <div class="avatar-name">@displayName</div>
+                <div class="avatar-role">Sistem Yöneticisi</div>
+            </div>
+            <form asp-area="Admin" asp-controller="Auth" asp-action="Logout"
+                  method="post" style="margin:0">
+                @Html.AntiForgeryToken()
+                <button type="submit"
+                        title="Çıkış Yap"
+                        style="background:none;border:1px solid;border-radius:4px;cursor:pointer;
+                               border-color:dimgrey;color:var(--text);font-size:1.1rem;padding:4px;">
+                    🚪 Çıkış Yap
+                </button>
+            </form>
+        </div>
+
+    </aside>
+
+    @* ── MAIN ──────────────────────────────────────────────────────────── *@
+    <div class="main" id="main">
+
+        <header class="topbar">
+            <button class="topbar-toggle" id="toggleBtn">☰</button>
+
+            <div class="topbar-breadcrumb">
+                RestaurantOS Admin › <span>@(ViewData["Title"] ?? "Dashboard")</span>
+            </div>
+
+            <div class="topbar-right">
+                <div class="topbar-clock" id="clock">--:--</div>
+                <div class="theme-toggle" id="themeToggle"></div>
+            </div>
+        </header>
+
+        <main class="content">
+            @RenderBody()
+        </main>
+
+    </div>
+
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+
+</body>
+</html>

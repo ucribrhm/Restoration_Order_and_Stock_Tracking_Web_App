@@ -135,7 +135,7 @@ document.getElementById('createForm')?.addEventListener('submit', async e => {
     if (imgFile?.files[0]) fd.append('imageFile', imgFile.files[0]);
 
     try {
-        const res = await fetch('/Menu/Create', {
+        const res = await fetch(window.APP_URLS.menuCreate, {
             method: 'POST',
             headers: { 'RequestVerificationToken': getToken() },
             // Content-Type AYARLANMAZ — tarayıcı multipart boundary'yi otomatik ekler
@@ -177,7 +177,7 @@ document.getElementById('e_imageFile')?.addEventListener('change', function () {
 
 async function openEditModal(id) {
     try {
-        const res = await fetch(`/Menu/GetById/${id}`);
+        const res = await fetch(`${window.APP_URLS.menuGetById}/${id}`);
         const data = await res.json();
         if (!data.success) { showToast('Veri alınamadı.', 'error'); return; }
 
@@ -257,7 +257,7 @@ document.getElementById('editForm')?.addEventListener('submit', async e => {
     if (imgFile?.files[0]) fd.append('imageFile', imgFile.files[0]);
 
     try {
-        const res = await fetch('/Menu/Edit', {
+        const res = await fetch(window.APP_URLS.menuEdit, {
             method: 'POST',
             headers: { 'RequestVerificationToken': getToken() },
             body: fd
@@ -300,7 +300,7 @@ document.getElementById('deleteForm').addEventListener('submit', async e => {
     });
 
     try {
-        const res = await fetch('/Menu/Delete', { method: 'POST', body });
+        const res = await fetch(window.APP_URLS.menuDelete, { method: 'POST', body });
         const data = await res.json();
         btn.disabled = false;
         closeModal('deleteModal');

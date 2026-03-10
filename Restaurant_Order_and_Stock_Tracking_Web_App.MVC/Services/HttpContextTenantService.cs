@@ -23,7 +23,21 @@
 //  │                                                                     │
 //  │  Sonuç: Döngüsel bağımlılık yok. Her istek için 0 DB sorgusu.      │
 //  └─────────────────────────────────────────────────────────────────────┘
+//
+//  [AREAS-AUTH] Çift Scheme ile değişen davranış:
+//
+//  AppAuth  ile giriş yapan kullanıcı (Garson, Kasiyer, Admin):
+//    → Cookie'de "TenantId" Claim'i VARDIR.
+//    → Bu değer döner → Global Query Filter aktif → sadece kendi tenant'ı.
+//
+//  AdminAuth ile giriş yapan kullanıcı (SysAdmin):
+//    → Cookie'de "TenantId" Claim'i YOKTUR (kasıtlı eklenmez).
+//    → null döner → Global Query Filter bypass → tüm tenant'lar görünür.
+//
+//  Bu null davranışı bir hata değil; SaaS yöneticisinin tüm tenant
+//  verilerine erişebilmesi için tasarımsal bir karardır.
 // ============================================================================
+
 using System.Security.Claims;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services
@@ -39,12 +53,12 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services
 
         /// <summary>
         /// Kimliği doğrulanmış kullanıcının "TenantId" Claim değerini döner.
-        /// TenantClaimsTransformation tarafından login sırasında eklenen Claim.
         ///
         /// null döner:
         ///   - Kullanıcı giriş yapmamış (anonim istek)
         ///   - Sistem bağlamı (seed, migration)
-        ///   - Süper admin (TenantId Claim'i kasıtlı eklenmemiş)
+        ///   - SysAdmin — AdminAuth cookie'sinde "TenantId" Claim'i kasıtlı yoktur,
+        ///     bu nedenle Global Query Filter bypass olur ve tüm tenant verileri görünür.
         /// </summary>
         public string? TenantId
         {
@@ -52,12 +66,21 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services
             {
                 var user = _httpContextAccessor.HttpContext?.User;
 
-                // Kullanıcı giriş yapmamışsa null döner
+                // Kullanıcı giriş yapmamışsa null döner.
+                // (anonim istek, migration çalıştırma, seed işlemi)
                 if (user?.Identity?.IsAuthenticated != true)
                     return null;
 
-                // "TenantId" Claim'ini oku.
-                // Bu Claim TenantClaimsTransformation tarafından login sırasında eklendi.
+                // [AREAS-AUTH] Scheme kontrolü YAPILMIYOR — kasıtlı.
+                //
+                // Neden? Bu servis hangi scheme'in kullanıldığını bilmek
+                // zorunda değil. Sadece "TenantId" Claim'inin varlığına bakıyor:
+                //
+                //   AppAuth  cookie'si → TenantId Claim var  → değeri döner
+                //   AdminAuth cookie'si → TenantId Claim yok → null döner
+                //
+                // Böylece servis scheme-agnostik kalır ve her iki akış için
+                // doğru davranışı otomatik üretir.
                 return user.FindFirstValue("TenantId");
             }
         }

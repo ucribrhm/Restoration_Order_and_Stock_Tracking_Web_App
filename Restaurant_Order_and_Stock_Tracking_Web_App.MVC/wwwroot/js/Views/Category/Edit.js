@@ -25,7 +25,7 @@ document.getElementById('editForm').addEventListener('submit', async e => {
     };
 
     try {
-        const res = await fetch('/Category/Edit', {
+        const res = await fetch(window.APP_URLS.categoryEdit, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -37,7 +37,7 @@ document.getElementById('editForm').addEventListener('submit', async e => {
         btn.disabled = false;
 
         if (data.success) {
-            window.location.href = '/Category';
+            window.location.href = window.APP_URLS.categoryIndex;
         } else {
             const box = document.getElementById('alertBox');
             box.textContent = data.message;

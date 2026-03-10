@@ -1,0 +1,711 @@
+﻿@using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common
+@model Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models.Order
+@using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models
+@{
+    ViewData["Title"] = ViewData["Title"]?.ToString();
+    var categories = (List<Category>)ViewBag.Categories;
+    var isOpen = Model.OrderStatus == OrderStatus.Open;
+    var minutesOpen = (int)(DateTime.UtcNow - Model.OrderOpenedAt).TotalMinutes;
+    var totalPaid = Model.Payments?.Sum(p => p.PaymentsAmount) ?? 0;
+    var remaining = Model.OrderTotalAmount - totalPaid;
+
+    var activeItems = Model.OrderItems.Where(i => i.OrderItemStatus != OrderItemStatus.Cancelled).ToList();
+    var unpaidItems = activeItems.Where(i => i.RemainingQuantity > 0).ToList();
+    var paidItems = activeItems.Where(i => i.RemainingQuantity <= 0 && i.ActiveQuantity > 0).ToList();
+    var cancelledItems = Model.OrderItems.Where(i => i.CancelledQuantity > 0).ToList();
+    var paidTotal = activeItems.Sum(i => i.PaidLineTotal);
+
+    bool allItemsCancelled = !Model.OrderItems.Any() ||
+        Model.OrderItems.All(oi =>
+            oi.OrderItemStatus == OrderItemStatus.Cancelled ||
+            (oi.OrderItemQuantity - oi.CancelledQuantity) <= 0);
+
+    bool canCloseZero = isOpen && Model.OrderTotalAmount <= 0.001m && allItemsCancelled;
+
+    bool canCloseByPay = isOpen
+        && !canCloseZero
+        && totalPaid > 0
+        && (Model.OrderTotalAmount - totalPaid) <= 0.001m;
+
+    int StatusOrder(OrderItemStatus s) => s switch { OrderItemStatus.Preparing => 1, OrderItemStatus.Served => 2, OrderItemStatus.Cancelled => 99, _ => 0 };
+    string StatusClass(OrderItemStatus s) => s switch { OrderItemStatus.Preparing => "s-preparing", OrderItemStatus.Served => "s-served", OrderItemStatus.Cancelled => "s-cancelled", _ => "s-pending" };
+    string StatusLabel(OrderItemStatus s) => s switch { OrderItemStatus.Ready => "Hazır ✅", OrderItemStatus.Preparing => "Hazırlanıyor", OrderItemStatus.Served => "Servis Edildi", OrderItemStatus.Cancelled => "İptal", _ => "Bekliyor" };
+    string PayMethodLabel(int m) => m switch { 1 => "💳 Kredi Kartı", 2 => "🏦 Banka Kartı", 3 => "🔄 Diğer", _ => "💵 Nakit" };
+}
+
+@section Styles {
+    <link href="~/css/Views/Orders/Detail.css" rel="stylesheet" asp-append-version="true" />
+}
+
+<div class="detail-layout">
+
+    @* ── SOL PANEL ── *@
+    <div class="left-panel">
+
+        <div class="info-card">
+            <div>
+                <div class="info-item-label">Adisyon No</div>
+                <div class="info-item-value">#@Model.OrderId</div>
+            </div>
+            <div>
+                <div class="info-item-label">Süre</div>
+                <div class="info-item-value">@minutesOpen dk.</div>
+            </div>
+            <div>
+                <div class="info-item-label">Durum</div>
+                <div class="info-item-value">
+                    <span class="status-badge @(isOpen ? "s-preparing" : "s-paid")">@(isOpen ? "Açık" : "Ödendi")</span>
+                </div>
+            </div>
+            <div>
+                <div class="info-item-label">Toplam</div>
+                <div class="info-item-value accent">₺@Model.OrderTotalAmount.ToString("N2")</div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(Model.OrderNote))
+        {
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 18px;font-size:13px;color:var(--text-muted);">
+                📝 <strong style="color:var(--text)">Not:</strong> @Model.OrderNote
+            </div>
+        }
+
+        <div class="panel">
+            <div class="panel-head">
+                <span class="panel-title">Sipariş Kalemleri</span>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="font-size:12px;color:var(--text-muted)">
+                        @unpaidItems.Count ödenecek
+                        @if (paidItems.Any())
+                        {
+                            <span style="color:#22c55e;margin-left:6px">· @paidItems.Count ödendi</span>
+                        }
+                    </span>
+                    @if (isOpen)
+                    {
+                        <button type="button" class="btn-add-inline" onclick="openModal('addItemModal')">
+                            ＋ Ürün Ekle
+                        </button>
+                    }
+                </div>
+            </div>
+
+            @if (!unpaidItems.Any() && isOpen)
+            {
+                <div style="padding:18px 16px;text-align:center;color:#22c55e;font-size:13px;font-weight:600;">
+                    ✅ Tüm kalemler ödendi
+                </div>
+            }
+
+            @foreach (var item in unpaidItems)
+            {
+                bool isPartial = item.PaidQuantity > 0;
+                <div class="item-row">
+                    <div class="item-info">
+                        <div class="item-name">@item.MenuItem?.MenuItemName</div>
+                        @if (!string.IsNullOrWhiteSpace(item.OrderItemNote))
+                        {
+                            <div class="item-note">📝 @item.OrderItemNote</div>
+                        }
+                        @if (isPartial)
+                        {
+                            <div style="font-size:10px;color:#22c55e;margin-top:3px">✓ @item.PaidQuantity adet ödendi</div>
+                        }
+                        @if (item.CancelledQuantity > 0)
+                        {
+                            <div class="partial-cancel-badge">
+                                ✕ @item.CancelledQuantity adet iptal edildi
+                            </div>
+                        }
+                    </div>
+                    <div class="item-qty remaining">×@item.RemainingQuantity</div>
+                    <div class="item-price-col">
+                        @if (isPartial)
+                        {
+                            <div class="item-price-unpaid">₺@item.UnpaidLineTotal.ToString("N2")</div>
+                            <div class="item-price-paid-label">+₺@item.PaidLineTotal.ToString("N2") ödendi</div>
+                        }
+                        else
+                        {
+                            <div class="item-price">₺@item.OrderItemLineTotal.ToString("N2")</div>
+                        }
+                    </div>
+                    @if (isOpen)
+                    {
+                        <div class="status-flow">
+                            <span class="sflow-current @StatusClass(item.OrderItemStatus)">@StatusLabel(item.OrderItemStatus)</span>
+                            @* ── [SPRINT-3] Pending/Preparing geçişleri SADECE mutfak (KDS) yönetir.
+                               [SPRINT-4] Ready → Served geçişi SADECE garson yapar. *@
+                            @* [MADDE-2] Ready durumu read-only — "Servis Edildi" SADECE Masalar ekranından *@
+                            @if (item.OrderItemStatus == OrderItemStatus.Ready)
+                            {
+                                <span class="sflow-arrow">→</span>
+                                <span class="sflow-badge-ready">🍽️ Hazır — Masalar Ekranından Servis Et</span>
+                            }
+                            @{
+                                int cancelable = item.RemainingQuantity;
+                            }
+                            @if (cancelable > 0)
+                            {
+                                <button type="button" class="sflow-btn sflow-btn-cancel"
+                                        onclick="openCancelModal(
+                                                                                                        @item.OrderItemId,
+                                                                                                        '@Html.Raw(item.MenuItem?.MenuItemName?.Replace("'", "&#39;") ?? "")',
+                                                                                                        @item.OrderItemUnitPrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
+                                                                                                        @cancelable,
+                                                                                                        @(item.MenuItem?.TrackStock == true ? "true" : "false")
+                                                                                                    )">
+                                    ✕ İptal
+                                </button>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <span class="status-badge @StatusClass(item.OrderItemStatus)">@StatusLabel(item.OrderItemStatus)</span>
+                    }
+                </div>
+            }
+
+            @if (paidItems.Any())
+            {
+                <div class="section-divider">
+                    <div class="section-divider-line"></div>
+                    <span class="section-divider-label">✓ Ödendi</span>
+                    <div class="section-divider-line"></div>
+                </div>
+
+                @foreach (var item in paidItems)
+                {
+                    <div class="item-row paid-row">
+                        <div class="item-info">
+                            <div class="item-name" style="text-decoration:line-through;opacity:.7">@item.MenuItem?.MenuItemName</div>
+                        </div>
+                        <div class="item-qty">×@item.OrderItemQuantity</div>
+                        <div class="item-price-col">
+                            <div class="item-price" style="color:#22c55e">₺@item.OrderItemLineTotal.ToString("N2")</div>
+                        </div>
+                        <span class="status-badge s-paid">Ödendi</span>
+                    </div>
+                }
+            }
+
+            @if (isOpen && totalPaid > 0)
+            {
+                <div style="padding:10px 16px;background:var(--surface2);border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:13px;">
+                    <span style="font-weight:600">Kalan (ödenmemiş)</span>
+                    <span style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--accent)">₺@remaining.ToString("N2")</span>
+                </div>
+            }
+        </div>
+
+        @if (cancelledItems.Any())
+        {
+            <div class="cancel-panel">
+                <div class="cancel-panel-head">
+                    <div class="cancel-panel-title">✕ İptal Edilen Ürünler</div>
+                    <span class="cancel-panel-count">@cancelledItems.Count kalem</span>
+                </div>
+
+                @foreach (var item in cancelledItems)
+                {
+                    bool fullyC = item.OrderItemStatus == OrderItemStatus.Cancelled;
+                    <div class="cancel-item-row">
+                        <div class="cancel-item-icon">✕</div>
+                        <div class="cancel-item-info">
+                            <div class="cancel-item-name">@item.MenuItem?.MenuItemName</div>
+                            <div class="cancel-item-meta">
+                                <span class="cancel-meta-chip chip-qty">
+                                    @item.CancelledQuantity / @item.OrderItemQuantity iptal
+                                </span>
+                                @if (item.MenuItem?.TrackStock == true)
+                                {
+                                    @if (item.IsWasted == true)
+                                    {
+                                        <span class="cancel-meta-chip chip-wasted">🔥 Zayi / Fire</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="cancel-meta-chip chip-returned">↩ Stoka İade</span>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="cancel-meta-chip chip-nostock">Stok takibi yok</span>
+                                }
+                                @if (!fullyC)
+                                {
+                                    <span class="cancel-meta-chip" style="background:rgba(249,115,22,.1);color:var(--accent);border:1px solid rgba(249,115,22,.2)">
+                                        Kısmen aktif
+                                    </span>
+                                }
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(item.CancelReason))
+                            {
+                                <div class="cancel-item-reason">💬 @item.CancelReason</div>
+                            }
+                        </div>
+                        <div class="cancel-item-price">−₺@item.CancelledLineTotal.ToString("N2")</div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    @* ── SAĞ PANEL ── *@
+    @if (User.IsInRole("Admin") || User.IsInRole("Kasiyer"))
+    {
+        <div class="pay-panel">
+            <div class="pay-head"><div class="pay-title">Ödeme Durumu</div></div>
+            <div class="pay-summary">
+                <div class="pay-row"><span class="pay-label">Adisyon Toplamı</span><span class="pay-value">₺@Model.OrderTotalAmount.ToString("N2")</span></div>
+                @if (totalPaid > 0)
+                {
+                    <div class="pay-row"><span class="pay-label">Ödenen</span><span class="pay-value" style="color:#22c55e">₺@totalPaid.ToString("N2")</span></div>
+                    <div class="pay-divider"></div>
+                    <div class="pay-total-row"><span class="pay-total-label">Kalan</span><span class="pay-remaining">₺@remaining.ToString("N2")</span></div>
+                }
+                else
+                {
+                    <div class="pay-divider"></div>
+                    <div class="pay-total-row"><span class="pay-total-label">Toplam</span><span class="pay-total-value">₺@Model.OrderTotalAmount.ToString("N2")</span></div>
+                }
+            </div>
+            @if (Model.Payments?.Any() == true)
+            {
+                @foreach (var p in Model.Payments.OrderBy(p => p.PaymentsPaidAt))
+                {
+                    <div class="payment-record">
+                        <div class="pr-name">@(string.IsNullOrWhiteSpace(p.PaymentsNote) ? "Ödeme" : p.PaymentsNote)</div>
+                        <span class="pr-method">@PayMethodLabel(p.PaymentsMethod)</span>
+                        <span class="pr-amount">₺@p.PaymentsAmount.ToString("N2")</span>
+                    </div>
+                }
+            }
+            <div class="pay-actions">
+                @if (isOpen)
+                {
+                    @if (canCloseZero)
+                    {
+                        <div class="zero-order-banner">
+                            <span class="zero-order-icon">⚠️</span>
+                            <div class="zero-order-text">
+                                <div class="zero-order-title">Ödenecek tutar bulunmuyor</div>
+                                <div class="zero-order-desc">Adisyondaki tüm ürünler iptal edildi. Masayı ödeme almadan kapatabilirsiniz.</div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn-close-zero" onclick="submitCloseZero()">
+                            ✕ Adisyonu Sonlandır &amp; Masayı Boşalt
+                        </button>
+                    }
+                    else if (Model.OrderTotalAmount <= 0.001m && !allItemsCancelled)
+                    {
+                        <div class="zero-order-banner">
+                            <span class="zero-order-icon">ℹ️</span>
+                            <div class="zero-order-text">
+                                <div class="zero-order-title">Tutar sıfır ama aktif ürünler var</div>
+                                <div class="zero-order-desc">Kapatmadan önce tüm kalemleri iptal edin.</div>
+                            </div>
+                        </div>
+                        <button class="btn-close-zero" disabled style="opacity:.45;cursor:not-allowed;transform:none;">
+                            ✕ Adisyonu Sonlandır (aktif ürünler var)
+                        </button>
+                    }
+                    else if (canCloseByPay)
+                    {
+                        <div class="zero-order-banner">
+                            <span class="zero-order-icon">✅</span>
+                            <div class="zero-order-text">
+                                <div class="zero-order-title">Tüm tutar ödendi</div>
+                                <div class="zero-order-desc">İptal edilen ürünler sonrası kalan tutar sıfırlandı. Adisyonu kapatabilirsiniz.</div>
+                            </div>
+                        </div>
+                        <form asp-area="App" asp-controller="Orders" asp-action="CloseZero" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="orderId" value="@Model.OrderId" />
+                            <button type="submit" class="btn-close-zero"
+                                    onclick="return confirm('Adisyon kapatılacak ve masa boşaltılacak. Devam edilsin mi?')">
+                                ✓ Adisyonu Kapat &amp; Masayı Boşalt
+                            </button>
+                        </form>
+                    }
+                    else
+                    {
+                        <button class="btn-pay" onclick="openModal('payModal')">💳 Ödeme Al</button>
+                    }
+                }
+                else
+                {
+                    <div style="text-align:center;padding:10px;color:#22c55e;font-weight:700;font-size:14px">✅ Adisyon Kapatıldı</div>
+                }
+            </div>
+        </div>
+    }
+
+</div>
+
+
+@* ══════════════════════════════════════════════════════
+    MODALLAR
+═══════════════════════════════════════════════════════ *@
+
+@* ── ÜRÜN EKLE MODAL ── *@
+<div class="modal-overlay" id="addItemModal">
+    <div class="aim-overlay-inner">
+
+        <div class="aim-left">
+            <div class="aim-left-top">
+                <div class="aim-heading">Ürün Seç</div>
+                <div class="aim-search">
+                    <span class="aim-search-ico">🔍</span>
+                    <input type="text" id="aimQ" placeholder="Ürün ara..."
+                           oninput="aimSearch(this.value)" autocomplete="off" />
+                </div>
+            </div>
+
+            <div class="aim-cats">
+                <button type="button" class="aim-ctab on"
+                        data-c="all" onclick="aimCat('all',this)">
+                    Tümü
+                </button>
+                @foreach (var cat in categories)
+                {
+                    <button type="button" class="aim-ctab"
+                            data-c="acat-@cat.CategoryId"
+                            onclick="aimCat('acat-@cat.CategoryId',this)">
+                        @cat.CategoryName
+                    </button>
+                }
+            </div>
+
+            <div class="aim-list" id="aimList">
+                <div class="aim-search-lbl" id="aimLbl"></div>
+                @foreach (var cat in categories)
+                {
+                    <div class="aim-cat-blk" id="acat-@cat.CategoryId">
+                        <div class="aim-cat-lbl">@cat.CategoryName</div>
+                        @foreach (var mi in cat.MenuItems)
+                        {
+                            bool outOfStock = mi.TrackStock && mi.StockQuantity <= 0;
+                            <div class="aim-row @(outOfStock ? "aim-row-disabled" : "")"
+                                 id="arow-@mi.MenuItemId"
+                                 data-id="@mi.MenuItemId"
+                                 data-name="@Html.Raw(mi.MenuItemName.Replace("\"", "&quot;"))"
+                                 data-price="@mi.MenuItemPrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"
+                                 data-cat="acat-@cat.CategoryId"
+                                 data-kw="@mi.MenuItemName.ToLowerInvariant()"
+                                 data-stock="@mi.StockQuantity"
+                                 data-track="@mi.TrackStock.ToString().ToLower()"
+                                 onclick="aimPick(@mi.MenuItemId)">
+                                <span class="aim-row-name">
+                                    @mi.MenuItemName
+                                    @if (outOfStock)
+                                    {
+                                        <span class="aim-no-stock-badge">(Ürünün stoğu yoktur)</span>
+                                    }
+                                </span>
+                                <span class="aim-row-price">₺@mi.MenuItemPrice.ToString("N2")</span>
+                                @if (!outOfStock)
+                                {
+                                    <span class="aim-row-arr">→</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+                <div class="aim-no-result" id="aimNoRes">Ürün bulunamadı.</div>
+            </div>
+        </div>
+
+        <div class="aim-right">
+            <button type="button" class="aim-close" onclick="closeModal('addItemModal')">×</button>
+
+            <div class="aim-ph" id="aimPh">
+                <div class="aim-ph-arrow">←</div>
+                <div class="aim-ph-txt">Soldan bir ürün seçin</div>
+            </div>
+
+            <div class="aim-form" id="aimForm" style="display:none">
+                <div class="aim-sel-name" id="aimSelName">—</div>
+                <div class="aim-sel-unit" id="aimSelUnit"></div>
+
+                <div class="aim-qty-box">
+                    <div class="aim-qty-lbl">Adet</div>
+                    <div class="aim-qty-row">
+                        <button type="button" class="aim-qbtn minus" onclick="aimDelta(-1)">−</button>
+                        <span class="aim-qty-num" id="aimQtyNum">1</span>
+                        <button type="button" class="aim-qbtn plus" onclick="aimDelta(+1)">+</button>
+                    </div>
+                    <div class="aim-qty-total" id="aimTotal">₺0,00</div>
+                </div>
+
+                <label class="aim-note-lbl">Not (opsiyonel)</label>
+                <input class="aim-note-inp" type="text" id="aimNoteInp"
+                       placeholder="Az pişmiş, acısız, soğuk..." maxlength="200" />
+
+                <div class="aim-btns">
+                    <button type="button" class="aim-btn-cancel" onclick="closeModal('addItemModal')">İptal</button>
+                    <button type="button" class="aim-btn-add-to-basket" id="aimAddBtn" onclick="aimAddToBasket()">
+                        + Sepete Ekle
+                    </button>
+                </div>
+            </div>
+
+            <div class="aim-basket-wrap" id="aimBasketWrap">
+                <div class="aim-basket-head">
+                    <div class="aim-basket-title">
+                        🛒 Eklenecekler
+                        <span class="aim-basket-count" id="aimBasketCount">0</span>
+                    </div>
+                    <button type="button" class="aim-basket-clear" onclick="aimClearBasket()">Temizle</button>
+                </div>
+
+                <div class="aim-basket-list" id="aimBasketList">
+                    <div class="aim-basket-empty" id="aimBasketEmpty">Henüz ürün eklenmedi</div>
+                </div>
+
+                <div class="aim-basket-footer">
+                    <div class="aim-basket-total">
+                        <div class="aim-basket-total-lbl">Toplam</div>
+                        <div class="aim-basket-total-val" id="aimBasketTotalVal">₺0,00</div>
+                    </div>
+                    <button type="button" class="aim-btn-send" id="aimSendBtn"
+                            disabled onclick="aimSendAll()">
+                        ✓ Tümünü Adisyona Gönder
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+@* ── İPTAL MODAL ── *@
+<div class="modal-overlay" id="cancelItemModal">
+    <div class="cim-wrap">
+        <button type="button" class="cim-close" onclick="closeModal('cancelItemModal')">×</button>
+
+        <div class="cim-header">
+            <div class="cim-header-icon">✕</div>
+            <div class="cim-header-text">
+                <div class="cim-title">Ürünü İptal Et / İade Al</div>
+                <div class="cim-sub" id="cimProductName">—</div>
+            </div>
+        </div>
+
+        <div id="cimForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" id="cimIsWastedHidden" value="false" />
+
+            <div class="cim-field">
+                <label class="cim-label">İptal Edilecek Adet</label>
+                <div class="cim-qty-ctrl">
+                    <button type="button" class="cim-qbtn" onclick="cimDelta(-1)">−</button>
+                    <span class="cim-qty-num" id="cimQtyNum">1</span>
+                    <button type="button" class="cim-qbtn" onclick="cimDelta(+1)">+</button>
+                    <span class="cim-qty-max" id="cimQtyMax"></span>
+                </div>
+                <div class="cim-refund-preview">
+                    <span class="cim-refund-lbl">İade edilecek tutar</span>
+                    <span class="cim-refund-amt" id="cimRefundAmt">₺0,00</span>
+                </div>
+            </div>
+
+            <div class="cim-field">
+                <label class="cim-label">İptal Sebebi (opsiyonel)</label>
+                <input class="cim-reason-input" type="text" name="cancelReason" id="cimReason"
+                       placeholder="Müşteri vazgeçti, yanlış girildi..." maxlength="300" />
+            </div>
+
+            <div class="cim-field" id="cimWasteField" style="display:none">
+                <label class="cim-label">Ürün Ne Oldu?</label>
+                <div class="cim-waste-group">
+                    <label class="cim-waste-opt">
+                        <input type="radio" name="_wasteChoice" value="true" onchange="cimWasteChange(true)" />
+                        <div class="cim-waste-card">
+                            <span class="cim-waste-icon">🔥</span>
+                            <span class="cim-waste-label">Kullanıldı / Zayi</span>
+                            <span class="cim-waste-desc">Yenildi, döküldü ya da<br>kullanılamaz hâle geldi</span>
+                        </div>
+                    </label>
+                    <label class="cim-waste-opt">
+                        <input type="radio" name="_wasteChoice" value="false" onchange="cimWasteChange(false)" checked />
+                        <div class="cim-waste-card">
+                            <span class="cim-waste-icon">↩</span>
+                            <span class="cim-waste-label">Kullanılmadı / İade</span>
+                            <span class="cim-waste-desc">Açılmadı, dokunulmadı,<br>stoka geri dönüyor</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="cim-actions">
+                <button type="button" class="cim-btn-cancel-op" onclick="closeModal('cancelItemModal')">Vazgeç</button>
+                <button type="button" class="cim-btn-confirm" id="cimConfirmBtn" onclick="submitCancelItem()">
+                    ✕ İptal Et
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ── ÖDEME MODAL ── *@
+<div class="modal-overlay" id="payModal">
+    <div class="pay-modal-wide">
+
+        <div class="pay-modal-header">
+            <h2>💳 Ödeme Al</h2>
+            <p>Sol taraftan ödenecek ürünleri seçin ya da tutarı doğrudan girin</p>
+        </div>
+
+        <div class="pay-modal-body">
+
+            @* SOL: Ürün listesi *@
+            <div class="pm-items-col">
+                <div class="pm-items-head">🧾 Ürün seç → tutarı aktar</div>
+                <div class="pm-items-list">
+                    @foreach (var item in activeItems)
+                    {
+                        bool allPaid = item.PaidQuantity >= item.OrderItemQuantity;
+                        int maxSel = item.RemainingQuantity;
+                        <div class="pisel-row @(allPaid ? "all-paid" : "")"
+                             data-item-id="@item.OrderItemId"
+                             data-max-qty="@maxSel"
+                             data-unit-price="@item.OrderItemUnitPrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)">
+                            <div class="pisel-info">
+                                <div class="pisel-name">@item.MenuItem?.MenuItemName</div>
+                                <div class="pisel-unit">₺@item.OrderItemUnitPrice.ToString("N2")/ad · @(allPaid ? "✓ ödendi" : $"{maxSel} kaldı")</div>
+                            </div>
+                            <div class="pisel-ctrl">
+                                <button type="button" class="pisel-minus" onclick="piselChange(@item.OrderItemId,-1)" id="pisel-minus-@item.OrderItemId" style="opacity:.3">−</button>
+                                <span class="pisel-qty" id="pisel-qty-@item.OrderItemId">0</span>
+                                <button type="button" class="pisel-plus" onclick="piselChange(@item.OrderItemId, 1)" id="pisel-plus-@item.OrderItemId" style="@(allPaid ? "opacity:.3" : "")">+</button>
+                            </div>
+                            <div class="pisel-sub" id="pisel-sub-@item.OrderItemId">—</div>
+                        </div>
+                    }
+                </div>
+                <div class="pm-items-footer">
+                    <div>
+                        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:700">Seçilen Toplam</div>
+                        <div class="pisel-total-val" id="piselTotalVal">₺0,00</div>
+                    </div>
+                    <button type="button" class="pisel-apply-btn" id="piselApplyBtn" onclick="applyPisel()" disabled>
+                        Tutara Aktar →
+                    </button>
+                </div>
+            </div>
+
+            @* SAĞ: Form *@
+            <div class="pm-form-col">
+                <div class="pm-summary-box">
+                    <div class="pm-sum-row"><span style="color:var(--text-muted)">Adisyon Toplamı</span><span>₺@Model.OrderTotalAmount.ToString("N2")</span></div>
+                    <div class="pm-sum-row" id="pm-disc-row" style="display:none">
+                        <span style="color:#22c55e">İndirim</span>
+                        <span id="pm-disc-val" style="color:#22c55e">−₺0,00</span>
+                    </div>
+                    <div class="pm-sum-div"></div>
+                    <div class="pm-sum-row"><span style="color:var(--text-muted)">Daha önce ödenen</span><span style="color:#22c55e">₺@totalPaid.ToString("N2")</span></div>
+                    <div class="pm-sum-row"><span style="font-weight:700">Kalan</span><span class="pm-sum-total" id="pm-remaining">₺@remaining.ToString("N2")</span></div>
+                </div>
+
+                <div id="payForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" id="selectedMethod" value="cash" />
+
+                    <div class="form-group">
+                        <label class="form-label">Ödeyen (opsiyonel)</label>
+                        <input class="form-control" id="payerNameInput" placeholder="Ali Yılmaz" maxlength="100" />
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Ödeme Yöntemi *</label>
+                        <div class="method-grid">
+                            <button type="button" class="method-btn active" onclick="selectMethod(this,'cash')">💵 Nakit</button>
+                            <button type="button" class="method-btn" onclick="selectMethod(this,'credit_card')">💳 Kredi Kartı</button>
+                            <button type="button" class="method-btn" onclick="selectMethod(this,'debit_card')">🏦 Banka Kartı</button>
+                            <button type="button" class="method-btn" onclick="selectMethod(this,'other')">🔄 Diğer</button>
+                        </div>
+                    </div>
+
+                    @* ═══════════════════════════════════════════════════════
+                       YENİ: İndirim alanı — Tutar (₺) veya Yüzde (%) seçimi
+                    ═══════════════════════════════════════════════════════ *@
+                    <div class="form-group">
+                        <label class="form-label">İndirim</label>
+
+                        @* Radio butonlar: indirim tipi seçimi *@
+                        <div class="discount-type-row" style="display:flex;gap:16px;margin-bottom:8px;">
+                            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
+                                <input type="radio" name="discountType" value="amount" checked
+                                       onchange="onDiscountTypeChange()" />
+                                Tutar (₺)
+                            </label>
+                            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
+                                <input type="radio" name="discountType" value="percent"
+                                       onchange="onDiscountTypeChange()" />
+                                Yüzde (%)
+                            </label>
+                        </div>
+
+                        <div class="discount-row" style="display:flex;align-items:center;gap:8px;">
+                            <input class="form-control" id="discountDisplay" type="text"
+                                   inputmode="decimal" placeholder="0"
+                                   oninput="updateRemaining()" />
+                            <span id="disc-unit-badge"
+                                  style="font-size:13px;font-weight:700;color:var(--text-muted);min-width:20px;">₺</span>
+                        </div>
+
+                        @* Anlık hesaplama sonucu *@
+                        <div id="disc-preview" style="display:none;margin-top:6px;font-size:12px;
+                             background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);
+                             border-radius:8px;padding:6px 10px;color:#22c55e;">
+                            İndirim: <strong>₺<span id="disc-computed-amount">0</span></strong>
+                            → Net Toplam: <strong>₺<span id="net-amount">0</span></strong>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Ödeme Tutarı *</label>
+                        <input class="form-control" id="payAmountDisplay" type="text"
+                               inputmode="decimal" placeholder="0,00" oninput="updateChange()" />
+                        <span class="form-error" id="err-amount">Geçerli bir tutar giriniz.</span>
+                        <button type="button" class="fill-remaining-btn" onclick="fillRemaining()">
+                            ↙ Kalan tutarı doldur &nbsp;
+                            <span class="fill-amount" id="fillAmountLabel">₺@remaining.ToString("N2")</span>
+                        </button>
+                    </div>
+
+                    <div id="changeRow" class="form-group" style="display:none">
+                        <label class="form-label">Para Üstü</label>
+                        <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#22c55e;padding:4px 0"
+                             id="changeDisplay">
+                            ₺0,00
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="pay-modal-actions">
+            <button type="button" class="btn-ghost" onclick="closeModal('payModal')">İptal</button>
+            <button type="button" class="btn-primary" onclick="submitPayment()">💾 Ödemeyi Kaydet</button>
+        </div>
+    </div>
+</div>
+
+<script id="orderConfigData" type="application/json">
+    {
+        "orderTotal":  @Model.OrderTotalAmount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
+        "alreadyPaid": @totalPaid.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
+        "orderId":     @Model.OrderId
+    }
+</script>
+
+<div id="detailToastContainer" class="aim-toast-container"></div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <script src="~/js/Views/Orders/Detail.js" asp-append-version="true"></script>
+}

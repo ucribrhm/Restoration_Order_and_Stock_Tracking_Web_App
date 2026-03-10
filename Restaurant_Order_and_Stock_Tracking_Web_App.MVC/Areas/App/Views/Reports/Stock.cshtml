@@ -1,0 +1,107 @@
+﻿@model Restaurant_Order_and_Stock_Tracking_Web_App.MVC.ViewModels.Reports.StockReportViewModel
+@{
+    ViewData["Title"] = "Stok Tüketim Raporu";
+    Layout = "_AppLayout";
+    var f = Model.Filter;
+}
+
+@section Styles {
+    <link href="~/css/Views/Reports/Stock.css" rel="stylesheet" asp-append-version="true" />
+}
+
+<div class="rpt-page-header">
+    <div>
+        <h1>📦 Stok Tüketim Raporu</h1>
+        <div class="sub">@f.DisplayRange</div>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <button class="preset-btn @(f.Preset == "today" ? "active" : "")" data-preset="today">Bugün</button>
+    <button class="preset-btn @(f.Preset == "week" ? "active" : "")" data-preset="week">Son 7 Gün</button>
+    <button class="preset-btn @(f.Preset == "month" ? "active" : "")" data-preset="month">Son 30 Gün</button>
+    <button class="preset-btn @(f.Preset == "custom" ? "active" : "")" data-preset="custom">Özel</button>
+    <div class="filter-sep"></div>
+    <input type="date" id="dateFrom" class="filter-date" value="@f.From.ToString("yyyy-MM-dd")" style="display:@(f.Preset == "custom" ? "" : "none")" />
+    <input type="date" id="dateTo" class="filter-date" value="@f.To.AddDays(-1).ToString("yyyy-MM-dd")" style="display:@(f.Preset == "custom" ? "" : "none")" />
+    <div class="filter-sep"></div>
+    <span style="font-size:12px; color:var(--text-muted);">Zaman Bazı:</span>
+    <div class="timebase-toggle">
+        <button class="timebase-btn @(f.TimeBase == "orderitem" ? "active" : "")" data-tb="orderitem">Sipariş</button>
+        <button class="timebase-btn @(f.TimeBase == "stocklog" ? "active" : "")" data-tb="stocklog">Stok Hareketi</button>
+    </div>
+    <div class="filter-sep"></div>
+    <select id="catFilter" class="filter-sel">
+        <option value="">Tüm Kategoriler</option>
+        @foreach (var cat in Model.Categories)
+        {
+            <option value="@cat">@cat</option>
+        }
+    </select>
+    <div class="toolbar">
+        <button class="btn-csv" id="btnCsv">📥 CSV İndir</button>
+    </div>
+</div>
+
+<!-- ── Tablo ── -->
+<div class="stock-table-wrap">
+    <table class="data-table" id="stockTable">
+        <thead>
+            <tr>
+                <th>Ürün</th>
+                <th>Kategori</th>
+                <th>Güncel Stok</th>
+                <th>Dönem Tüketimi</th>
+                <th>Günlük Ort.</th>
+                <th>Tahmini Tükenme</th>
+                <th>Maliyet</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in Model.Products)
+            {
+                string daysClass = p.EstimatedDaysLeft <= 3 ? "pill-red" :
+                p.EstimatedDaysLeft <= 7 ? "pill-amber" :
+                p.EstimatedDaysLeft == 999 ? "pill-gray" : "pill-green";
+                string daysLabel = p.EstimatedDaysLeft == 999 ? "∞" : $"{p.EstimatedDaysLeft} gün";
+
+                <tr class="clickable" data-id="@p.MenuItemId" data-name="@p.ProductName" onclick="openTrendModal(this)">
+                    <td><strong>@p.ProductName</strong></td>
+                    <td style="color:var(--text-muted);">@p.CategoryName</td>
+                    <td>@p.CurrentStock</td>
+                    <td><strong>@p.ConsumedInPeriod</strong></td>
+                    <td style="color:var(--text-muted);">@p.DailyAvgConsumption.ToString("F1")</td>
+                    <td><span class="@daysClass">@daysLabel</span></td>
+                    <td style="color:var(--text-muted);">@(p.CostPrice.HasValue ? $"₺{p.CostPrice.Value:N2}" : "—")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<!-- ── Trend Modal ── -->
+<div class="modal-overlay" id="trendModal">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title" id="modalTitle">Stok Trendi</span>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="chart-container">
+            <canvas id="trendChart"></canvas>
+            <div class="loading-overlay" id="trendLoading">Yükleniyor…</div>
+        </div>
+    </div>
+</div>
+@* Filtre verilerini JSON adacığı olarak JS'e aktar *@
+<script id="stockReportConfig" type="application/json">
+    {
+        "preset": "@f.Preset",
+        "from": "@f.From.ToString("yyyy-MM-dd")",
+        "to": "@f.To.AddDays(-1).ToString("yyyy-MM-dd")",
+        "tb": "@f.TimeBase"
+    }
+</script>
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="~/js/Views/Reports/Stock.js" asp-append-version="true"></script>
+}

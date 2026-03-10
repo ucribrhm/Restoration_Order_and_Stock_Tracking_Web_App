@@ -204,7 +204,7 @@ async function submitOrder() {
     const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
 
     try {
-        const res = await fetch('/Orders/Create', {
+        const res = await fetch(window.APP_URLS.ordersCreate, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

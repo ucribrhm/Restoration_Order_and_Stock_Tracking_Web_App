@@ -31,7 +31,7 @@ document.getElementById('createForm')?.addEventListener('submit', async e => {
     };
 
     try {
-        const res = await fetch('/Menu/Create', {
+        const res = await fetch(window.APP_URLS.menuCreate, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -43,7 +43,7 @@ document.getElementById('createForm')?.addEventListener('submit', async e => {
         btn.disabled = false;
 
         if (data.success) {
-            window.location.href = '/Menu';
+            window.location.href = window.APP_URLS.menuIndex;
         } else {
             const box = document.getElementById('alertBox');
             box.textContent = data.message;
@@ -98,7 +98,7 @@ document.getElementById('createForm')?.addEventListener('submit', async e => {
     }
 
     try {
-        const res = await fetch('/Menu/Create', {
+        const res = await fetch(window.APP_URLS.menuCreate, {
             method: 'POST',
             headers: { 'RequestVerificationToken': token },
             // Content-Type header'ı EKLEME — tarayıcı boundary'yi kendisi ekler
@@ -109,7 +109,7 @@ document.getElementById('createForm')?.addEventListener('submit', async e => {
         if (btn) { btn.disabled = false; btn.textContent = '💾 Kaydet'; }
 
         if (data.success) {
-            window.location.href = '/Menu';
+            window.location.href = window.APP_URLS.menuIndex;
         } else {
             const box = document.getElementById('alertBox');
             if (box) { box.textContent = data.message; box.style.display = 'block'; }

@@ -1,0 +1,149 @@
+@{
+    Layout = null;
+    ViewData["Title"] = "Erişim Reddedildi";
+}
+<!DOCTYPE html>
+<html lang="tr" data-theme="dark">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RestaurantOS — Erişim Reddedildi</title>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: var(--bg);
+            font-family: 'DM Sans', sans-serif;
+            text-align: center;
+        }
+
+        .denied-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 3rem 2.5rem;
+            max-width: 440px;
+            box-shadow: var(--shadow);
+        }
+
+        .denied-icon {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .denied-code {
+            font-family: 'Syne', sans-serif;
+            font-size: 4rem;
+            font-weight: 800;
+            color: var(--accent);
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+
+        .denied-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 0.75rem;
+        }
+
+        .denied-desc {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .denied-btn {
+            display: inline-block;
+            padding: 0.75rem 1.75rem;
+            background: var(--accent);
+            color: #fff;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            border-radius: 10px;
+            text-decoration: none;
+            transition: background 0.2s;
+            border: none;
+            cursor: pointer;
+        }
+
+            .denied-btn:hover {
+                background: var(--accent-hover);
+            }
+
+        .denied-btn-secondary {
+            display: inline-block;
+            padding: 0.75rem 1.75rem;
+            background: transparent;
+            color: white;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 500;
+            border-radius: 10px;
+            text-decoration: none;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+            .denied-btn-secondary:hover {
+                background: var(--border);
+            }
+    </style>
+</head>
+<body>
+    <div class="denied-card">
+        <div class="denied-icon">🚫</div>
+        <div class="denied-code">403</div>
+        <div class="denied-title">Erişim Reddedildi</div>
+        <div class="denied-desc">
+            Bu sayfayı görüntüleme yetkiniz bulunmuyor.<br>
+            Lütfen yöneticinizle iletişime geçin.
+        </div>
+        <div class="btn-row">
+            @* ── history.back() YERİNE sabit link: döngüyü kırar ── *@
+            @if (User.Identity != null && User.Identity.IsAuthenticated)
+            {
+                if (User.IsInRole("Admin"))
+                {
+                    <a asp-area="App" asp-controller="Home" asp-action="Index" class="denied-btn">🏠 Ana Sayfa</a>
+                }
+                else if (User.IsInRole("Kasiyer"))
+                {
+                    <a asp-area="App" asp-controller="Tables" asp-action="Index" class="denied-btn">🪑 Masalara Git</a>
+                }
+                else if (User.IsInRole("Kicthen"))
+                {
+                    <a asp-area="App" asp-controller="Kitchen" asp-action="Display" class="denied-btn">🍳 Mutfağa Git</a>
+                }
+                else if (User.IsInRole("Garson"))
+                {
+                    <a asp-area="App" asp-controller="Tables" asp-action="Index" class="denied-btn">🪑 Masalara Git</a>
+                }
+                <form asp-area="App" asp-controller="Auth" asp-action="Logout" method="post" style="margin:0">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="denied-btn-secondary">🚪 Çıkış Yap</button>
+                </form>
+            }
+            else
+            {
+                <a asp-area="App" asp-controller="Auth" asp-action="Login" class="denied-btn">🔑 Giriş Yap</a>
+            }
+        </div>
+    </div>
+</body>
+</html>

@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Views\Orders\" />
+    <Folder Include="Areas\App\Views\Orders\" />
     <Folder Include="wwwroot\images\menu\" />
     <Folder Include="wwwroot\js\Views\Shared\" />
   </ItemGroup>

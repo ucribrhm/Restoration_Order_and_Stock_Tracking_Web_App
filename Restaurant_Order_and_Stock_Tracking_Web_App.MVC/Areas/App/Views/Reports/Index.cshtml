@@ -1,0 +1,157 @@
+﻿@model Restaurant_Order_and_Stock_Tracking_Web_App.MVC.ViewModels.Reports.ReportsDashboardViewModel
+@{
+    ViewData["Title"] = "Raporlar";
+    Layout = "_AppLayout";
+}
+
+@section Styles {
+    <link href="~/css/Views/Reports/Index.css" rel="stylesheet" asp-append-version="true" />
+}
+
+<div class="rpt-page-header">
+    <div>
+        <h1>📈 Raporlar Paneli</h1>
+        <div class="sub">Son güncelleme: @Model.LastRefreshedAt.ToString("dd.MM.yyyy HH:mm")</div>
+    </div>
+    <button class="rpt-refresh-btn" onclick="location.reload()">🔄 Yenile</button>
+</div>
+
+<!-- ── KPI Kartları ── -->
+<div class="kpi-grid">
+    <a class="kpi-card kpi-accent" asp-area="App" asp-controller="Reports" asp-action="Sales" asp-route-preset="today">
+        <div class="kpi-icon">💰</div>
+        <div class="kpi-value">₺@Model.TodayGrossSales.ToString("N2")</div>
+        <div class="kpi-label">Bugünkü Brüt Ciro</div>
+    </a>
+    <a class="kpi-card kpi-green" asp-area="App" asp-controller="Reports" asp-action="Sales" asp-route-preset="today">
+        <div class="kpi-icon">🏦</div>
+        <div class="kpi-value">₺@Model.TodayNetCollected.ToString("N2")</div>
+        <div class="kpi-label">Bugünkü Tahsilat</div>
+    </a>
+    <!-- Sprint 1: Nakit Ciro KPI ──────────────────────────────────────────── -->
+    <a class="kpi-card kpi-teal" asp-area="App" asp-controller="Reports" asp-action="Sales" asp-route-preset="today">
+        <div class="kpi-icon">💵</div>
+        <div class="kpi-value">₺@Model.TodayCashRevenue.ToString("N2")</div>
+        <div class="kpi-label">Nakit Ciro</div>
+    </a>
+    <!-- Sprint 1: Kart Ciro KPI ───────────────────────────────────────────── -->
+    <a class="kpi-card kpi-indigo" asp-area="App" asp-controller="Reports" asp-action="Sales" asp-route-preset="today">
+        <div class="kpi-icon">💳</div>
+        <div class="kpi-value">₺@Model.TodayCardRevenue.ToString("N2")</div>
+        <div class="kpi-label">Kart Ciro</div>
+    </a>
+    <a class="kpi-card @(Model.OpenOrderCount > 0 ? "kpi-amber" : "")" asp-area="App" asp-controller="Orders" asp-action="Index">
+        <div class="kpi-icon">🧾</div>
+        <div class="kpi-value">@Model.OpenOrderCount</div>
+        <div class="kpi-label">Açık Adisyon</div>
+    </a>
+    <a class="kpi-card @(Model.CriticalStockCount > 0 ? "kpi-red" : "")" asp-area="App" asp-controller="Stock" asp-action="Index">
+        <div class="kpi-icon">📦</div>
+        <div class="kpi-value">@Model.CriticalStockCount</div>
+        <div class="kpi-label">Kritik Stok Ürünü</div>
+    </a>
+    <a class="kpi-card kpi-blue" asp-area="App" asp-controller="Reports" asp-action="CancelAndWaste" asp-route-preset="today">
+        <div class="kpi-icon">🗑️</div>
+        <div class="kpi-value">₺@Model.TodayWasteAmount.ToString("N2")</div>
+        <div class="kpi-label">Bugünkü Fire Tutarı</div>
+    </a>
+    <a class="kpi-card kpi-purple" asp-area="App" asp-controller="Reports" asp-action="Table" asp-route-preset="today">
+        <div class="kpi-icon">⏱️</div>
+        <div class="kpi-value">@Model.AvgOrderDurationMinutes.ToString("F0") dk</div>
+        <div class="kpi-label">Ort. Adisyon Süresi</div>
+    </a>
+</div>
+
+<!-- ── Chart + Kritik Stok ── -->
+<div class="rpt-row">
+    <div class="rpt-card">
+        <div class="rpt-card-title">
+            <span>📊 Bugünkü Saatlik Ciro</span>
+            <a asp-area="App" asp-controller="Reports" asp-action="Sales" asp-route-preset="today">Detay →</a>
+        </div>
+        <div class="chart-container">
+            <canvas id="hourlyChart"></canvas>
+        </div>
+    </div>
+    <div class="rpt-card">
+        <div class="rpt-card-title">
+            <span>🚨 Kritik Stok</span>
+            <a asp-area="App" asp-controller="Stock" asp-action="Index">Tümünü Gör →</a>
+        </div>
+        @if (Model.CriticalStockItems.Any())
+        {
+            <table class="mini-table">
+                <thead>
+                    <tr>
+                        <th>Ürün</th>
+                        <th>Stok</th>
+                        <th>Eşik</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.CriticalStockItems)
+                    {
+                        <tr>
+                            <td>@item.ProductName</td>
+                            <td><span class="badge-red">@item.CurrentStock</span></td>
+                            <td>@item.CriticalThreshold</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <div class="empty-state">✅ Kritik stok yok</div>
+        }
+    </div>
+</div>
+
+<!-- ── En Çok Satanlar ── -->
+<div class="rpt-card">
+    <div class="rpt-card-title">
+        <span>🏆 Bugünün En Çok Satan 5 Ürünü</span>
+        <a asp-area="App" asp-controller="Reports" asp-action="Sales" asp-route-preset="today">Satış Raporu →</a>
+    </div>
+    @if (Model.TopProductsToday.Any())
+    {
+        <table class="mini-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Ürün</th>
+                    <th>Kategori</th>
+                    <th>Adet</th>
+                    <th>Ciro</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{
+                    int rank = 1;
+                }
+                @foreach (var p in Model.TopProductsToday)
+                {
+                    <tr>
+                        <td style="color: var(--text-muted);">@rank</td>
+                        <td>@p.ProductName</td>
+                        <td style="color: var(--text-muted);">@p.CategoryName</td>
+                        <td><span class="badge-amber">@p.Quantity</span></td>
+                        <td>₺@p.Revenue.ToString("N2")</td>
+                    </tr>
+                    rank++;
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <div class="empty-state">Bugün henüz satış yok.</div>
+    }
+</div>
+<script id="hourlySalesData" type="application/json">
+    @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.HourlySales))
+</script>
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="~/js/Views/Reports/Index.js" asp-append-version="true"></script>
+}

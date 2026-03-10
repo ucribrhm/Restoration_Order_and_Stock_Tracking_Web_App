@@ -239,7 +239,7 @@ document.getElementById('updateForm').addEventListener('submit', async e => {
     }
 
     try {
-        const data = await postJson('/Stock/UpdateStock', payload);
+        const data = await postJson(window.APP_URLS.stockUpdateStock, payload);
         btn.disabled = false;
 
         if (data.success) {
@@ -280,7 +280,7 @@ const StockHistoryModal = {
         openModal('historyModal');
 
         try {
-            const res = await fetch(`/Stock/GetHistory/${id}`);
+            const res = await fetch(`${window.APP_URLS.stockGetHistory}/${id}`);
             const data = await res.json();
 
             if (!data.success) {
@@ -357,7 +357,7 @@ document.querySelectorAll('.track-toggle').forEach(chk => {
         const checked = this.checked;
         const payload = { menuItemId: parseInt(id), trackStock: checked };
         try {
-            const data = await postJson('/Stock/ToggleTrack', payload);
+            const data = await postJson(window.APP_URLS.stockToggleTrack, payload);
             if (data.success) {
                 const statusEl = document.getElementById(`status-${id}`);
                 const row = document.querySelector(`.stock-row[data-id="${id}"]`);
@@ -406,7 +406,7 @@ const StockPdf = {
         if (status) params.append('status', status);
         if (showAll) params.append('showAll', 'true');
 
-        const url = '/Stock/GenerateStockPdfReport?' + params.toString();
+        const url = window.APP_URLS.stockPdfReport + '?' + params.toString();
 
         // Butonu yükleniyor moduna al
         if (btn) {

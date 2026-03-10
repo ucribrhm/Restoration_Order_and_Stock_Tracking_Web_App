@@ -32,7 +32,7 @@
         const ct = res.headers.get('content-type') || '';
         if (res.status === 401 || (!ct.includes('application/json') && !res.ok)) {
             alert('Oturumunuz sona erdi. Giriş sayfasına yönlendiriliyorsunuz.');
-            window.location.href = '/Auth/Login';
+            window.location.href = window.APP_URLS?.authLogin ?? '/App/Auth/Login';
             throw new Error('Unauthorized');
         }
 
@@ -60,7 +60,7 @@
     // ═══════════════════════════════════════════════════════════
     window.updateItemStatus = async function (orderItemId, newStatus) {
         try {
-            const data = await postJson('/Orders/UpdateItemStatus', {
+            const data = await postJson(window.APP_URLS.ordersUpdateItemStatus, {
                 orderItemId,
                 newStatus,
                 orderId
@@ -311,7 +311,7 @@
         };
 
         try {
-            const data = await postJson('/Orders/AddItemBulk', payload);
+            const data = await postJson(window.APP_URLS.ordersAddItemBulk, payload);
 
             if (data.success) {
                 window.closeModal('addItemModal');
@@ -563,7 +563,7 @@
         if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '⏳ Kaydediliyor...'; }
 
         try {
-            const data = await postJson('/Orders/AddPayment', payload);
+            const data = await postJson(window.APP_URLS.ordersAddPayment, payload);
 
             if (data.success) {
                 if (data.redirectUrl) {
@@ -591,7 +591,7 @@
         const payload = { orderId, paymentMethod: 'cash', paymentAmount: 0 };
 
         try {
-            const data = await postJson('/Orders/CloseZero', payload);
+            const data = await postJson(window.APP_URLS.ordersCloseZero, payload);
             if (data.success) { window.location.href = data.redirectUrl; }
             else { alert('Hata: ' + (data.message || 'Bilinmeyen hata')); }
         } catch (e) {
@@ -659,7 +659,7 @@
         confirmBtn.disabled = true;
 
         try {
-            const data = await postJson('/Orders/CancelItem', payload);
+            const data = await postJson(window.APP_URLS.ordersCancelItem, payload);
 
             if (data.success) {
                 window.closeModal('cancelItemModal');

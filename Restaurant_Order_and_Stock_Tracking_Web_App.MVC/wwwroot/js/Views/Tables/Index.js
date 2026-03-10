@@ -20,7 +20,7 @@ async function postJson(url, payload) {
     const ct = res.headers.get('content-type') || '';
     if (res.status === 401 || (!ct.includes('application/json') && !res.ok)) {
         alert('Oturumunuz sona erdi. Giriş sayfasına yönlendiriliyorsunuz.');
-        window.location.href = '/Auth/Login';
+        window.location.href = window.APP_URLS?.authLogin ?? '/App/Auth/Login';
         throw new Error('Unauthorized');
     }
 
@@ -60,7 +60,7 @@ async function submitCreateTable() {
     };
 
     try {
-        const data = await postJson('/Tables/Create', payload);
+        const data = await postJson(window.APP_URLS.tablesCreate, payload);
         if (data.success) {
             window.location.href = data.redirectUrl || window.location.href;
         } else {
@@ -84,7 +84,7 @@ async function submitReserve() {
     };
 
     try {
-        const data = await postJson('/Tables/Reserve', payload);
+        const data = await postJson(window.APP_URLS.tablesReserve, payload);
         if (data.success) {
             window.location.href = data.redirectUrl || window.location.href;
         } else {
@@ -100,7 +100,7 @@ async function cancelReserve(tableId) {
     if (!confirm('Rezervasyon iptal edilsin mi?')) return;
 
     try {
-        const data = await postJson('/Tables/CancelReserve', { tableId });
+        const data = await postJson(window.APP_URLS.tablesCancelReserve, { tableId });
         if (data.success) { location.reload(); }
         else { alert('Hata: ' + (data.message || 'Bilinmeyen hata')); }
     } catch (e) {
@@ -113,7 +113,7 @@ async function deleteTable(tableId, tableName) {
     if (!confirm(`'${tableName}' silinsin mi?`)) return;
 
     try {
-        const data = await postJson('/Tables/Delete', { tableId });
+        const data = await postJson(window.APP_URLS.tablesDelete, { tableId });
         if (data.success) { location.reload(); }
         else { alert('Hata: ' + (data.message || 'Bilinmeyen hata')); }
     } catch (e) {
@@ -191,7 +191,7 @@ async function submitMerge() {
     submitBtn.textContent = '⏳ Birleştiriliyor...';
 
     try {
-        const data = await postJson('/Tables/MergeOrder', {
+        const data = await postJson(window.APP_URLS.tablesMergeOrder, {
             sourceTableId: mergeSourceId,
             targetTableId: mergeTargetId
         });
@@ -412,7 +412,7 @@ setInterval(tickSlaTimers, 15000);
 async function serveOrder(tableId, tableName) {
     try {
         // O masanın açık adisyonundaki Ready kalemleri bul ve Served yap
-        const data = await postJson('/Tables/ServeReadyItems', { tableId });
+        const data = await postJson(window.APP_URLS.tablesServeReadyItems, { tableId });
         if (!data.success) {
             console.warn('ServeReadyItems başarısız:', data.message);
             showToast('toast-serve-err', 'danger', '⚠️', 'Hata', data.message || 'Servis işlemi başarısız', 4000);
@@ -426,7 +426,7 @@ async function serveOrder(tableId, tableName) {
 // ── Garson Çağrısını Onayla (Garson → DismissWaiter) ────────────────────
 async function dismissWaiter(tableName) {
     try {
-        const data = await postJson('/Tables/DismissWaiter', { tableName });
+        const data = await postJson(window.APP_URLS.tablesDismissWaiter, { tableName });
         if (!data.success) {
             console.warn('DismissWaiter başarısız:', data.message);
         }

@@ -100,7 +100,7 @@
         };
 
         try {
-            const res = await fetch('/Category/Create', {
+            const res = await fetch(window.APP_URLS.categoryCreate, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': getToken() },
                 body: JSON.stringify(payload)
@@ -124,7 +124,7 @@
     // ── EDIT ─────────────────────────────────────────────────────────────
     window.openEditModal = async function (id) {
         try {
-            const res = await fetch(`/Category/GetById/${id}`);
+            const res = await fetch(`${window.APP_URLS.categoryGetById}/${id}`);
             const data = await res.json();
             if (!data.success) { showToast('Veri alınamadı.', 'error'); return; }
 
@@ -159,7 +159,7 @@
         };
 
         try {
-            const res = await fetch('/Category/Edit', {
+            const res = await fetch(window.APP_URLS.categoryEdit, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': getToken() },
                 body: JSON.stringify(payload)
@@ -198,7 +198,7 @@
         });
 
         try {
-            const res = await fetch('/Category/Delete', { method: 'POST', body });
+            const res = await fetch(window.APP_URLS.categoryDelete, { method: 'POST', body });
             const data = await res.json();
             btn.disabled = false;
 

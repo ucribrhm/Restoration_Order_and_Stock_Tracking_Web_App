@@ -24,7 +24,7 @@ document.getElementById('createForm').addEventListener('submit', async e => {
     };
 
     try {
-        const res = await fetch('/Category/Create', {
+        const res = await fetch(window.APP_URLS.categoryCreate, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -36,7 +36,7 @@ document.getElementById('createForm').addEventListener('submit', async e => {
         btn.disabled = false;
 
         if (data.success) {
-            window.location.href = '/Category';
+            window.location.href = window.APP_URLS.categoryIndex;
         } else {
             const box = document.getElementById('alertBox');
             box.textContent = data.message;

@@ -1,0 +1,246 @@
+﻿@{
+    Layout = null;
+    ViewData["Title"] = "RestaurantOS — Restoranınızı Dijitalleştirin";
+}
+<!DOCTYPE html>
+<html lang="tr" data-theme="dark">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RestaurantOS — Restoranınızı Dijitalleştirin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <style>
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+        }
+
+        /* ── NAVBAR ── */
+        .nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.2rem 2.5rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+        }
+
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-family: 'Syne', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: var(--text);
+            text-decoration: none;
+        }
+
+        .nav-actions {
+            display: flex;
+            gap: 0.8rem;
+        }
+
+        .btn-ghost {
+            padding: 0.55rem 1.2rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-muted);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.9rem;
+            text-decoration: none;
+            cursor: pointer;
+            transition: border-color 0.2s, color 0.2s;
+        }
+
+            .btn-ghost:hover {
+                border-color: var(--accent);
+                color: var(--accent);
+            }
+
+        .btn-primary {
+            padding: 0.55rem 1.4rem;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+            .btn-primary:hover {
+                background: var(--accent-hover);
+            }
+
+        /* ── HERO ── */
+        .hero {
+            max-width: 760px;
+            margin: 6rem auto;
+            text-align: center;
+            padding: 0 1.5rem;
+        }
+
+        .hero-badge {
+            display: inline-block;
+            padding: 0.3rem 1rem;
+            background: rgba(249, 115, 22, 0.12);
+            color: var(--accent);
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            margin-bottom: 1.5rem;
+        }
+
+        .hero h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: clamp(2rem, 5vw, 3.2rem);
+            font-weight: 800;
+            line-height: 1.15;
+            color: var(--text);
+            margin: 0 0 1.2rem;
+        }
+
+        .hero p {
+            font-size: 1.05rem;
+            color: var(--text-muted);
+            line-height: 1.7;
+            margin: 0 0 2.5rem;
+        }
+
+        .hero-cta {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-lg {
+            padding: 0.85rem 2rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 12px;
+        }
+
+        /* ── ÖZELLİKLER ── */
+        .features {
+            max-width: 1000px;
+            margin: 0 auto 5rem;
+            padding: 0 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1.2rem;
+        }
+
+        .feature-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.8rem;
+        }
+
+        .feature-icon {
+            font-size: 1.8rem;
+            margin-bottom: 0.8rem;
+        }
+
+        .feature-card h3 {
+            font-family: 'Syne', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            margin: 0 0 0.5rem;
+            color: var(--text);
+        }
+
+        .feature-card p {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            margin: 0;
+            line-height: 1.6;
+        }
+
+        /* ── FOOTER ── */
+        .footer {
+            text-align: center;
+            padding: 2rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="nav">
+        <a class="nav-logo" href="/">🍽️ RestaurantOS</a>
+        <div class="nav-actions">
+            <a class="btn-ghost" asp-area="App" asp-controller="Auth" asp-action="Login">Giriş Yap</a>
+            <a class="btn-primary" asp-controller="Landing" asp-action="Register">Ücretsiz Başla</a>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <span class="hero-badge">🚀 30 Gün Ücretsiz Deneme</span>
+        <h1>Restoranınızı Tek Panelden Yönetin</h1>
+        <p>
+            Masa yönetimi, sipariş takibi, mutfak ekranı, stok ve raporlama —
+            hepsi tek bir sistemde. Kurulum gerektirmez, anında kullanıma hazır.
+        </p>
+        <div class="hero-cta">
+            <a class="btn-primary btn-lg" asp-controller="Landing" asp-action="Register">
+                Restoranımı Kaydet
+            </a>
+            <a class="btn-ghost btn-lg" asp-area="App" asp-controller="Auth" asp-action="Login">
+                Giriş Yap
+            </a>
+        </div>
+    </section>
+
+    <section class="features">
+        <div class="feature-card">
+            <div class="feature-icon">🪑</div>
+            <h3>Masa Yönetimi</h3>
+            <p>Masaların anlık durumunu takip edin, garson çağrılarını yönetin.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🧾</div>
+            <h3>Sipariş Takibi</h3>
+            <p>Açık adisyonları anlık görün, siparişleri kolayca düzenleyin.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🍳</div>
+            <h3>Mutfak Ekranı</h3>
+            <p>Mutfağa gelen siparişleri ekrandan takip edin, hazır işaretleyin.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">📦</div>
+            <h3>Stok Takibi</h3>
+            <p>Kritik stok uyarıları alın, israfı önleyin.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">📈</div>
+            <h3>Gelir Raporları</h3>
+            <p>Günlük, haftalık ve aylık ciro raporlarını görselleştirin.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">👥</div>
+            <h3>Personel Yönetimi</h3>
+            <p>Admin, Garson, Kasiyer ve Mutfak rolleriyle erişimi kontrol edin.</p>
+        </div>
+    </section>
+
+    <footer class="footer">
+        © @DateTime.Now.Year RestaurantOS — Tüm hakları saklıdır.
+    </footer>
+
+</body>
+</html>

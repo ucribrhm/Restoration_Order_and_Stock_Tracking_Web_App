@@ -1,0 +1,106 @@
+﻿@model Restaurant_Order_and_Stock_Tracking_Web_App.MVC.ViewModels.Reports.SalesReportViewModel
+@{
+    ViewData["Title"] = "Satış Raporu";
+    Layout = "_AppLayout";
+    var f = Model.Filter;
+}
+
+@section Styles {
+    <link href="~/css/Views/Reports/Sales.css" rel="stylesheet" asp-append-version="true" />
+
+}
+
+<div class="rpt-page-header">
+    <div>
+        <h1>💰 Satış Raporu</h1>
+        <div class="sub">@f.DisplayRange</div>
+    </div>
+    <div class="export-btns">
+        <button class="btn-export btn-csv" id="btnCsv">📥 CSV İndir</button>
+        <button class="btn-export btn-pdf" id="btnPdf">📄 PDF İndir</button>
+    </div>
+</div>
+
+<!-- ── Filtre Bar ── -->
+<div class="filter-bar">
+    <button class="preset-btn @(f.Preset == "today" ? "active" : "")" data-preset="today">Bugün</button>
+    <button class="preset-btn @(f.Preset == "week" ? "active" : "")" data-preset="week">Son 7 Gün</button>
+    <button class="preset-btn @(f.Preset == "month" ? "active" : "")" data-preset="month">Son 30 Gün</button>
+    <button class="preset-btn @(f.Preset == "custom" ? "active" : "")" data-preset="custom">Özel</button>
+    <div class="filter-sep"></div>
+    <input type="date" id="dateFrom" class="filter-date" value="@f.From.ToString("yyyy-MM-dd")" style="display:@(f.Preset == "custom" ? "" : "none")" />
+    <input type="date" id="dateTo" class="filter-date" value="@f.To.AddDays(-1).ToString("yyyy-MM-dd")" style="display:@(f.Preset == "custom" ? "" : "none")" />
+    <label class="filter-check">
+        <input type="checkbox" id="chkCancelled" @(f.IncludeCancelled ? "checked" : "") />
+        İptal Adisyonları Dahil Et
+    </label>
+</div>
+
+<!-- ── Özet Kartlar ── -->
+<div class="sum-grid" id="summaryCards">
+    <div class="sum-card">
+        <div class="sum-val" id="sv-gross">₺@Model.GrossSales.ToString("N2")</div>
+        <div class="sum-label">Brüt Ciro</div>
+    </div>
+    <div class="sum-card">
+        <div class="sum-val" id="sv-net">₺@Model.NetCollected.ToString("N2")</div>
+        <div class="sum-label">Tahsil Edilen</div>
+    </div>
+    <div class="sum-card">
+        <div class="sum-val" id="sv-discount">₺@Model.TotalDiscount.ToString("N2")</div>
+        <div class="sum-label">Toplam İndirim</div>
+    </div>
+    <div class="sum-card">
+        <div class="sum-val" id="sv-count">@Model.TotalOrderCount</div>
+        <div class="sum-label">Adisyon Sayısı</div>
+    </div>
+</div>
+
+<!-- ── Chart Satırı 1: Trend + Ödeme Dağılımı ── -->
+<div class="chart-row">
+    <div class="chart-card">
+        <div class="chart-card-title">📈 Ciro Trendi (Brüt vs Tahsilat)</div>
+        <div class="chart-container" style="position:relative">
+            <canvas id="trendChart"></canvas>
+            <div class="loading-overlay" id="trendLoading">Yükleniyor…</div>
+        </div>
+    </div>
+    <div class="chart-card">
+        <div class="chart-card-title">💳 Ödeme Yöntemi Dağılımı</div>
+        <div class="chart-container">
+            <canvas id="paymentChart"></canvas>
+            <div class="loading-overlay" id="paymentLoading">Yükleniyor…</div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Chart Satırı 2: Top Ürünler + Kategori ── -->
+<div class="chart-row2">
+    <div class="chart-card">
+        <div class="chart-card-title">🏆 En Çok Satan 10 Ürün</div>
+        <div class="chart-container tall">
+            <canvas id="productsChart"></canvas>
+            <div class="loading-overlay" id="productsLoading">Yükleniyor…</div>
+        </div>
+    </div>
+    <div class="chart-card">
+        <div class="chart-card-title">🗂️ Kategori Bazlı Ciro</div>
+        <div class="chart-container tall">
+            <canvas id="categoryChart"></canvas>
+            <div class="loading-overlay" id="categoryLoading">Yükleniyor…</div>
+        </div>
+    </div>
+</div>
+<script id="salesReportConfig" type="application/json">
+    {
+        "preset": "@f.Preset",
+        "from": "@f.From.ToString("yyyy-MM-dd")",
+        "to": "@f.To.AddDays(-1).ToString("yyyy-MM-dd")",
+        "cancelled": @(f.IncludeCancelled ? "true" : "false")
+    }
+</script>
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="~/js/Views/Reports/Sales.js" asp-append-version="true"></script>
+
+}
