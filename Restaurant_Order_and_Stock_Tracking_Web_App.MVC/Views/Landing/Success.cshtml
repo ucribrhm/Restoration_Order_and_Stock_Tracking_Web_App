@@ -1,0 +1,294 @@
+﻿@*
+    Views/Landing/Success.cshtml
+    Yol: Views/Landing/Success.cshtml
+
+    SPRINT B — [SB-6] Onboarding Başarı Sayfası
+    Firma Kodu kocaman, kopyalanabilir ve dikkat çekici gösterilir.
+    Kullanıcı Login'e geçmeden önce kodu not etmeye yönlendirilir.
+*@
+@{
+    Layout = null;
+    ViewData["Title"] = "Restoranınız Oluşturuldu 🎉";
+
+    string firmaKodu = ViewBag.FirmaKodu ?? "";
+    string restaurantName = ViewBag.RestaurantName ?? "";
+    string adminUsername = ViewBag.AdminUsername ?? "";
+}
+<!DOCTYPE html>
+<html lang="tr" data-theme="dark">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RestaurantOS — Restoranınız Oluşturuldu</title>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <style>
+            body {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                background: var(--bg);
+                font-family: 'DM Sans', sans-serif;
+                padding: 2rem 1rem;
+                box-sizing: border-box;
+            }
+
+            .suc-wrap {
+                width: 100%;
+                max-width: 560px;
+            }
+
+            .suc-card {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 20px;
+                padding: 2.5rem 2rem;
+                box-shadow: var(--shadow);
+            }
+
+            /* ── Başlık ── */
+            .suc-header {
+                text-align: center;
+                margin-bottom: 2rem;
+            }
+
+            .suc-icon {
+                font-size: 3rem;
+                display: block;
+                margin-bottom: .5rem;
+            }
+
+            .suc-title {
+                font-family: 'Syne', sans-serif;
+                font-size: 1.6rem;
+                font-weight: 800;
+                color: var(--text);
+                margin: 0 0 .3rem;
+            }
+
+            .suc-subtitle {
+                font-size: .9rem;
+                color: var(--text-muted);
+            }
+
+            /* ── Firma Kodu Kutusu ── */
+            .firma-kodu-box {
+                background: rgba(249, 115, 22, 0.08);
+                border: 2px solid var(--accent);
+                border-radius: 14px;
+                padding: 1.4rem 1.2rem;
+                margin: 1.5rem 0;
+                text-align: center;
+            }
+
+            .firma-kodu-label {
+                font-size: .72rem;
+                font-weight: 700;
+                letter-spacing: .12em;
+                text-transform: uppercase;
+                color: var(--accent);
+                display: block;
+                margin-bottom: .6rem;
+            }
+
+            .firma-kodu-value {
+                font-family: 'Courier New', Courier, monospace;
+                font-size: 1.45rem;
+                font-weight: 700;
+                color: var(--text);
+                letter-spacing: .04em;
+                word-break: break-all;
+                display: block;
+                margin-bottom: .8rem;
+            }
+
+            .copy-btn {
+                display: inline-flex;
+                align-items: center;
+                gap: .4rem;
+                padding: .5rem 1.2rem;
+                background: var(--accent);
+                color: #fff;
+                font-family: 'DM Sans', sans-serif;
+                font-size: .88rem;
+                font-weight: 600;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: background .2s, transform .1s;
+            }
+
+            .copy-btn:hover  { background: var(--accent-hover); }
+            .copy-btn:active { transform: scale(.97); }
+            .copy-btn.copied { background: #16a34a; }
+
+            /* ── Uyarı Bandı ── */
+            .warning-band {
+                display: flex;
+                align-items: flex-start;
+                gap: .8rem;
+                background: rgba(234, 179, 8, 0.08);
+                border: 1px solid rgba(234, 179, 8, 0.35);
+                border-radius: 10px;
+                padding: .9rem 1rem;
+                margin-bottom: 1.5rem;
+            }
+
+            .warning-band .wi { font-size: 1.3rem; flex-shrink: 0; margin-top: .05rem; }
+
+            .warning-band p {
+                font-size: .88rem;
+                color: #fde68a;
+                margin: 0;
+                line-height: 1.5;
+            }
+
+            /* ── Bilgi Satırları ── */
+            .info-rows {
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                overflow: hidden;
+                margin-bottom: 1.5rem;
+            }
+
+            .info-row {
+                display: flex;
+                gap: 1rem;
+                padding: .65rem 1rem;
+                font-size: .88rem;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .info-row:last-child { border-bottom: none; }
+
+            .info-row .ir-label {
+                color: var(--text-muted);
+                flex: 0 0 130px;
+                font-weight: 500;
+            }
+
+            .info-row .ir-value {
+                color: var(--text);
+                font-weight: 600;
+                word-break: break-all;
+            }
+
+            /* ── Giriş Butonu ── */
+            .login-btn {
+                display: block;
+                width: 100%;
+                padding: .9rem;
+                background: var(--accent);
+                color: #fff;
+                font-family: 'DM Sans', sans-serif;
+                font-size: 1rem;
+                font-weight: 600;
+                border: none;
+                border-radius: 10px;
+                cursor: pointer;
+                text-align: center;
+                text-decoration: none;
+                transition: background .2s, transform .1s;
+                box-sizing: border-box;
+            }
+
+            .login-btn:hover  { background: var(--accent-hover); }
+            .login-btn:active { transform: scale(.98); }
+    </style>
+</head>
+<body>
+    <div class="suc-wrap">
+        <div class="suc-card">
+
+            <div class="suc-header">
+                <span class="suc-icon">🎉</span>
+                <h1 class="suc-title">Restoranınız Hazır!</h1>
+                <p class="suc-subtitle">
+                    <strong>@restaurantName</strong> başarıyla oluşturuldu.
+                    Aşağıdaki Firma Kodunuzu not alın.
+                </p>
+            </div>
+
+            
+            @* ── Firma Kodu — Ana Odak Noktası── *@
+            <div class="firma-kodu-box">
+                <span class="firma-kodu-label">🏷️ Firma Kodunuz (Giriş için zorunlu)</span>
+                <span class="firma-kodu-value" id="firmaKoduText">@firmaKodu</span>
+                <button class="copy-btn" id="copyBtn" onclick="copyFirmaKodu()">
+                    📋 Kodu Kopyala
+                </button>
+            </div>
+
+            
+            @* ── Kritik Uyarı── *@
+            <div class="warning-band">
+                <span class="wi">⚠️</span>
+                <p>
+                    <strong>Lütfen bu kodu mutlaka not alın.</strong>
+                    Sisteme giriş yaparken <em>Firma Kodu</em> alanına bu değeri girmeniz gerekecek.
+                    Firma Kodu ayrıca <strong>Ayarlar → Firma Bilgileri</strong> menüsünden her zaman görülebilir.
+                </p>
+            </div>
+
+            
+            @* ── Özet Bilgiler── *@
+            <div class="info-rows">
+                <div class="info-row">
+                    <span class="ir-label">Firma Kodu</span>
+                    <span class="ir-value">@firmaKodu</span>
+                </div>
+                <div class="info-row">
+                    <span class="ir-label">Kullanıcı Adı</span>
+                    <span class="ir-value">@adminUsername</span>
+                </div>
+                <div class="info-row">
+                    <span class="ir-label">Deneme Süresi</span>
+                    <span class="ir-value">30 gün ücretsiz</span>
+                </div>
+                <div class="info-row">
+                    <span class="ir-label">Giriş Adresi</span>
+                    <span class="ir-value">/App/Auth/Login</span>
+                </div>
+            </div>
+
+            <a asp-area="App" asp-controller="Auth" asp-action="Login" class="login-btn">
+                🚀 Sisteme Giriş Yap
+            </a>
+
+        </div>
+    </div>
+
+    <script>
+            function copyFirmaKodu() {
+                const text = document.getElementById('firmaKoduText').textContent.trim();
+                const btn  = document.getElementById('copyBtn');
+
+                navigator.clipboard.writeText(text).then(() => {
+                    btn.textContent = '✅ Kopyalandı!';
+                    btn.classList.add('copied');
+                    setTimeout(() => {
+                        btn.textContent = '📋 Kodu Kopyala';
+                        btn.classList.remove('copied');
+                    }, 2500);
+                }).catch(() => {
+                    // Clipboard API desteklenmiyorsa fallback
+                    const el = document.createElement('textarea');
+                    el.value = text;
+                    el.style.position = 'fixed';
+                    el.style.opacity  = '0';
+                    document.body.appendChild(el);
+                    el.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(el);
+                    btn.textContent = '✅ Kopyalandı!';
+                    btn.classList.add('copied');
+                    setTimeout(() => {
+                        btn.textContent = '📋 Kodu Kopyala';
+                        btn.classList.remove('copied');
+                    }, 2500);
+                });
+            }
+    </script>
+</body>
+</html>

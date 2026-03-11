@@ -12,6 +12,13 @@
 //  SPRINT 1 — Thin Controller:
 //  Tüm yazma iş mantığı OrderService'e taşınmış; controller sadece
 //  HTTP → Service → JSON köprüsü görevini üstlenir.
+//
+//  SPRINT A — [SA-3] ID Manipulation Koruması:
+//  Detail() metoduna Global Query Filter'a ek olarak ikinci savunma hattı
+//  eklendi. Sorgu sonrası order.TenantId != _tenantService.TenantId kontrolü
+//  yapılır. Bu kontrol Global Query Filter'ın herhangi bir edge case'de
+//  (TenantId null, seed bağlamı vb.) devre dışı kalması durumunda da
+//  çapraz-tenant sipariş erişimini tamamen engeller.
 // ════════════════════════════════════════════════════════════════════════════
 
 using Microsoft.AspNetCore.Authorization;
@@ -22,11 +29,11 @@ using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Dtos.Orders;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
 {
-    [Area("App")]
     [Authorize(Roles = "Admin,Garson,Kasiyer")]
     public class OrdersController : AppBaseController
     {
@@ -34,15 +41,18 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
         private readonly RestaurantDbContext _db;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IOrderService _orderService;
+        private readonly ITenantService _tenantService; // [SA-3]
 
         public OrdersController(
             RestaurantDbContext db,
             UserManager<ApplicationUser> userManager,
-            IOrderService orderService)
+            IOrderService orderService,
+            ITenantService tenantService) // [SA-3]
         {
             _db = db;
             _userManager = userManager;
             _orderService = orderService;
+            _tenantService = tenantService; // [SA-3]
         }
 
         // ─────────────────────────────────────────────────────────────────────
@@ -177,6 +187,19 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
 
         // ─────────────────────────────────────────────────────────────────────
         // GET /App/Orders/Detail/42
+        //
+        // [SA-3] İKİNCİ SAVUNMA HATTI — ID Manipulation Koruması
+        //
+        // Global Query Filter (DbContext'te HasQueryFilter) adisyonu zaten
+        // mevcut tenant'a filtreler. Ancak TenantId claim'i herhangi bir
+        // edge case'de null döndüğünde (seed bağlamı, claim kaybı vb.)
+        // filtre devre dışı kalır ve tüm adisyonlar açık hale gelir.
+        //
+        // Bu nedenle sorgudan sonra açık bir sahiplik kontrolü yapılır:
+        //   order.TenantId != _tenantService.TenantId → NotFound()
+        //
+        // Bu kontrol bir Kasiyer'in URL'deki ?id=999 değerini değiştirerek
+        // başka bir restoranın adisyonuna erişmesini tamamen engeller.
         // ─────────────────────────────────────────────────────────────────────
         public async Task<IActionResult> Detail(int id)
         {
@@ -186,11 +209,15 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                 .Include(o => o.Payments)
                 .FirstOrDefaultAsync(o => o.OrderId == id);
 
-            if (order == null)
+            // [SA-3] Çift kontrol:
+            //   1. order == null  → Global Query Filter zaten bu tenant'a ait olmayan
+            //                       kaydı gizledi (normal yol).
+            //   2. order.TenantId != _tenantService.TenantId  → Filter bypass edge case;
+            //                       yabancı tenant adisyonu sızdıysa burada durdurulur.
+            if (order == null || order.TenantId != _tenantService.TenantId)
             {
-                TempData["Error"] = "Adisyon bulunamadı.";
-                // [S5-URL] Aynı controller → area parametresi gerekmez
-                return RedirectToAction(nameof(Index));
+                // NotFound() → bilgi sızdırmaz; kayıt yok ile yetki yok aynı görünür.
+                return NotFound();
             }
 
             var categories = await _db.Categories

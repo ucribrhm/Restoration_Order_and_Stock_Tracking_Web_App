@@ -12,163 +12,163 @@
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <style>
-        body {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            background: var(--bg);
-            font-family: 'DM Sans', sans-serif;
-            padding: 2rem 1rem;
-            box-sizing: border-box;
-        }
-
-        .reg-wrap {
-            width: 100%;
-            max-width: 500px;
-        }
-
-        .reg-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 2.5rem 2rem;
-            box-shadow: var(--shadow);
-        }
-
-        .reg-logo {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-            .reg-logo .logo-icon {
-                font-size: 2.5rem;
+            body {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                background: var(--bg);
+                font-family: 'DM Sans', sans-serif;
+                padding: 2rem 1rem;
+                box-sizing: border-box;
             }
 
-            .reg-logo .logo-text {
+            .reg-wrap {
+                width: 100%;
+                max-width: 500px;
+            }
+
+            .reg-card {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 20px;
+                padding: 2.5rem 2rem;
+                box-shadow: var(--shadow);
+            }
+
+            .reg-logo {
+                text-align: center;
+                margin-bottom: 2rem;
+            }
+
+                .reg-logo .logo-icon {
+                    font-size: 2.5rem;
+                }
+
+                .reg-logo .logo-text {
+                    display: block;
+                    font-family: 'Syne', sans-serif;
+                    font-size: 1.5rem;
+                    font-weight: 800;
+                    color: var(--text);
+                    margin-top: 0.3rem;
+                }
+
+                .reg-logo .logo-sub {
+                    display: block;
+                    font-size: 0.85rem;
+                    color: var(--text-muted);
+                    margin-top: 0.2rem;
+                }
+
+            .section-divider {
+                font-size: 0.7rem;
+                font-weight: 700;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: var(--text-muted);
+                margin: 1.5rem 0 1rem;
+                padding-bottom: 0.4rem;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .reg-field {
+                margin-bottom: 1.1rem;
+            }
+
+            .reg-label {
                 display: block;
-                font-family: 'Syne', sans-serif;
-                font-size: 1.5rem;
-                font-weight: 800;
+                font-size: 0.8rem;
+                font-weight: 500;
+                color: var(--text-muted);
+                margin-bottom: 0.4rem;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            .reg-input {
+                width: 100%;
+                padding: 0.75rem 1rem;
+                background: var(--surface2);
+                border: 1px solid var(--border);
+                border-radius: 10px;
                 color: var(--text);
+                font-family: 'DM Sans', sans-serif;
+                font-size: 0.95rem;
+                transition: border-color 0.2s;
+                outline: none;
+                box-sizing: border-box;
+            }
+
+                .reg-input:focus {
+                    border-color: var(--accent);
+                    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
+                }
+
+                .reg-input.is-invalid {
+                    border-color: #ef4444;
+                }
+
+            .field-error {
+                font-size: 0.8rem;
+                color: #ef4444;
                 margin-top: 0.3rem;
             }
 
-            .reg-logo .logo-sub {
-                display: block;
-                font-size: 0.85rem;
+            .field-hint {
+                font-size: 0.78rem;
                 color: var(--text-muted);
-                margin-top: 0.2rem;
+                margin-top: 0.3rem;
             }
 
-        .section-divider {
-            font-size: 0.7rem;
-            font-weight: 700;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            color: var(--text-muted);
-            margin: 1.5rem 0 1rem;
-            padding-bottom: 0.4rem;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .reg-field {
-            margin-bottom: 1.1rem;
-        }
-
-        .reg-label {
-            display: block;
-            font-size: 0.8rem;
-            font-weight: 500;
-            color: var(--text-muted);
-            margin-bottom: 0.4rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .reg-input {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            color: var(--text);
-            font-family: 'DM Sans', sans-serif;
-            font-size: 0.95rem;
-            transition: border-color 0.2s;
-            outline: none;
-            box-sizing: border-box;
-        }
-
-            .reg-input:focus {
-                border-color: var(--accent);
-                box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
+            .reg-btn {
+                width: 100%;
+                padding: 0.9rem;
+                background: var(--accent);
+                color: #fff;
+                font-family: 'DM Sans', sans-serif;
+                font-size: 1rem;
+                font-weight: 600;
+                border: none;
+                border-radius: 10px;
+                cursor: pointer;
+                margin-top: 1rem;
+                transition: background 0.2s, transform 0.1s;
             }
 
-            .reg-input.is-invalid {
-                border-color: #ef4444;
-            }
-
-        .field-error {
-            font-size: 0.8rem;
-            color: #ef4444;
-            margin-top: 0.3rem;
-        }
-
-        .field-hint {
-            font-size: 0.78rem;
-            color: var(--text-muted);
-            margin-top: 0.3rem;
-        }
-
-        .reg-btn {
-            width: 100%;
-            padding: 0.9rem;
-            background: var(--accent);
-            color: #fff;
-            font-family: 'DM Sans', sans-serif;
-            font-size: 1rem;
-            font-weight: 600;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            margin-top: 1rem;
-            transition: background 0.2s, transform 0.1s;
-        }
-
-            .reg-btn:hover {
-                background: var(--accent-hover);
-            }
-
-            .reg-btn:active {
-                transform: scale(0.98);
-            }
-
-        .alert-error {
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.3);
-            border-radius: 10px;
-            padding: 0.75rem 1rem;
-            font-size: 0.88rem;
-            color: #fca5a5;
-            margin-bottom: 1.2rem;
-        }
-
-        .reg-footer {
-            text-align: center;
-            margin-top: 1.5rem;
-            font-size: 0.88rem;
-            color: var(--text-muted);
-        }
-
-            .reg-footer a {
-                color: var(--accent);
-                text-decoration: none;
-            }
-
-                .reg-footer a:hover {
-                    text-decoration: underline;
+                .reg-btn:hover {
+                    background: var(--accent-hover);
                 }
+
+                .reg-btn:active {
+                    transform: scale(0.98);
+                }
+
+            .alert-error {
+                background: rgba(239, 68, 68, 0.1);
+                border: 1px solid rgba(239, 68, 68, 0.3);
+                border-radius: 10px;
+                padding: 0.75rem 1rem;
+                font-size: 0.88rem;
+                color: #fca5a5;
+                margin-bottom: 1.2rem;
+            }
+
+            .reg-footer {
+                text-align: center;
+                margin-top: 1.5rem;
+                font-size: 0.88rem;
+                color: var(--text-muted);
+            }
+
+                .reg-footer a {
+                    color: var(--accent);
+                    text-decoration: none;
+                }
+
+                    .reg-footer a:hover {
+                        text-decoration: underline;
+                    }
     </style>
 </head>
 <body>
@@ -191,7 +191,8 @@
                 </div>
             }
 
-            <form asp-controller="Landing" asp-action="Register" method="post">
+            @* [FIX-405] Mutlak yol — asp-area="" .NET 9'da ambient area sızdırarak 405 üretebilir *@
+            <form action="/Landing/Register" method="post">
                 @Html.AntiForgeryToken()
 
                 @* ── Restoran Bilgileri ── *@

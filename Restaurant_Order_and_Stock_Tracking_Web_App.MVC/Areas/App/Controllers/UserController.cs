@@ -1,68 +1,64 @@
-// ============================================================================
-//  Controllers/UserController.cs
-//  SPRINT 2 — Identity Güvenliği & N+1 Optimizasyonu
+// ════════════════════════════════════════════════════════════════════════════
+//  Areas/App/Controllers/UserController.cs
+//  Yol: Areas/App/Controllers/UserController.cs
 //
-//  [G-02] Çapraz-tenant kullanıcı erişimi kapatıldı:
-//         _userManager.Users → _db.Users + WHERE TenantId filtresi
-//         FindByIdAsync sonrası her metotta sahiplik doğrulaması eklendi.
+//  SPRINT 2 — Identity Güvenliği & N+1 Optimizasyonu (korundu):
+//  [G-02] Çapraz-tenant kullanıcı erişimi kapatıldı.
+//  [G-03] TenantId zorunlu — null bypass önlendi.
+//  [P-01] N+1 → tek LEFT JOIN sorgusu.
+//  [G-02-DEL] Tenant'a özgü admin sayımı.
 //
-//  [G-03] Yeni kullanıcı oluşturulurken TenantId = _tenantService.TenantId
-//         artık zorunlu — null TenantId Global Query Filter bypass'ını önler.
-//
-//  [P-01] foreach + GetRolesAsync N+1 → tek LEFT JOIN sorgusu.
-//
-//  [G-02-DEL] Delete'teki GetUsersInRoleAsync tüm tenantları sayıyordu;
-//             tenant'a özgü admin sayımı _db JOIN sorgusuna taşındı.
-//
-//  Değişmeyen her satır orijinalle birebir aynıdır.
-// ============================================================================
+//  SPRINT B — [SB-2/SB-3] Workspace Login Veri Maskeleme:
+//  [SB-2] Index: UserName → ToDisplayName(tenantId) ile maskelendi.
+//         DB'deki "burger-palace-a1b2_ahmet" → UI'da sadece "ahmet" görünür.
+//  [SB-3] Create POST: Admin "ahmet" girer; controller $"{tenantId}_{kısaAd}"
+//         olarak birleştirir ve o şekilde DB'ye yazar.
+//         FindByNameAsync çakışma kontrolü tam (prefix'li) username ile yapılır.
+//  [SB-4] Edit GET: Edit formuna da sadece kısa ad gösterilir.
+//  [SB-5] Edit POST: Gelen kısa adı tenantId ile birleştirip DB'ye yazar.
+//         Çakışma kontrolü prefix'li username ile yapılır.
+// ════════════════════════════════════════════════════════════════════════════
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
-using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;       // [G-02/G-03] eklendi
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Extensions;   // [SB-2] ToDisplayName
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.ViewModels.Users;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers;
+
 [Area("App")]
 [Authorize(Roles = "Admin")]
 public class UserController : AppBaseController
 {
-    // ── Sistemde izin verilen roller — tek kaynak gerçek ────────────
-    // [SPRINT-2] "Kitchen" rolü eklendi; Kullanıcı oluşturma/düzenleme
-    // formlarında dropdown'a otomatik yansır.
     private static readonly string[] AllowedRoles = { "Admin", "Garson", "Kasiyer", "Kitchen" };
 
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly RoleManager<IdentityRole> _roleManager;
     private readonly RestaurantDbContext _db;
-    private readonly ITenantService _tenantService; // [G-02/G-03]
+    private readonly ITenantService _tenantService;
 
     public UserController(
         UserManager<ApplicationUser> userManager,
         RoleManager<IdentityRole> roleManager,
         RestaurantDbContext db,
-        ITenantService tenantService)  // [G-02/G-03]
+        ITenantService tenantService)
     {
         _userManager = userManager;
         _roleManager = roleManager;
         _db = db;
-        _tenantService = tenantService; // [G-02/G-03]
+        _tenantService = tenantService;
     }
 
-    // ── GET /User ─────────────────────────────────────────────────────
-    // [G-02] ESKİ: _userManager.Users.ToListAsync() → tüm tenant kullanıcıları
-    //              + foreach GetRolesAsync → N+1 (50 kullanıcı = 51 sorgu)
-    //
-    // YENİ: _db.Users + LEFT JOIN _db.UserRoles + _db.Roles → tek sorgu.
-    //       WHERE u.TenantId == tenantId → yalnızca bu restoranın kullanıcıları.
-    //
-    // NOT: ApplicationUser için HasQueryFilter tanımlı değil; bu nedenle
-    //      tenant filtresi elle ekleniyor (Identity API'larının tamamında aynı kural).
+    // ── GET /App/User ──────────────────────────────────────────────────────
+    // [SB-2] UserName kolonunda prefix maskeleme uygulandı.
+    //        DB'deki "burger-palace-a1b2_ahmet" → UI'da "ahmet" görünür.
+    //        ToDisplayName() extension metodu Extensions/StringExtensions.cs'de.
     public async Task<IActionResult> Index()
     {
         ViewData["Title"] = "Kullanıcı Yönetimi";
@@ -72,15 +68,17 @@ public class UserController : AppBaseController
         // [G-02 + P-01] Tek LEFT JOIN — kullanıcı + rolü tek round-trip'te çek.
         var model = await (
             from u in _db.Users
-                        .Where(u => u.TenantId == tenantId)     // [G-02] tenant izolasyonu
+                        .Where(u => u.TenantId == tenantId)
             join ur in _db.UserRoles on u.Id equals ur.UserId into urs
-            from ur in urs.DefaultIfEmpty()                      // LEFT JOIN: rolsüz kullanıcı da gelsin
+            from ur in urs.DefaultIfEmpty()
             join r in _db.Roles on ur.RoleId equals r.Id into rs
-            from r in rs.DefaultIfEmpty()                       // LEFT JOIN
+            from r in rs.DefaultIfEmpty()
             select new UserListItemViewModel
             {
                 Id = u.Id,
-                UserName = u.UserName ?? string.Empty,
+                // [SB-2] Ham username'i UI'a vermeden önce prefix'i soy.
+                //        "burger-palace-a1b2_ahmet" → "ahmet"
+                UserName = (u.UserName ?? string.Empty).ToDisplayName(tenantId),
                 FullName = u.FullName,
                 Email = u.Email,
                 PhoneNumber = u.PhoneNumber,
@@ -88,36 +86,36 @@ public class UserController : AppBaseController
                 CreatedAt = u.CreatedAt,
                 LastLoginAt = u.LastLoginAt
             }
-        ).ToListAsync(); // [P-01] N+1 → 1 sorgu
+        ).ToListAsync();
 
         return View(model);
     }
 
-    //// ── GET /User/Create ──────────────────────────────────────────────
+    // ── GET /App/User/Create ───────────────────────────────────────────────
     public IActionResult Create()
     {
         ViewData["Title"] = "Yeni Kullanıcı";
-        ViewBag.Roles = AllowedRoles; // DB'ye bağımlı değil, her zaman 3 rol
+        ViewBag.Roles = AllowedRoles;
         return View();
     }
 
-    // ── POST /User/Create ─────────────────────────────────────────────
-    // ── POST /User/Create ─────────────────────────────────────────────
+    // ── POST /App/User/Create ──────────────────────────────────────────────
+    // [SB-3] Admin forma sadece kısa adı ("ahmet") girer.
+    //        Controller arka planda tam username'i inşa eder:
+    //          fullUsername = $"{tenantId}_{model.UserName.Trim()}"
+    //        Çakışma kontrolü ve CreateAsync tam username ile çalışır.
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(UserCreateViewModel model)
     {
-        // 🚨 1. ADIM: TENANT ID GÜVENLİK DUVARI (Senin İstediğin Kısım) 🚨
-        var currentTenantId = _tenantService.TenantId;
+        var tenantId = _tenantService.TenantId;
 
-        if (string.IsNullOrWhiteSpace(currentTenantId))
+        if (string.IsNullOrWhiteSpace(tenantId))
         {
-            // Eğer dükkan ID'si yoksa anında işlemi iptal et ve hata ver!
             TempData["Error"] = "Kritik Hata: Dükkan kimliği (TenantId) bulunamadı. Dükkansız personel oluşturulamaz!";
             return RedirectToAction(nameof(Index));
         }
 
-        // 2. Rol izin listesi dışında bir değer form'dan gönderilmeye çalışılırsa reddet
         if (!string.IsNullOrEmpty(model.Role) && !AllowedRoles.Contains(model.Role))
             ModelState.AddModelError("Role", "Geçersiz rol seçimi.");
 
@@ -127,28 +125,31 @@ public class UserController : AppBaseController
             return View(model);
         }
 
-        if (await _userManager.FindByNameAsync(model.UserName) != null)
+        // [SB-3] Tam username: "{tenantId}_{kısaAd}"
+        // Admin "ahmet" girer → DB'ye "burger-palace-a1b2_ahmet" yazılır.
+        var fullUsername = $"{tenantId}_{model.UserName.Trim()}";
+
+        // Çakışma kontrolü tam username ile — kısa ad ile DEĞİL.
+        // (başka restoranda "ahmet" olabilir; bu restoranın "ahmet"i çakışır.)
+        if (await _userManager.FindByNameAsync(fullUsername) != null)
         {
             ModelState.AddModelError("UserName", "Bu kullanıcı adı zaten kullanılıyor.");
             ViewBag.Roles = AllowedRoles;
             return View(model);
         }
 
-        // Rol DB'de yoksa seed edip oluştur (her ortamda güvenli)
         if (!await _roleManager.RoleExistsAsync(model.Role))
             await _roleManager.CreateAsync(new IdentityRole(model.Role));
 
         var user = new ApplicationUser
         {
-            UserName = model.UserName.Trim(),
+            UserName = fullUsername,            // [SB-3] Prefix'li tam username DB'ye gider
             FullName = model.FullName.Trim(),
             Email = model.Email?.Trim(),
             PhoneNumber = model.PhoneNumber,
             CreatedAt = DateTime.UtcNow,
             EmailConfirmed = true,
-
-            // 🚨 3. ADIM: Artık TenantId'nin kesinlikle dolu olduğundan eminiz!
-            TenantId = currentTenantId
+            TenantId = tenantId                 // [G-03] TenantId zorunlu
         };
 
         var createResult = await _userManager.CreateAsync(user, model.Password);
@@ -163,7 +164,7 @@ public class UserController : AppBaseController
         var roleResult = await _userManager.AddToRoleAsync(user, model.Role);
         if (!roleResult.Succeeded)
         {
-            await _userManager.DeleteAsync(user); // işlemi geri al
+            await _userManager.DeleteAsync(user);
             foreach (var e in roleResult.Errors)
                 ModelState.AddModelError(string.Empty, $"Rol ataması başarısız: {e.Description}");
             ViewBag.Roles = AllowedRoles;
@@ -173,14 +174,16 @@ public class UserController : AppBaseController
         TempData["Success"] = $"'{user.FullName}' kullanıcısı '{model.Role}' rolüyle oluşturuldu.";
         return RedirectToAction(nameof(Index));
     }
-    // ── GET /User/Edit/{id} ───────────────────────────────────────────
+
+    // ── GET /App/User/Edit/{id} ────────────────────────────────────────────
+    // [SB-4] Edit formuna prefix soyulmuş kısa ad gösterilir.
+    //        Kullanıcı "ahmet" görür, güncelleme yaparken de "ahmet" girer.
     public async Task<IActionResult> Edit(string id)
     {
         var user = await _userManager.FindByIdAsync(id);
         if (user == null) return NotFound();
 
-        // [G-02] FindByIdAsync Identity store'da global arar; TenantId kontrolü
-        //        olmadan başka restoranın kullanıcısı düzenlenebilirdi.
+        // [G-02] Çapraz-tenant erişim engeli
         if (user.TenantId != _tenantService.TenantId) return NotFound();
 
         var roles = await _userManager.GetRolesAsync(user);
@@ -193,17 +196,18 @@ public class UserController : AppBaseController
         return View(new UserEditViewModel
         {
             Id = user.Id,
-            UserName = user.UserName?.Trim() ?? "",
+            // [SB-4] Ham username'i formda göstermeden önce prefix'i soy.
+            UserName = (user.UserName ?? "").ToDisplayName(_tenantService.TenantId),
             FullName = user.FullName.Trim(),
             Email = user.Email?.Trim(),
             PhoneNumber = user.PhoneNumber,
             Role = roles.FirstOrDefault() ?? ""
-
-            
         });
     }
 
-    // ── POST /User/Edit ───────────────────────────────────────────────
+    // ── POST /App/User/Edit ────────────────────────────────────────────────
+    // [SB-5] Admin kısa adı ("ahmet") günceller.
+    //        Controller arka planda tam username'i yeniden inşa eder.
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(UserEditViewModel model)
@@ -220,12 +224,18 @@ public class UserController : AppBaseController
         var user = await _userManager.FindByIdAsync(model.Id);
         if (user == null) return NotFound();
 
-        // [G-02] POST ile başka tenant kullanıcısının verisi değiştirilemez.
+        // [G-02] Çapraz-tenant POST engeli
         if (user.TenantId != _tenantService.TenantId) return NotFound();
 
-        if (user.UserName != model.UserName)
+        var tenantId = _tenantService.TenantId;
+
+        // [SB-5] Yeni tam username: "{tenantId}_{kısaAd}"
+        var newFullUsername = $"{tenantId}_{model.UserName.Trim()}";
+
+        // Kullanıcı adı değiştiyse çakışma kontrolü yap
+        if (user.UserName != newFullUsername)
         {
-            if (await _userManager.FindByNameAsync(model.UserName) != null)
+            if (await _userManager.FindByNameAsync(newFullUsername) != null)
             {
                 ModelState.AddModelError("UserName", "Bu kullanıcı adı zaten kullanılıyor.");
                 ViewBag.Roles = AllowedRoles;
@@ -233,7 +243,7 @@ public class UserController : AppBaseController
             }
         }
 
-        user.UserName = model.UserName;
+        user.UserName = newFullUsername;        // [SB-5] Prefix'li tam username kaydedilir
         user.FullName = model.FullName;
         user.Email = model.Email;
         user.PhoneNumber = model.PhoneNumber;
@@ -269,7 +279,7 @@ public class UserController : AppBaseController
         return RedirectToAction(nameof(Index));
     }
 
-    // ── POST /User/ResetPassword ──────────────────────────────────────
+    // ── POST /App/User/ResetPassword ──────────────────────────────────────
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ResetPassword(string id, string newPassword)
@@ -283,7 +293,7 @@ public class UserController : AppBaseController
         var user = await _userManager.FindByIdAsync(id);
         if (user == null) return NotFound();
 
-        // [G-02] Çapraz-tenant şifre sıfırlama engellendi.
+        // [G-02] Çapraz-tenant şifre sıfırlama engeli
         if (user.TenantId != _tenantService.TenantId) return NotFound();
 
         var token = await _userManager.GeneratePasswordResetTokenAsync(user);
@@ -302,7 +312,7 @@ public class UserController : AppBaseController
         return RedirectToAction(nameof(Edit), new { id });
     }
 
-    // ── POST /User/Delete ─────────────────────────────────────────────
+    // ── POST /App/User/Delete ──────────────────────────────────────────────
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(string id)
@@ -310,7 +320,7 @@ public class UserController : AppBaseController
         var user = await _userManager.FindByIdAsync(id);
         if (user == null) return NotFound();
 
-        // [G-02] Çapraz-tenant silme engellendi.
+        // [G-02] Çapraz-tenant silme engeli
         if (user.TenantId != _tenantService.TenantId) return NotFound();
 
         if (user.Id == _userManager.GetUserId(User))
@@ -322,10 +332,7 @@ public class UserController : AppBaseController
         var roles = await _userManager.GetRolesAsync(user);
         if (roles.Contains("Admin"))
         {
-            // [G-02-DEL] ESKİ: GetUsersInRoleAsync("Admin") tüm tenantlardaki
-            //            admin sayısını döndürür → başka restoranın admin'i sayılıyor.
-            //
-            // YENİ: _db JOIN ile sadece bu tenant'ın admin sayısı sorgulanır.
+            // [G-02-DEL] Tenant'a özgü admin sayımı — tüm tenantlar değil
             var tenantAdminCount = await (
                 from u in _db.Users.Where(u => u.TenantId == _tenantService.TenantId)
                 join ur in _db.UserRoles on u.Id equals ur.UserId

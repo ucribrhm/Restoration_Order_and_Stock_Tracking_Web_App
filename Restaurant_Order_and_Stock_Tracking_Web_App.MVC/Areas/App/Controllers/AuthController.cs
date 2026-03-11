@@ -1,4 +1,30 @@
-﻿using Microsoft.AspNetCore.Authentication;
+﻿// ════════════════════════════════════════════════════════════════════════════
+//  Areas/App/Controllers/AuthController.cs
+//  Yol: Areas/App/Controllers/AuthController.cs
+//
+//  SPRINT A — [SA-4] Trial kontrolü (korundu)
+//
+//  SPRINT C — [SC-2] Workspace Login Akışı
+//
+//  Login POST artık üç aşamalı Workspace Login akışını uygular:
+//
+//  AŞAMA 1 — Tenant Doğrulama + Timing Attack Koruması
+//    model.FirmaKodu ile DB'de aktif ve süresi dolmamış tenant aranır.
+//    Tenant bulunamazsa:
+//      → Task.Delay(100–300 ms) yapay gecikme eklenir.
+//      → Genel hata mesajı: "Firma kodu, kullanıcı adı veya şifre hatalı."
+//        (Saldırgan firma kodunun yanlış olduğunu öğrenemez.)
+//
+//  AŞAMA 2 — Kullanıcı Adı Birleştirme
+//    fullUsername = $"{model.FirmaKodu}_{model.Username}"
+//    Bu değer Identity'nin UserName sütunundaki tam değerle eşleşir.
+//
+//  AŞAMA 3 — Standart Doğrulama
+//    Lockout, şifre, SysAdmin filtresi, AppAuth cookie — öncekiyle aynı.
+//    Tenant kontrolü artık AŞAMA 1'de yapıldığı için tekrarlanmıyor.
+// ════════════════════════════════════════════════════════════════════════════
+
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -24,6 +50,7 @@ public class AuthController : AppBaseController
         _db = db;
     }
 
+    // ── GET /App/Auth/Login ────────────────────────────────────────────────
     [AllowAnonymous]
     public IActionResult Login(string? returnUrl = null)
     {
@@ -34,6 +61,7 @@ public class AuthController : AppBaseController
         return View();
     }
 
+    // ── POST /App/Auth/Login ───────────────────────────────────────────────
     [HttpPost]
     [AllowAnonymous]
     [ValidateAntiForgeryToken]
@@ -44,10 +72,60 @@ public class AuthController : AppBaseController
         if (!ModelState.IsValid)
             return View(model);
 
-        var user = await _userManager.FindByNameAsync(model.Username);
+        // ════════════════════════════════════════════════════════════════
+        //  AŞAMA 1 — Tenant Doğrulama + Timing Attack Koruması
+        //
+        //  FirmaKodu → DB'de aktif ve süresi dolmamış tenant aranır.
+        //
+        //  Neden önce tenant, sonra kullanıcı?
+        //    • Kullanıcıyı önce aramak: saldırgana "bu kullanıcı bu tenant'ta
+        //      var mı?" bilgisini timing farkı ile sızdırır.
+        //    • Tenant kontrolünü önce yapıp başarısızlıkta aynı genel mesajı
+        //      vermek + yapay gecikme eklemek bu farkı kapatır.
+        //
+        //  Başarısızlık mesajı kasıtlı olarak geneldir:
+        //    "Firma kodu, kullanıcı adı veya şifre hatalı."
+        //    → Saldırgan firma kodunun yanlış mı, kullanıcı adının mı,
+        //      şifrenin mi hatalı olduğunu ayırt edemez.
+        // ════════════════════════════════════════════════════════════════
+        var tenant = await _db.Tenants
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.TenantId == model.FirmaKodu);
+
+        var tennene = tenant;
+
+        // Tenant yok, pasif veya süresi dolmuş — tek genel hata
+        bool tenantInvalid =
+            tenant == null ||
+            !tenant.IsActive ||
+            (tenant.TrialEndsAt.HasValue && tenant.TrialEndsAt.Value < DateTime.UtcNow);
+
+        if (tenantInvalid)
+        {
+            // Timing attack önlemi: geçersiz firma kodu ile geçerli firma kodu
+            // arasındaki yanıt süresi farkını yapay gecikme ile kapat.
+            await Task.Delay(Random.Shared.Next(100, 300));
+            ModelState.AddModelError(string.Empty, "Firma kodu, kullanıcı adı veya şifre hatalı.");
+            return View(model);
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        //  AŞAMA 2 — Kullanıcı Adı Birleştirme
+        //
+        //  Admin "ahmet" girdi → fullUsername = "burger-palace-a1b2_ahmet"
+        //  Bu değer Identity'nin AspNetUsers.UserName sütunuyla eşleşir.
+        // ════════════════════════════════════════════════════════════════
+        var fullUsername = $"{model.FirmaKodu}_{model.Username}";
+
+        // ════════════════════════════════════════════════════════════════
+        //  AŞAMA 3 — Standart Identity Doğrulama
+        // ════════════════════════════════════════════════════════════════
+        var user = await _userManager.FindByNameAsync(fullUsername);
         if (user == null)
         {
-            ModelState.AddModelError(string.Empty, "Kullanıcı adı veya şifre hatalı.");
+            // Kullanıcı bu tenant'ta yok — yine genel mesaj (bilgi sızdırma önlemi)
+            await Task.Delay(Random.Shared.Next(100, 300));
+            ModelState.AddModelError(string.Empty, "Firma kodu, kullanıcı adı veya şifre hatalı.");
             return View(model);
         }
 
@@ -63,7 +141,8 @@ public class AuthController : AppBaseController
         if (!passwordOk)
         {
             await _userManager.AccessFailedAsync(user);
-            ModelState.AddModelError(string.Empty, "Kullanıcı adı veya şifre hatalı.");
+            // Şifre hatalı — yine genel mesaj
+            ModelState.AddModelError(string.Empty, "Firma kodu, kullanıcı adı veya şifre hatalı.");
             return View(model);
         }
 
@@ -76,29 +155,14 @@ public class AuthController : AppBaseController
             return View(model);
         }
 
-        // Tenant aktiflik kontrolü
-        if (!string.IsNullOrEmpty(user.TenantId))
-        {
-            var tenant = await _db.Tenants
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.TenantId == user.TenantId);
-
-            if (tenant == null || !tenant.IsActive)
-            {
-                ModelState.AddModelError(string.Empty, "Restoranınızın aboneliği aktif değil. Lütfen destek ile iletişime geçin.");
-                return View(model);
-            }
-        }
-
-        // Başarılı giriş — tekil oturum için stamp güncelle
+        // ── Başarılı Giriş ────────────────────────────────────────────────
         await _userManager.ResetAccessFailedCountAsync(user);
         await _userManager.UpdateSecurityStampAsync(user);
 
         user.LastLoginAt = DateTime.UtcNow;
         await _userManager.UpdateAsync(user);
 
-        // AppAuth scheme ile manuel cookie oluştur
-        // TenantId claim eklenir → HttpContextTenantService okur → Global Query Filter aktif
+        // AppAuth cookie — TenantId claim → HttpContextTenantService → Global Query Filter
         var claims = new List<Claim>
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id),
@@ -129,6 +193,7 @@ public class AuthController : AppBaseController
         return RedirectToAction("Index", "Tables", new { area = "App" });
     }
 
+    // ── POST /App/Auth/Logout ──────────────────────────────────────────────
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Logout()

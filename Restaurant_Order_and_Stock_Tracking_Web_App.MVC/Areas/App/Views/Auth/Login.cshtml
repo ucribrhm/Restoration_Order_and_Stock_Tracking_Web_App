@@ -35,32 +35,70 @@
             box-shadow: var(--shadow);
         }
 
+        /* ── Logo ── */
         .login-logo {
             text-align: center;
             margin-bottom: 2rem;
         }
 
-            .login-logo .logo-icon {
-                font-size: 2.8rem;
-            }
+        .login-logo .logo-icon  { font-size: 2.8rem; }
 
-            .login-logo .logo-text {
-                display: block;
-                font-family: 'Syne', sans-serif;
-                font-size: 1.6rem;
-                font-weight: 800;
-                color: var(--text);
-                margin-top: 0.4rem;
-                letter-spacing: -0.5px;
-            }
+        .login-logo .logo-text {
+            display: block;
+            font-family: 'Syne', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--text);
+            margin-top: 0.4rem;
+            letter-spacing: -0.5px;
+        }
 
-            .login-logo .logo-sub {
-                display: block;
-                font-size: 0.85rem;
-                color: var(--text-muted);
-                margin-top: 0.2rem;
-            }
+        .login-logo .logo-sub {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.2rem;
+        }
 
+        /* ── Alan Ayırıcısı ── */
+        .field-divider {
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+            margin: .4rem 0 1rem;
+        }
+
+        .field-divider hr {
+            flex: 1;
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 0;
+        }
+
+        .field-divider span {
+            font-size: .7rem;
+            font-weight: 700;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        /* ── Firma Kodu Alanı — Özel Vurgu ── */
+        .login-field-firma {
+            margin-bottom: 1rem;
+        }
+
+        .login-field-firma .login-label {
+            color: var(--accent);  /* turuncu — birincil eylem rengi */
+        }
+
+        .login-field-firma .login-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.18);
+        }
+
+        /* ── Standart Alanlar ── */
         .login-field {
             margin-bottom: 1.2rem;
         }
@@ -89,14 +127,12 @@
             box-sizing: border-box;
         }
 
-            .login-input:focus {
-                border-color: var(--accent);
-                box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
-            }
+        .login-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
+        }
 
-            .login-input.is-invalid {
-                border-color: #ef4444;
-            }
+        .login-input.is-invalid { border-color: #ef4444; }
 
         .field-error {
             font-size: 0.8rem;
@@ -104,6 +140,13 @@
             margin-top: 0.3rem;
         }
 
+        .field-hint {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-top: 0.3rem;
+        }
+
+        /* ── Beni Hatırla ── */
         .login-remember {
             display: flex;
             align-items: center;
@@ -114,12 +157,13 @@
             cursor: pointer;
         }
 
-            .login-remember input[type="checkbox"] {
-                accent-color: var(--accent);
-                width: 16px;
-                height: 16px;
-            }
+        .login-remember input[type="checkbox"] {
+            accent-color: var(--accent);
+            width: 16px;
+            height: 16px;
+        }
 
+        /* ── Submit ── */
         .login-btn {
             width: 100%;
             padding: 0.9rem;
@@ -134,14 +178,10 @@
             transition: background 0.2s, transform 0.1s;
         }
 
-            .login-btn:hover {
-                background: var(--accent-hover);
-            }
+        .login-btn:hover  { background: var(--accent-hover); }
+        .login-btn:active { transform: scale(0.98); }
 
-            .login-btn:active {
-                transform: scale(0.98);
-            }
-
+        /* ── Hata Bandı ── */
         .alert-error {
             background: rgba(239, 68, 68, 0.1);
             border: 1px solid rgba(239, 68, 68, 0.3);
@@ -177,15 +217,41 @@
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
 
+                @* ── ADIM 1: Firma Kodu ── *@
+                @* Workspace Login'in ilk adımı: kullanıcının hangi restorana    *@
+                @* ait olduğunu belirler. Turuncu label ile öne çıkarılır.       *@
+                <div class="login-field login-field-firma">
+                    <label class="login-label" asp-for="FirmaKodu">🏷️ Firma Kodu</label>
+                    <input class="login-input @(ViewData.ModelState["FirmaKodu"]?.Errors.Any() == true ? "is-invalid" : "")"
+                           asp-for="FirmaKodu"
+                           autocomplete="organization"
+                           autocapitalize="none"
+                           placeholder="burger-palace-a1b2c3d4"
+                           spellcheck="false" />
+                    <span class="field-error" asp-validation-for="FirmaKodu"></span>
+                    <span class="field-hint">Kayıt sırasında size verilen firma kodunuzu girin.</span>
+                </div>
+
+                @* ── Ayırıcı ── *@
+                <div class="field-divider">
+                    <hr /><span>Kullanıcı Bilgileri</span><hr />
+                </div>
+
+                @* ── ADIM 2: Kullanıcı Adı ── *@
+                @* Kısa kullanıcı adı girilir (prefix'siz).                      *@
+                @* Controller: fullUsername = "{FirmaKodu}_{Username}"           *@
                 <div class="login-field">
                     <label class="login-label" asp-for="Username">Kullanıcı Adı</label>
                     <input class="login-input @(ViewData.ModelState["Username"]?.Errors.Any() == true ? "is-invalid" : "")"
                            asp-for="Username"
                            autocomplete="username"
-                           placeholder="Kullanıcı adınız" />
+                           autocapitalize="none"
+                           placeholder="ahmet"
+                           spellcheck="false" />
                     <span class="field-error" asp-validation-for="Username"></span>
                 </div>
 
+                @* ── ADIM 3: Şifre ── *@
                 <div class="login-field">
                     <label class="login-label" asp-for="Password">Şifre</label>
                     <input class="login-input @(ViewData.ModelState["Password"]?.Errors.Any() == true ? "is-invalid" : "")"
@@ -201,7 +267,7 @@
                     Beni Hatırla (30 gün)
                 </label>
 
-                <button type="submit" class="login-btn">Giriş Yap</button>
+                <button type="submit" class="login-btn">Giriş Yap →</button>
             </form>
 
         </div>

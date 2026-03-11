@@ -244,7 +244,7 @@
         <a class="nav-logo" href="/">🍽️ RestaurantOS</a>
         <div class="nav-actions">
             <a class="btn-ghost" asp-area="App" asp-controller="Auth" asp-action="Login">Giriş Yap</a>
-            <a class="btn-primary" asp-controller="Landing" asp-action="Register">Ücretsiz Başla</a>
+            <a class="btn-primary" asp-area="" asp-controller="Landing" asp-action="Register">Ücretsiz Başla</a>
         </div>
     </nav>
 
@@ -256,7 +256,7 @@
             hepsi tek bir sistemde. Kurulum gerektirmez, anında kullanıma hazır.
         </p>
         <div class="hero-cta">
-            <a class="btn-primary btn-lg" asp-controller="Landing" asp-action="Register">
+            <a class="btn-primary btn-lg" asp-area="" asp-controller="Landing" asp-action="Register">
                 Restoranımı Kaydet
             </a>
             <a class="btn-ghost btn-lg" asp-area="App" asp-controller="Auth" asp-action="Login">

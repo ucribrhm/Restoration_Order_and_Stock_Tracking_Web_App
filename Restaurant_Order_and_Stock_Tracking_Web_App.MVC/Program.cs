@@ -17,6 +17,17 @@
 //  AREAS SPRINT 4:
 //  [SPRINT-4]     ITenantOnboardingService kaydedildi.
 //                 Default route controller=Landing olarak güncellendi.
+//
+//  SPRINT A — GÜVENLİK:
+//  [SA-1] AppAuth OnRedirectToLogin event eklendi.
+//         AJAX/fetch istekleri → 401 + JSON  (302 yerine).
+//  [SA-2] TenantClaimsTransformation kaydı kaldırıldı.
+//
+//  SPRINT B — ALTYAPI:
+//  [SB-1] AllowedUserNameCharacters açıkça tanımlandı.
+//         Workspace Login formatı: "{tenantSlug}_{kısaAd}"
+//         İzin verilen: a-z, A-Z, 0-9, tire (-), alt tire (_)
+//         Kaldırılan: @ + . (e-posta stili karakterler)
 // ════════════════════════════════════════════════════════════════════════════
 
 using Microsoft.AspNetCore.Authentication;
@@ -65,6 +76,19 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
                 options.User.RequireUniqueEmail = false;
                 options.SignIn.RequireConfirmedEmail = false;
                 options.SignIn.RequireConfirmedAccount = false;
+
+                // ── [SB-1] Workspace Login Karakter İzni ─────────────────
+                // Identity varsayılanı "@", "+" ve "." gibi e-posta karakterlerine
+                // izin verir. Workspace Login formatımız "{tenantSlug}_{kısaAd}"
+                // yalnızca harf, rakam, tire ve alt tire kullanır; fazlası yasak.
+                //
+                // Bu kısıtlama hem tutarlılığı zorunlu kılar hem de yanlışlıkla
+                // e-posta formatında username oluşturulmasını engeller.
+                options.User.AllowedUserNameCharacters =
+                    "abcdefghijklmnopqrstuvwxyz" +
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+                    "0123456789" +
+                    "-_";   // tire: slug ayırıcısı  |  alt tire: tenant/kullanıcı ayırıcısı
             })
             .AddEntityFrameworkStores<RestaurantDbContext>()
             .AddDefaultTokenProviders();
@@ -76,6 +100,10 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
             //  Giriş işlemleri HttpContext.SignInAsync() ile elle yapılıyor.
             //  Bir Garson'un AppAuth cookie'si AdminAuth ile korunan
             //  endpoint'e teknik olarak izin VERMİYOR.
+            //
+            //  [SA-1] AppAuth → OnRedirectToLogin event eklendi.
+            //  AJAX/fetch istekleri (X-Requested-With: XMLHttpRequest veya
+            //  Accept: application/json) için 302 yerine 401 + JSON döner.
             // ════════════════════════════════════════════════════════════════
             builder.Services.AddAuthentication()
                 .AddCookie("AdminAuth", options =>
@@ -99,6 +127,28 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
                     options.Cookie.SameSite = SameSiteMode.Strict;
                     options.ExpireTimeSpan = TimeSpan.FromHours(8);
                     options.SlidingExpiration = true;
+
+                    // ── [SA-1] AJAX/Fetch 401 Handler ────────────────────
+                    options.Events.OnRedirectToLogin = async ctx =>
+                    {
+                        var req = ctx.Request;
+                        bool isAjax =
+                            req.Headers["X-Requested-With"] == "XMLHttpRequest" ||
+                            (req.Headers["Accept"].ToString()
+                                .Contains("application/json", StringComparison.OrdinalIgnoreCase));
+
+                        if (isAjax)
+                        {
+                            ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                            ctx.Response.ContentType = "application/json; charset=utf-8";
+                            await ctx.Response.WriteAsync(
+                                """{"error":"session_expired","redirectUrl":"/App/Auth/Login"}""");
+                        }
+                        else
+                        {
+                            ctx.Response.Redirect(ctx.RedirectUri);
+                        }
+                    };
                 });
 
             builder.Services.Configure<SecurityStampValidatorOptions>(options =>
@@ -111,7 +161,11 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
             // ── [MT] Multi-Tenancy Servisleri ─────────────────────────────
             builder.Services.AddHttpContextAccessor();
             builder.Services.AddScoped<ITenantService, HttpContextTenantService>();
-            builder.Services.AddScoped<IClaimsTransformation, TenantClaimsTransformation>();
+
+            // [SA-2] TenantClaimsTransformation KALDIRILDI.
+            // App/AuthController.Login() zaten TenantId claim'ini elle ekliyor.
+            // Silinen satır:
+            //   builder.Services.AddScoped<IClaimsTransformation, TenantClaimsTransformation>();
 
             // [SPRINT-4] Tenant Onboarding Servisi
             builder.Services.AddScoped<ITenantOnboardingService, TenantOnboardingService>();
@@ -170,25 +224,36 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
             // ════════════════════════════════════════════════════════════════
             //  [AREAS-ROUTES] Route Tanımları — Sıralama Kritik!
             //
-            //  Admin ve App route'ları default'tan ÖNCE tanımlanmalıdır.
-            // ════════════════════════════════════════════════════════════════
-            // ════════════════════════════════════════════════════════════════
-            //  [AREAS-ROUTES] Route Tanımları — DÜZELTİLDİ!
+            //  [FIX-405] Landing route, Admin route'undan ÖNCE tanımlanmalıdır.
+            //
+            //  Sorun: .NET 9 endpoint routing'de Admin route'u
+            //  "Admin/{controller}/{action}" pattern'i /Admin/Landing/Register
+            //  URL'ini eşleştirir (controller=Landing, area=Admin).
+            //  LandingController [Area("Admin")] içermediği için action
+            //  bulunamaz; .NET 9 bu durumda artık 404 yerine 405 döndürür.
+            //
+            //  Çözüm: LandingController'a ait tüm URL'leri (/Landing/...)
+            //  önce bu route yakalar → Admin route hiç devreye girmez.
             // ════════════════════════════════════════════════════════════════
 
-            // [ROUTE-1] Admin Area (Kesin Kısıtlama)
-            app.MapAreaControllerRoute(
-                name: "AdminArea",
-                areaName: "Admin",
-                pattern: "Admin/{controller=Home}/{action=Index}/{id?}");
+            // [ROUTE-0] Landing — Public, AllowAnonymous, area yok
+            // Admin route'undan ÖNCE olması zorunludur.
+            app.MapControllerRoute(
+                name: "landing",
+                pattern: "Landing/{action=Index}",
+                defaults: new { controller = "Landing", area = "" });
 
-            // [ROUTE-2] App Area (Kesin Kısıtlama)
-            app.MapAreaControllerRoute(
-                name: "AppArea",
-                areaName: "App",
-                pattern: "App/{controller=Home}/{action=Index}/{id?}");
+            app.MapControllerRoute(
+                name: "Admin",
+                pattern: "Admin/{controller=Home}/{action=Index}/{id?}",
+                defaults: new { area = "Admin" });
 
-            // [ROUTE-3] Default Route — Landing & Onboarding
+            app.MapControllerRoute(
+                name: "App",
+                pattern: "App/{controller=Tables}/{action=Index}/{id?}",
+                defaults: new { area = "App" });
+
+            // [SPRINT-4] controller=Landing — HomeController artık Areas/App içinde
             app.MapControllerRoute(
                 name: "default",
                 pattern: "{controller=Landing}/{action=Index}/{id?}")
@@ -200,7 +265,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
 
             // ════════════════════════════════════════════════════════════════
             //  Rol, Tenant & Kullanıcı Seed
-            //  Bu blok her başlangıçta idempotent çalışır (AnyAsync kontrolü).
             // ════════════════════════════════════════════════════════════════
             using (var scope = app.Services.CreateScope())
             {
@@ -208,15 +272,12 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
                 var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
                 var db = scope.ServiceProvider.GetRequiredService<RestaurantDbContext>();
 
-                // ── Roller ───────────────────────────────────────────────
-                // [AREAS-SEED] SysAdmin rolü eklendi
                 foreach (var roleName in new[] { "SysAdmin", "Admin", "Garson", "Kasiyer", "Kitchen" })
                 {
                     if (!await roleManager.RoleExistsAsync(roleName))
                         await roleManager.CreateAsync(new IdentityRole(roleName));
                 }
 
-                // ── [MT] Varsayılan Tenant Seed ──────────────────────────
                 const string defaultTenantId = "varsayilan-restoran";
 
                 if (!await db.Tenants.AnyAsync(t => t.TenantId == defaultTenantId))
@@ -243,7 +304,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
                     await db.SaveChangesAsync();
                 }
 
-                // ── Admin Kullanıcı Seed ─────────────────────────────────
                 if ((await userManager.GetUsersInRoleAsync("Admin")).Count == 0)
                 {
                     var adminPassword = builder.Configuration["ADMIN_INITIAL_PASSWORD"]
@@ -267,7 +327,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
                 }
                 else
                 {
-                    // Mevcut admin'in TenantId'si null ise ata (eski DB'den geçiş)
                     var admins = await userManager.GetUsersInRoleAsync("Admin");
                     foreach (var a in admins.Where(a => a.TenantId == null))
                     {
@@ -276,7 +335,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
                     }
                 }
 
-                // ── [AREAS-SEED] SysAdmin Kullanıcı Seed ────────────────
                 if ((await userManager.GetUsersInRoleAsync("SysAdmin")).Count == 0)
                 {
                     var sysAdminPassword = builder.Configuration["SYSADMIN_INITIAL_PASSWORD"]
@@ -291,7 +349,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
                         FullName = "SaaS Sistem Yöneticisi",
                         EmailConfirmed = true,
                         CreatedAt = DateTime.UtcNow,
-                        TenantId = null   // SysAdmin hiçbir tenant'a bağlı değil → Global Query Filter bypass
+                        TenantId = null
                     };
 
                     var createResult = await userManager.CreateAsync(sysAdmin, sysAdminPassword);
