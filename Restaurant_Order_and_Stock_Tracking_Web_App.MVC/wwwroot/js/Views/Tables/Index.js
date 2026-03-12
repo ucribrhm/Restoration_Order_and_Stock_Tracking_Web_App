@@ -20,7 +20,7 @@ async function postJson(url, payload) {
     const ct = res.headers.get('content-type') || '';
     if (res.status === 401 || (!ct.includes('application/json') && !res.ok)) {
         alert('Oturumunuz sona erdi. Giriş sayfasına yönlendiriliyorsunuz.');
-        window.location.href = window.APP_URLS?.authLogin ?? '/App/Auth/Login';
+        window.location.href = '/Auth/Login';
         throw new Error('Unauthorized');
     }
 
@@ -60,7 +60,7 @@ async function submitCreateTable() {
     };
 
     try {
-        const data = await postJson(window.APP_URLS.tablesCreate, payload);
+        const data = await postJson('/Tables/Create', payload);
         if (data.success) {
             window.location.href = data.redirectUrl || window.location.href;
         } else {
@@ -84,7 +84,7 @@ async function submitReserve() {
     };
 
     try {
-        const data = await postJson(window.APP_URLS.tablesReserve, payload);
+        const data = await postJson('/Tables/Reserve', payload);
         if (data.success) {
             window.location.href = data.redirectUrl || window.location.href;
         } else {
@@ -100,7 +100,7 @@ async function cancelReserve(tableId) {
     if (!confirm('Rezervasyon iptal edilsin mi?')) return;
 
     try {
-        const data = await postJson(window.APP_URLS.tablesCancelReserve, { tableId });
+        const data = await postJson('/Tables/CancelReserve', { tableId });
         if (data.success) { location.reload(); }
         else { alert('Hata: ' + (data.message || 'Bilinmeyen hata')); }
     } catch (e) {
@@ -113,7 +113,7 @@ async function deleteTable(tableId, tableName) {
     if (!confirm(`'${tableName}' silinsin mi?`)) return;
 
     try {
-        const data = await postJson(window.APP_URLS.tablesDelete, { tableId });
+        const data = await postJson('/Tables/Delete', { tableId });
         if (data.success) { location.reload(); }
         else { alert('Hata: ' + (data.message || 'Bilinmeyen hata')); }
     } catch (e) {
@@ -191,7 +191,7 @@ async function submitMerge() {
     submitBtn.textContent = '⏳ Birleştiriliyor...';
 
     try {
-        const data = await postJson(window.APP_URLS.tablesMergeOrder, {
+        const data = await postJson('/Tables/MergeOrder', {
             sourceTableId: mergeSourceId,
             targetTableId: mergeTargetId
         });
@@ -355,12 +355,9 @@ setInterval(checkReservationWarnings, 60000);
 
 
 // ══════════════════════════════════════════════════════════════
-// ── YENİ: Garson SLA Timer ───────────────────────────────────
+// ── Garson SLA Timer ─────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════
 
-/**
- * Geçen saniyeyi "X sn önce / X dk önce / X sa X dk önce" formatına çevirir.
- */
 function formatElapsed(totalSeconds) {
     if (totalSeconds < 60) return `${totalSeconds} sn önce`;
     if (totalSeconds < 3600) return `${Math.floor(totalSeconds / 60)} dk önce`;
@@ -369,31 +366,20 @@ function formatElapsed(totalSeconds) {
     return `${h} sa ${m} dk önce`;
 }
 
-/**
- * Sayfadaki tüm .waiter-sla-timer span'larını tarar, içeriğini günceller.
- * 10 dakika = 600 sn üzerinde → kırmızı + sla-violated class
- */
 function tickSlaTimers() {
     const now = Date.now();
-
     document.querySelectorAll('.waiter-sla-timer[data-called-at]').forEach(span => {
         const calledAt = new Date(span.dataset.calledAt).getTime();
         if (isNaN(calledAt)) return;
-
-        const elapsed = Math.floor((now - calledAt) / 1000); // saniye cinsinden
+        const elapsed = Math.floor((now - calledAt) / 1000);
         const elapsedMin = elapsed / 60;
-
         span.textContent = ` (${formatElapsed(elapsed)})`;
-
         const card = span.closest('.table-card');
-
         if (elapsedMin > 10) {
-            // SLA İHLALİ — kırmızı
             span.style.color = '#ef4444';
             span.style.fontWeight = '700';
             if (card) card.classList.add('sla-violated');
         } else {
-            // Normal uyarı — sarı
             span.style.color = '#fbbf24';
             span.style.fontWeight = '600';
             if (card) card.classList.remove('sla-violated');
@@ -401,59 +387,48 @@ function tickSlaTimers() {
     });
 }
 
-// Sayfa yüklenir yüklenmez çalıştır, sonra her 15 saniyede bir güncelle
 tickSlaTimers();
 setInterval(tickSlaTimers, 15000);
 
 
-
-// ── [MADDE-3] Sipariş Servis Et ─────────────────────────────────────────
-// Tables/Index'teki "Servis Et" butonu çağırır → OrderService.UpdateItemStatusAsync
-async function serveOrder(tableId, tableName) {
-    try {
-        // O masanın açık adisyonundaki Ready kalemleri bul ve Served yap
-        const data = await postJson(window.APP_URLS.tablesServeReadyItems, { tableId });
-        if (!data.success) {
-            console.warn('ServeReadyItems başarısız:', data.message);
-            showToast('toast-serve-err', 'danger', '⚠️', 'Hata', data.message || 'Servis işlemi başarısız', 4000);
-        }
-        // Başarı durumunda UI, SignalR'dan gelen "OrderServed" eventi ile güncellenir.
-    } catch (err) {
-        console.error('serveOrder hatası:', err);
-    }
-}
-
-// ── Garson Çağrısını Onayla (Garson → DismissWaiter) ────────────────────
+// ── Garson Çağrısını Onayla ───────────────────────────────────
 async function dismissWaiter(tableName) {
     try {
-        const data = await postJson(window.APP_URLS.tablesDismissWaiter, { tableName });
-        if (!data.success) {
-            console.warn('DismissWaiter başarısız:', data.message);
-        }
-        // Başarı durumunda UI, SignalR'dan gelen "WaiterDismissed" eventi ile güncellenir.
+        const data = await postJson('/Tables/DismissWaiter', { tableName });
+        if (!data.success) console.warn('DismissWaiter başarısız:', data.message);
     } catch (err) {
         console.error('DismissWaiter hatası:', err);
     }
 }
 
 
-// ── SignalR Bağlantısı ───────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// ── SignalR Bağlantısı — SPRINT 3
+// ══════════════════════════════════════════════════════════════
 (function initSignalR() {
+
     const connection = new signalR.HubConnectionBuilder()
-        .withUrl("/hubs/restaurant")
+        .withUrl('/hubs/restaurant')
         .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
         .configureLogging(signalR.LogLevel.Warning)
         .build();
 
-    // ── WaiterCalled: Müşteri garson çağırdı ────────────────────────────
-    // YENİ: payload artık calledAtUtc de içeriyor — SLA timer için kullanıyoruz
-    connection.on("WaiterCalled", function (payload) {
+    // ── Reconnect durum logları ────────────────────────────────
+    connection.onreconnecting(err =>
+        console.warn('[SignalR:Tables] Bağlantı koptu, yeniden bağlanıyor...', err));
+    connection.onreconnected(cid =>
+        console.info('[SignalR:Tables] Yeniden bağlandı. ConnectionId:', cid));
+    connection.onclose(err =>
+        console.error('[SignalR:Tables] Bağlantı kalıcı olarak kapandı.', err));
+
+    // ── WaiterCalled ───────────────────────────────────────────
+    connection.off('WaiterCalled');
+    connection.on('WaiterCalled', function (payload) {
         const card = document.querySelector(`.table-card[data-table-name="${payload.tableName}"]`);
         if (!card) return;
 
         card.classList.add('waiter-called');
 
-        // data attribute'ü güncelle (sonraki tickSlaTimers çağrısı bunu okur)
         if (payload.calledAtUtc) {
             card.dataset.waiterCalledAt = payload.calledAtUtc;
         }
@@ -461,11 +436,8 @@ async function dismissWaiter(tableName) {
         if (!card.querySelector('.waiter-bell-badge')) {
             const badge = document.createElement('div');
             badge.className = 'waiter-bell-badge';
-
-            // "🔔 Garson!" metni
             badge.appendChild(document.createTextNode('🔔 Garson!'));
 
-            // SLA timer span
             if (payload.calledAtUtc) {
                 const timerSpan = document.createElement('span');
                 timerSpan.className = 'waiter-sla-timer';
@@ -474,7 +446,7 @@ async function dismissWaiter(tableName) {
             }
 
             card.prepend(badge);
-            tickSlaTimers(); // yeni eklenen timer'ı anında hesapla
+            tickSlaTimers();
         }
 
         const actions = card.querySelector('.card-actions');
@@ -488,91 +460,76 @@ async function dismissWaiter(tableName) {
         }
     });
 
-    // ── WaiterDismissed: Garson ilgilendi ────────────────────────────────
-    connection.on("WaiterDismissed", function (payload) {
+    // ── WaiterDismissed ────────────────────────────────────────
+    connection.off('WaiterDismissed');
+    connection.on('WaiterDismissed', function (payload) {
         const card = document.querySelector(`.table-card[data-table-name="${payload.tableName}"]`);
         if (!card) return;
-
-        card.classList.remove('waiter-called');
-        card.classList.remove('sla-violated');
+        card.classList.remove('waiter-called', 'sla-violated');
         card.removeAttribute('data-waiter-called-at');
         card.querySelector('.waiter-bell-badge')?.remove();
         card.querySelector('.dismiss-waiter')?.remove();
     });
 
-
-    // ── [MADDE-3] OrderReady: Mutfak siparişi hazırladı → masa kartına rozet + buton ──
-    connection.on("OrderReady", function (payload) {
-        const card = document.querySelector(`.table-card[data-table-id="${payload.tableId}"]`);
+    // ── OrderReadyForPickup — YENİ ─────────────────────────────
+    // payload: { orderItemId, orderId, tableName, menuItemName, readyAt }
+    connection.off('OrderReadyForPickup');
+    connection.on('OrderReadyForPickup', function (payload) {
+        // İlgili masa kartını bul
+        const card = document.querySelector(`.table-card[data-table-name="${payload.tableName}"]`);
         if (!card) return;
 
-        card.classList.add('order-ready');
+        // Aynı kalem için rozet zaten varsa ekleme
+        const badgeId = `ready-badge-${payload.orderItemId}`;
+        if (document.getElementById(badgeId)) return;
 
-        // Rozet ekle (yoksa)
-        if (!card.querySelector('.order-ready-badge')) {
-            const badge = document.createElement('div');
-            badge.className = 'order-ready-badge';
-            badge.id = `ready-badge-${payload.tableId}`;
-            badge.textContent = '🍽️ Sipariş Hazır!';
-            card.prepend(badge);
+        // Yeşil rozet oluştur
+        const badge = document.createElement('span');
+        badge.id = badgeId;
+        badge.className = 'ready-item-badge';
+        badge.textContent = `✅ ${payload.menuItemName} Hazır`;
+
+        // Rozeti sipariş kalemleri alanına veya kart sonuna ekle
+        const itemsPreview = card.querySelector('.order-items-preview');
+        if (itemsPreview) {
+            itemsPreview.appendChild(badge);
+        } else {
+            card.appendChild(badge);
         }
 
-        // "Servis Et" butonu ekle (card-actions içine, yoksa)
-        const actions = card.querySelector('.card-actions');
-        if (actions && !actions.querySelector('.serve-order-btn')) {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'card-btn serve-order-btn';
-            btn.setAttribute('data-table-id', payload.tableId);
-            btn.innerHTML = '🍽️ Servis Et';
-            btn.onclick = () => serveOrder(payload.tableId, payload.tableName);
-            actions.insertBefore(btn, actions.firstChild);
-        }
+        // Masa kartına yeşil pulse ekle
+        card.classList.add('has-ready-items');
 
-        // Toast: geçici bilgi
+        // Toast bildirimi göster
         showToast(
-            'toast-ready-' + payload.tableId,
-            'success', '🍽️',
-            `${payload.tableName} — Sipariş Hazır`,
-            `${payload.menuItemName} servis için hazır!`,
+            `ready-${payload.orderItemId}`,
+            'success',
+            '✅',
+            `${payload.tableName} — Hazır!`,
+            `${payload.menuItemName} servis için hazır`,
             8000
         );
+
+        // 60 saniye sonra rozeti ve pulse'u otomatik kaldır
+        setTimeout(() => {
+            document.getElementById(badgeId)?.remove();
+            if (!card.querySelector('.ready-item-badge')) {
+                card.classList.remove('has-ready-items');
+            }
+        }, 60000);
     });
 
-    // ── [MADDE-3] OrderServed: Garson servis etti → rozeti ve butonu kaldır ────────
-    connection.on("OrderServed", function (payload) {
-        const card = document.querySelector(`.table-card[data-table-id="${payload.tableId}"]`);
-        if (!card) return;
-
-        card.classList.remove('order-ready');
-        card.querySelector(`#ready-badge-${payload.tableId}`)?.remove();
-        card.querySelector('.serve-order-btn')?.remove();
-    });
-
-    // ── [MADDE-4] RemoveOrderCard: İptal/Birleştirme → masa kartını anında temizle ──
-    // (Tables/Index sadece masa kartı gösterir; KDS kartı değil)
-    // Bu event masa durumu değiştiğinde veya birleştirmede tetiklenir.
-    // Tables/Index'teki masa kartı state'i zaten allTablesData'dan geliyor;
-    // tam kart refresh için partial endpoint kullanıyoruz.
-    connection.on("RemoveOrderCard", function (payload) {
-        // Birleştirmede eski masanın durum güncellenmesi gerekiyor (zaten redirect var)
-        // Tables/Index'de kart DOM'u etkilenmez — masa kartı tableId ile tanınır, orderId ile değil
-    });
-
-    connection.on("OrderUpdated", function (payload) {
-        // Tables/Index: kart state'i DB'den; merkezi refresh tetiklenebilir
-        // Şimdilik: birleştirme zaten location.reload yapıyor; iptal için masa kartı değişmez
-    });
-    // ── Bağlantıyı Başlat ────────────────────────────────────────────────
+    // ── Bağlantıyı başlat ──────────────────────────────────────
     async function startConnection() {
         try {
             await connection.start();
-            console.log('[SignalR] Bağlandı → /hubs/restaurant');
+            console.info('[SignalR:Tables] Bağlandı → /hubs/restaurant');
         } catch (err) {
-            console.error('[SignalR] Bağlantı hatası, 5sn sonra tekrar denenecek:', err);
+            console.error('[SignalR:Tables] Bağlantı hatası, 5sn sonra tekrar:', err);
             setTimeout(startConnection, 5000);
         }
     }
 
     startConnection();
+
 })();

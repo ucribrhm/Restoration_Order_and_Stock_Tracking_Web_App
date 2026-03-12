@@ -8,206 +8,54 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RestaurantOS — Giriş</title>
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <style>
-        body {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            background: var(--bg);
-            font-family: 'DM Sans', sans-serif;
-        }
+    <title>RestaurantOS — Personel Girişi</title>
 
-        .login-wrap {
-            width: 100%;
-            max-width: 420px;
-            padding: 1rem;
-        }
+    @* ── FOUC Önleme ── *@
+    <script>
+            (function () {
+                var t = localStorage.getItem('ros-theme') || 'dark';
+                document.documentElement.setAttribute('data-theme', t);
+            })();
+    </script>
 
-        .login-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 2.5rem 2rem;
-            box-shadow: var(--shadow);
-        }
-
-        /* ── Logo ── */
-        .login-logo {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-        .login-logo .logo-icon  { font-size: 2.8rem; }
-
-        .login-logo .logo-text {
-            display: block;
-            font-family: 'Syne', sans-serif;
-            font-size: 1.6rem;
-            font-weight: 800;
-            color: var(--text);
-            margin-top: 0.4rem;
-            letter-spacing: -0.5px;
-        }
-
-        .login-logo .logo-sub {
-            display: block;
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            margin-top: 0.2rem;
-        }
-
-        /* ── Alan Ayırıcısı ── */
-        .field-divider {
-            display: flex;
-            align-items: center;
-            gap: .6rem;
-            margin: .4rem 0 1rem;
-        }
-
-        .field-divider hr {
-            flex: 1;
-            border: none;
-            border-top: 1px solid var(--border);
-            margin: 0;
-        }
-
-        .field-divider span {
-            font-size: .7rem;
-            font-weight: 700;
-            letter-spacing: .1em;
-            text-transform: uppercase;
-            color: var(--text-muted);
-            white-space: nowrap;
-        }
-
-        /* ── Firma Kodu Alanı — Özel Vurgu ── */
-        .login-field-firma {
-            margin-bottom: 1rem;
-        }
-
-        .login-field-firma .login-label {
-            color: var(--accent);  /* turuncu — birincil eylem rengi */
-        }
-
-        .login-field-firma .login-input:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.18);
-        }
-
-        /* ── Standart Alanlar ── */
-        .login-field {
-            margin-bottom: 1.2rem;
-        }
-
-        .login-label {
-            display: block;
-            font-size: 0.8rem;
-            font-weight: 500;
-            color: var(--text-muted);
-            margin-bottom: 0.4rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .login-input {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            color: var(--text);
-            font-family: 'DM Sans', sans-serif;
-            font-size: 0.95rem;
-            transition: border-color 0.2s;
-            outline: none;
-            box-sizing: border-box;
-        }
-
-        .login-input:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
-        }
-
-        .login-input.is-invalid { border-color: #ef4444; }
-
-        .field-error {
-            font-size: 0.8rem;
-            color: #ef4444;
-            margin-top: 0.3rem;
-        }
-
-        .field-hint {
-            font-size: 0.78rem;
-            color: var(--text-muted);
-            margin-top: 0.3rem;
-        }
-
-        /* ── Beni Hatırla ── */
-        .login-remember {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 1.5rem;
-            font-size: 0.9rem;
-            color: var(--text-muted);
-            cursor: pointer;
-        }
-
-        .login-remember input[type="checkbox"] {
-            accent-color: var(--accent);
-            width: 16px;
-            height: 16px;
-        }
-
-        /* ── Submit ── */
-        .login-btn {
-            width: 100%;
-            padding: 0.9rem;
-            background: var(--accent);
-            color: #fff;
-            font-family: 'DM Sans', sans-serif;
-            font-size: 1rem;
-            font-weight: 600;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: background 0.2s, transform 0.1s;
-        }
-
-        .login-btn:hover  { background: var(--accent-hover); }
-        .login-btn:active { transform: scale(0.98); }
-
-        /* ── Hata Bandı ── */
-        .alert-error {
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.3);
-            border-radius: 10px;
-            padding: 0.75rem 1rem;
-            font-size: 0.88rem;
-            color: #fca5a5;
-            margin-bottom: 1.2rem;
-        }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,700;1,800&family=Lato:wght@300;400;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/theme.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/auth.css" asp-append-version="true" />
 </head>
 <body>
-    
-    <div class="login-wrap">
-       
-        <div class="login-card">
 
-            <div class="login-logo">
-                <div class="logo-icon">🍽️</div>
-                <span class="logo-text">RestaurantOS</span>
-                <span class="logo-sub">Personel Girişi</span>
+    @* ── Arka Plan ── *@
+    <div class="auth-bg" aria-hidden="true">
+        <div class="auth-orb auth-orb-1"></div>
+        <div class="auth-orb auth-orb-2"></div>
+        <div class="auth-orb auth-orb-3"></div>
+        <div class="auth-grid"></div>
+    </div>
+
+    <div class="auth-wrap">
+
+        @* ── Geri Link ── *@
+        <a class="auth-back" href="/">
+            <span class="auth-back-arrow">←</span>
+            Ana Sayfaya Dön
+        </a>
+
+        <div class="auth-card">
+
+            @* ── Logo ── *@
+            <div class="auth-logo">
+                <span class="auth-logo-icon" aria-hidden="true">🍽</span>
+                <span class="auth-logo-text">RestaurantOS</span>
+                <span class="auth-logo-sub">Personel Girişi</span>
             </div>
 
+            <h1 class="auth-title">Tekrar Hoşgeldiniz</h1>
+            <p class="auth-subtitle">Hesabınıza giriş yapın</p>
+
+            @* ── Hata Bandı ── *@
             @if (!ViewData.ModelState.IsValid && ViewData.ModelState.ErrorCount > 0)
             {
-                <div class="alert-error">
+                <div class="auth-alert" role="alert">
                     @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
                     {
                         <div>@error.ErrorMessage</div>
@@ -215,65 +63,135 @@
                 </div>
             }
 
-            <form asp-action="Login" asp-area="App" asp-controller="Auth" method="post">
+            <form asp-action="Login" asp-area="App" asp-controller="Auth" method="post" id="loginForm" novalidate>
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
 
-                @* ── ADIM 1: Firma Kodu ── *@
-                @* Workspace Login'in ilk adımı: kullanıcının hangi restorana    *@
-                @* ait olduğunu belirler. Turuncu label ile öne çıkarılır.       *@
-                <div class="login-field login-field-firma">
-                    <label class="login-label" asp-for="FirmaKodu">🏷️ Firma Kodu</label>
-                    <input class="login-input @(ViewData.ModelState["FirmaKodu"]?.Errors.Any() == true ? "is-invalid" : "")"
+                @*
+                ── ADIM 1: Firma Kodu ──
+                Workspace Login: hangi restorana ait olduğunu belirler.
+                Label turuncu renk ile öne çıkarılır.
+            *@
+                <div class="auth-field">
+                    <label class="auth-label auth-label--accent" asp-for="FirmaKodu">
+                        🏷 Firma Kodu
+                    </label>
+                    <input class="auth-input @(ViewData.ModelState["FirmaKodu"]?.Errors.Any() == true ? "is-invalid" : "")"
                            asp-for="FirmaKodu"
+                           type="text"
                            autocomplete="organization"
                            autocapitalize="none"
-                           placeholder="burger-palace-a1b2c3d4"
-                           spellcheck="false" />
-                    <span class="field-error" asp-validation-for="FirmaKodu"></span>
-                    <span class="field-hint">Kayıt sırasında size verilen firma kodunuzu girin.</span>
+                           autocorrect="off"
+                           spellcheck="false"
+                           placeholder="burger-palace-a1b2c3d4" />
+                    <span class="auth-hint">Kayıt sırasında size verilen firma kodunuzu girin.</span>
+                    @if (ViewData.ModelState["FirmaKodu"]?.Errors.Any() == true)
+                    {
+                        <span class="auth-error" asp-validation-for="FirmaKodu">@ViewData.ModelState["FirmaKodu"]!.Errors.First().ErrorMessage</span>
+                    }
                 </div>
 
-                @* ── Ayırıcı ── *@
-                <div class="field-divider">
+                @* ── Ayırıcı: Firma Kodu / Kullanıcı Bilgileri ── *@
+                <div class="auth-field-divider">
                     <hr /><span>Kullanıcı Bilgileri</span><hr />
                 </div>
 
-                @* ── ADIM 2: Kullanıcı Adı ── *@
-                @* Kısa kullanıcı adı girilir (prefix'siz).                      *@
-                @* Controller: fullUsername = "{FirmaKodu}_{Username}"           *@
-                <div class="login-field">
-                    <label class="login-label" asp-for="Username">Kullanıcı Adı</label>
-                    <input class="login-input @(ViewData.ModelState["Username"]?.Errors.Any() == true ? "is-invalid" : "")"
+                @*
+                ── ADIM 2: Kullanıcı Adı ──
+                Kısa kullanıcı adı (prefix'siz). Controller birleştirir.
+                fullUsername = "{FirmaKodu}_{Username}"
+            *@
+                <div class="auth-field">
+                    <label class="auth-label" asp-for="Username">Kullanıcı Adı</label>
+                    <input class="auth-input @(ViewData.ModelState["Username"]?.Errors.Any() == true ? "is-invalid" : "")"
                            asp-for="Username"
+                           type="text"
                            autocomplete="username"
                            autocapitalize="none"
-                           placeholder="ahmet"
-                           spellcheck="false" />
-                    <span class="field-error" asp-validation-for="Username"></span>
+                           autocorrect="off"
+                           spellcheck="false"
+                           placeholder="ahmet" />
+                    @if (ViewData.ModelState["Username"]?.Errors.Any() == true)
+                    {
+                        <span class="auth-error">@ViewData.ModelState["Username"]!.Errors.First().ErrorMessage</span>
+                    }
                 </div>
 
                 @* ── ADIM 3: Şifre ── *@
-                <div class="login-field">
-                    <label class="login-label" asp-for="Password">Şifre</label>
-                    <input class="login-input @(ViewData.ModelState["Password"]?.Errors.Any() == true ? "is-invalid" : "")"
-                           asp-for="Password"
-                           type="password"
-                           autocomplete="current-password"
-                           placeholder="••••••••" />
-                    <span class="field-error" asp-validation-for="Password"></span>
+                <div class="auth-field">
+                    <label class="auth-label" asp-for="Password">Şifre</label>
+                    <div class="auth-input-wrap">
+                        <input class="auth-input @(ViewData.ModelState["Password"]?.Errors.Any() == true ? "is-invalid" : "")"
+                               asp-for="Password"
+                               type="password"
+                               id="passwordInput"
+                               autocomplete="current-password"
+                               placeholder="••••••••" />
+                        <button type="button" class="auth-pw-toggle" id="pwToggle"
+                                aria-label="Şifreyi göster / gizle"
+                                data-target="passwordInput">
+                            👁
+                        </button>
+                    </div>
+                    @if (ViewData.ModelState["Password"]?.Errors.Any() == true)
+                    {
+                        <span class="auth-error">@ViewData.ModelState["Password"]!.Errors.First().ErrorMessage</span>
+                    }
                 </div>
 
-                <label class="login-remember">
-                    <input type="checkbox" asp-for="RememberMe" />
-                    Beni Hatırla (30 gün)
-                </label>
+                @* ── Beni Hatırla + Şifremi Unuttum ── *@
+                <div class="auth-remember-row">
+                    <label class="auth-remember">
+                        <input type="checkbox" asp-for="RememberMe" />
+                        Beni Hatırla (30 gün)
+                    </label>
+                    <a class="auth-forgot" href="#">Şifremi Unuttum?</a>
+                </div>
 
-                <button type="submit" class="login-btn">Giriş Yap →</button>
+                @* ── Submit ── *@
+                <button type="submit" class="auth-submit" id="loginSubmit">
+                    <span class="auth-spinner" aria-hidden="true"></span>
+                    <span class="auth-submit-text">Giriş Yap →</span>
+                </button>
             </form>
-            
+
+            @* ── Alt Link ── *@
+            <div class="auth-footer">
+                Hesabınız yok mu?
+                <a asp-area="" asp-controller="Landing" asp-action="Register">Ücretsiz Kayıt Olun →</a>
+            </div>
 
         </div>
     </div>
+
+    <script>
+            (function () {
+                /* ── Şifre göster / gizle ──────────────────────────────────── */
+                var pwToggle = document.getElementById('pwToggle');
+                if (pwToggle) {
+                    pwToggle.addEventListener('click', function () {
+                        var inp = document.getElementById(this.getAttribute('data-target'));
+                        if (!inp) return;
+                        var isHidden = inp.type === 'password';
+                        inp.type = isHidden ? 'text' : 'password';
+                        this.textContent = isHidden ? '🙈' : '👁';
+                        this.setAttribute('aria-label', isHidden ? 'Şifreyi gizle' : 'Şifreyi göster');
+                    });
+                }
+
+                /* ── Submit spinner ────────────────────────────────────────── */
+                var form = document.getElementById('loginForm');
+                var btn  = document.getElementById('loginSubmit');
+                if (form && btn) {
+                    form.addEventListener('submit', function () {
+                        btn.classList.add('loading');
+                    });
+                }
+
+                /* ── Tema toggle (sayfa içi) ────────────────────────────────── */
+                /* Login sayfasında tema butonu yok; ama FOUC önleme çalışır. */
+            })();
+    </script>
+
 </body>
 </html>

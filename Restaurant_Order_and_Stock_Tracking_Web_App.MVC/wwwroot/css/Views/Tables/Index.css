@@ -867,110 +867,48 @@
     color: #fbbf24;
     white-space: nowrap;
 }
-/* ══════════════════════════════════════════════════════════════════
-   [SPRINT-4] Sipariş Hazır — Kalıcı rozet & kart animasyonu
-   ══════════════════════════════════════════════════════════════════ */
+/* ============================================================================
+   Sprint 3 Eki — Hazır Sipariş Rozeti + Masa Pulse Animasyonları
+   ============================================================================ */
 
-/* Masa kartı: sipariş hazır durumu */
-.table-card.order-ready {
-    border: 2.5px solid #22c55e !important;
-    animation: ready-pulse-border 1.8s ease-in-out infinite;
-    position: relative;
-}
-
-@keyframes ready-pulse-border {
-    0%, 100% {
-        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
-    }
-
-    50% {
-        box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
-    }
-}
-
-/* Hazır rozeti — waiter-bell-badge ile aynı konumlandırma mantığı */
-.order-ready-badge {
-    position: absolute;
-    top: -12px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #16a34a;
-    color: #fff;
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    padding: 2px 10px;
-    border-radius: 999px;
-    white-space: nowrap;
-    animation: ready-shake 2s ease-in-out infinite;
-    z-index: 10;
-    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.45);
-}
-
-@keyframes ready-shake {
-    0%, 85%, 100% {
-        transform: translateX(-50%) rotate(0deg);
-    }
-
-    88% {
-        transform: translateX(-50%) rotate(-4deg);
-    }
-
-    92% {
-        transform: translateX(-50%) rotate(4deg);
-    }
-
-    96% {
-        transform: translateX(-50%) rotate(-2deg);
-    }
-}
-
-/* ── [MADDE-2 & 3] Servis Et butonu ─────────────────────────────────────── */
-.card-btn.serve-order-btn {
-    background: linear-gradient(135deg, #16a34a, #15803d);
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    padding: 6px 12px;
-    font-size: 0.82rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 0.18s, transform 0.1s, box-shadow 0.18s;
-    width: 100%;
-    margin-top: 4px;
-    animation: serve-btn-pulse 1.6s ease-in-out infinite;
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
-}
-
-    .card-btn.serve-order-btn:hover {
-        background: linear-gradient(135deg, #22c55e, #16a34a);
-        transform: scale(1.02);
-    }
-
-    .card-btn.serve-order-btn:active {
-        transform: scale(0.97);
-    }
-
-@keyframes serve-btn-pulse {
-    0%, 100% {
-        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
-    }
-
-    50% {
-        box-shadow: 0 0 0 7px rgba(34, 197, 94, 0);
-    }
-}
-
-/* ── [MADDE-2] Orders/Detail — Ready bilgi rozeti ───────────────────────── */
-.sflow-badge-ready {
+/* ── Hazır Sipariş Rozeti ────────────────────────────────────────────────── */
+.ready-item-badge {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 0.78rem;
-    font-weight: 600;
-    background: rgba(34, 197, 94, 0.12);
+    background: rgba(34, 197, 94, .15);
     color: #22c55e;
-    border: 1px solid rgba(34, 197, 94, 0.25);
+    border: 1px solid rgba(34, 197, 94, .3);
+    border-radius: 8px;
+    padding: 2px 8px;
+    font-size: .72rem;
+    font-weight: 600;
+    margin-top: 4px;
+    animation: readyPulse 2s ease-in-out infinite;
+}
+
+@keyframes readyPulse {
+    0%, 100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: .55;
+    }
+}
+
+/* ── Hazır Ürün Olan Masa Kartı — Yeşil Kenarlık Pulse ──────────────────── */
+.has-ready-items {
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, .5) !important;
+    animation: borderPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes borderPulse {
+    0%, 100% {
+        box-shadow: 0 0 0 2px rgba(34, 197, 94, .5);
+    }
+
+    50% {
+        box-shadow: 0 0 0 5px rgba(34, 197, 94, .15);
+    }
 }

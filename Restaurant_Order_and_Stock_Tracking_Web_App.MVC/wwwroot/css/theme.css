@@ -1,0 +1,97 @@
+﻿/* ═══════════════════════════════════════════════════════════════
+   RestaurantOS — theme.css
+   wwwroot/css/theme.css
+
+   Global Tema Değişkenleri — Dark / Light Mode
+
+   TÜM public sayfalar bu dosyayı yükler.
+   _AppLayout.cshtml de bu dosyayı yükler (FOUC önleme + smooth geçiş).
+
+   Tasarım DNA:
+     Koyu Mor (#1E1B4B) + Elektrik Lavender (#818CF8)
+     Playfair Display (başlık) + Lato (gövde)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Google Fonts ──────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;0,900;1,700;1,800;1,900&family=Lato:wght@300;400;700;900&display=swap');
+
+/* ══════════════════════════════════════════════════════════════════
+   DARK MODE (varsayılan — data-theme="dark" veya hiç ayarlanmamış)
+   ══════════════════════════════════════════════════════════════════ */
+:root {
+    /* ── Zemin ─────────────────────────────── */
+    --color-bg: #1E1B4B;
+    --color-bg-deep: #151231;
+    --color-surface: #2D2A6E;
+    --color-surface2: #373480;
+    --color-surface3: rgba(45, 42, 110, 0.60);
+    /* ── Aksan ─────────────────────────────── */
+    --color-accent: #818CF8;
+    --color-accent-lt: #C7D2FE;
+    --color-accent-dk: #6366F1;
+    --color-accent-glow: rgba(129, 140, 248, 0.25);
+    --color-accent-glow-sm: rgba(129, 140, 248, 0.12);
+    /* ── Metin ─────────────────────────────── */
+    --color-text: #F1F5F9;
+    --color-muted: #94A3B8;
+    --color-faint: #4B5563;
+    /* ── Kenarlık ──────────────────────────── */
+    --color-border: rgba(129, 140, 248, 0.18);
+    --color-border-lt: rgba(255, 255, 255, 0.05);
+    /* ── Gölge & Parlaklık ─────────────────── */
+    --color-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+    --color-shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.4);
+    /* ── Gradyanlar ────────────────────────── */
+    --gradient-accent: linear-gradient(135deg, #818CF8 0%, #6366F1 100%);
+    --gradient-hero: radial-gradient(ellipse at 15% 40%, rgba(99, 102, 241, 0.18) 0%, transparent 55%), radial-gradient(ellipse at 85% 15%, rgba(129, 140, 248, 0.14) 0%, transparent 55%), linear-gradient(180deg, #151231 0%, #1E1B4B 100%);
+    /* ── Tipografi ─────────────────────────── */
+    --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+    --font-body: 'Lato', 'Helvetica Neue', Arial, sans-serif;
+    /* ── Animasyon Hızları ─────────────────── */
+    --transition: 0.3s ease;
+    --transition-fast: 0.15s ease;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   LIGHT MODE OVERRIDE
+   ══════════════════════════════════════════════════════════════════ */
+[data-theme="light"] {
+    --color-bg: #F8F7FF;
+    --color-bg-deep: #EDEDFF;
+    --color-surface: #FFFFFF;
+    --color-surface2: #F0EEFF;
+    --color-surface3: rgba(255, 255, 255, 0.80);
+    --color-accent: #6366F1;
+    --color-accent-lt: #818CF8;
+    --color-accent-dk: #4F46E5;
+    --color-accent-glow: rgba(99, 102, 241, 0.15);
+    --color-accent-glow-sm: rgba(99, 102, 241, 0.08);
+    --color-text: #1E1B4B;
+    --color-muted: #6B7280;
+    --color-faint: #9CA3AF;
+    --color-border: rgba(99, 102, 241, 0.20);
+    --color-border-lt: rgba(0, 0, 0, 0.05);
+    --color-shadow: 0 8px 32px rgba(99, 102, 241, 0.12);
+    --color-shadow-sm: 0 2px 12px rgba(99, 102, 241, 0.08);
+    --gradient-accent: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+    --gradient-hero: radial-gradient(ellipse at 15% 40%, rgba(99, 102, 241, 0.08) 0%, transparent 55%), radial-gradient(ellipse at 85% 15%, rgba(129, 140, 248, 0.06) 0%, transparent 55%), linear-gradient(180deg, #F8F7FF 0%, #EDEDFF 100%);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SMOOTH TEMA GEÇİŞİ
+   (sadece renk/kenarlık — layout/transform geçişleri etkilenmesin)
+   ══════════════════════════════════════════════════════════════════ */
+*, *::before, *::after {
+    transition: background-color var(--transition), color var(--transition), border-color var(--transition), box-shadow var(--transition), fill var(--transition), stroke var(--transition);
+}
+
+/* Animasyonlu elementler kendi geçişlerini override eder */
+.no-theme-transition,
+.no-theme-transition * {
+    transition: none !important;
+}
+
+/* Orb / backdrop animasyonları tema geçişinden etkilenmesin */
+.orb, .auth-orb, .orbs-container, .auth-bg {
+    transition: opacity var(--transition) !important;
+}

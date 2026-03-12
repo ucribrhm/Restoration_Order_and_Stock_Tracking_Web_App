@@ -8,182 +8,54 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RestaurantOS — Restoranınızı Kaydedin</title>
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <style>
-            body {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                min-height: 100vh;
-                background: var(--bg);
-                font-family: 'DM Sans', sans-serif;
-                padding: 2rem 1rem;
-                box-sizing: border-box;
-            }
+    <title>RestaurantOS — Yeni Restoran Kaydı</title>
 
-            .reg-wrap {
-                width: 100%;
-                max-width: 500px;
-            }
+    @* ── FOUC Önleme ── *@
+    <script>
+            (function () {
+                var t = localStorage.getItem('ros-theme') || 'dark';
+                document.documentElement.setAttribute('data-theme', t);
+            })();
+    </script>
 
-            .reg-card {
-                background: var(--surface);
-                border: 1px solid var(--border);
-                border-radius: 20px;
-                padding: 2.5rem 2rem;
-                box-shadow: var(--shadow);
-            }
-
-            .reg-logo {
-                text-align: center;
-                margin-bottom: 2rem;
-            }
-
-                .reg-logo .logo-icon {
-                    font-size: 2.5rem;
-                }
-
-                .reg-logo .logo-text {
-                    display: block;
-                    font-family: 'Syne', sans-serif;
-                    font-size: 1.5rem;
-                    font-weight: 800;
-                    color: var(--text);
-                    margin-top: 0.3rem;
-                }
-
-                .reg-logo .logo-sub {
-                    display: block;
-                    font-size: 0.85rem;
-                    color: var(--text-muted);
-                    margin-top: 0.2rem;
-                }
-
-            .section-divider {
-                font-size: 0.7rem;
-                font-weight: 700;
-                letter-spacing: 0.1em;
-                text-transform: uppercase;
-                color: var(--text-muted);
-                margin: 1.5rem 0 1rem;
-                padding-bottom: 0.4rem;
-                border-bottom: 1px solid var(--border);
-            }
-
-            .reg-field {
-                margin-bottom: 1.1rem;
-            }
-
-            .reg-label {
-                display: block;
-                font-size: 0.8rem;
-                font-weight: 500;
-                color: var(--text-muted);
-                margin-bottom: 0.4rem;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-
-            .reg-input {
-                width: 100%;
-                padding: 0.75rem 1rem;
-                background: var(--surface2);
-                border: 1px solid var(--border);
-                border-radius: 10px;
-                color: var(--text);
-                font-family: 'DM Sans', sans-serif;
-                font-size: 0.95rem;
-                transition: border-color 0.2s;
-                outline: none;
-                box-sizing: border-box;
-            }
-
-                .reg-input:focus {
-                    border-color: var(--accent);
-                    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
-                }
-
-                .reg-input.is-invalid {
-                    border-color: #ef4444;
-                }
-
-            .field-error {
-                font-size: 0.8rem;
-                color: #ef4444;
-                margin-top: 0.3rem;
-            }
-
-            .field-hint {
-                font-size: 0.78rem;
-                color: var(--text-muted);
-                margin-top: 0.3rem;
-            }
-
-            .reg-btn {
-                width: 100%;
-                padding: 0.9rem;
-                background: var(--accent);
-                color: #fff;
-                font-family: 'DM Sans', sans-serif;
-                font-size: 1rem;
-                font-weight: 600;
-                border: none;
-                border-radius: 10px;
-                cursor: pointer;
-                margin-top: 1rem;
-                transition: background 0.2s, transform 0.1s;
-            }
-
-                .reg-btn:hover {
-                    background: var(--accent-hover);
-                }
-
-                .reg-btn:active {
-                    transform: scale(0.98);
-                }
-
-            .alert-error {
-                background: rgba(239, 68, 68, 0.1);
-                border: 1px solid rgba(239, 68, 68, 0.3);
-                border-radius: 10px;
-                padding: 0.75rem 1rem;
-                font-size: 0.88rem;
-                color: #fca5a5;
-                margin-bottom: 1.2rem;
-            }
-
-            .reg-footer {
-                text-align: center;
-                margin-top: 1.5rem;
-                font-size: 0.88rem;
-                color: var(--text-muted);
-            }
-
-                .reg-footer a {
-                    color: var(--accent);
-                    text-decoration: none;
-                }
-
-                    .reg-footer a:hover {
-                        text-decoration: underline;
-                    }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,700;1,800&family=Lato:wght@300;400;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/theme.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/auth.css" asp-append-version="true" />
 </head>
 <body>
-    <div class="reg-wrap">
-        <div class="reg-card">
 
-            <div class="reg-logo">
-                <div class="logo-icon">🍽️</div>
-                <span class="logo-text">RestaurantOS</span>
-                <span class="logo-sub">Yeni Restoran Kaydı — 30 Gün Ücretsiz</span>
+    @* ── Arka Plan ── *@
+    <div class="auth-bg" aria-hidden="true">
+        <div class="auth-orb auth-orb-1"></div>
+        <div class="auth-orb auth-orb-2"></div>
+        <div class="auth-orb auth-orb-3"></div>
+        <div class="auth-grid"></div>
+    </div>
+
+    <div class="auth-wrap auth-wrap--wide">
+
+        @* ── Geri Link ── *@
+        <a class="auth-back" href="/">
+            <span class="auth-back-arrow">←</span>
+            Ana Sayfaya Dön
+        </a>
+
+        <div class="auth-card">
+
+            @* ── Logo ── *@
+            <div class="auth-logo">
+                <span class="auth-logo-icon" aria-hidden="true">🍽</span>
+                <span class="auth-logo-text">RestaurantOS</span>
+                <span class="auth-logo-sub">Yeni Restoran Kaydı · 30 Gün Ücretsiz</span>
             </div>
 
+            <h1 class="auth-title">Hesap Oluşturun</h1>
+            <p class="auth-subtitle">Restoranınızı dakikalar içinde sisteme ekleyin</p>
+
+            @* ── Hata Bandı ── *@
             @if (!ViewData.ModelState.IsValid && ViewData.ModelState.ErrorCount > 0)
             {
-                <div class="alert-error">
+                <div class="auth-alert" role="alert">
                     @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
                     {
                         <div>@error.ErrorMessage</div>
@@ -191,90 +63,261 @@
                 </div>
             }
 
-            @* [FIX-405] Mutlak yol — asp-area="" .NET 9'da ambient area sızdırarak 405 üretebilir *@
-            <form action="/Landing/Register" method="post">
+            @*
+            [FIX-405] Form action mutlak yol — asp-area="" .NET 9'da ambient area
+            sızdırarak /Admin/Landing/Register üretebilir ve 405'e yol açar.
+        *@
+            <form action="/Landing/Register" method="post" id="registerForm" novalidate>
                 @Html.AntiForgeryToken()
 
-                @* ── Restoran Bilgileri ── *@
-                <div class="section-divider">Restoran Bilgileri</div>
+                @* ══════ BÖLÜM 1: Restoran Bilgileri ══════ *@
+                <div class="auth-divider">🍽 Restoran Bilgileri</div>
 
-                <div class="reg-field">
-                    <label class="reg-label" asp-for="RestaurantName">Restoran Adı</label>
-                    <input class="reg-input @(ViewData.ModelState["RestaurantName"]?.Errors.Any() == true ? "is-invalid" : "")"
+                <div class="auth-field">
+                    <label class="auth-label" asp-for="RestaurantName">Restoran Adı</label>
+                    <input class="auth-input @(ViewData.ModelState["RestaurantName"]?.Errors.Any() == true ? "is-invalid" : "")"
                            asp-for="RestaurantName"
+                           type="text"
+                           autocomplete="organization"
                            placeholder="Örn: Burger Palace" />
-                    <span class="field-error" asp-validation-for="RestaurantName"></span>
+                    @if (ViewData.ModelState["RestaurantName"]?.Errors.Any() == true)
+                    {
+                        <span class="auth-error">@ViewData.ModelState["RestaurantName"]!.Errors.First().ErrorMessage</span>
+                    }
                 </div>
 
-                <div class="reg-field">
-                    <label class="reg-label" asp-for="Subdomain">Subdomain</label>
-                    <input class="reg-input @(ViewData.ModelState["Subdomain"]?.Errors.Any() == true ? "is-invalid" : "")"
+                <div class="auth-field">
+                    <label class="auth-label" asp-for="Subdomain">Subdomain</label>
+                    <input class="auth-input @(ViewData.ModelState["Subdomain"]?.Errors.Any() == true ? "is-invalid" : "")"
                            asp-for="Subdomain"
+                           type="text"
+                           autocomplete="off"
+                           autocapitalize="none"
+                           spellcheck="false"
                            placeholder="burger-palace"
-                           autocomplete="off" />
-                    <span class="field-hint">Yalnızca küçük harf, rakam ve tire. Örn: burger-palace</span>
-                    <span class="field-error" asp-validation-for="Subdomain"></span>
+                           id="subdomainInput" />
+                    <span class="auth-hint">Yalnızca küçük harf, rakam ve tire. Örn: burger-palace</span>
+                    @if (ViewData.ModelState["Subdomain"]?.Errors.Any() == true)
+                    {
+                        <span class="auth-error">@ViewData.ModelState["Subdomain"]!.Errors.First().ErrorMessage</span>
+                    }
                 </div>
 
-                @* ── Yönetici Hesabı ── *@
-                <div class="section-divider">Yönetici Hesabı</div>
+                @* ══════ BÖLÜM 2: Yönetici Hesabı ══════ *@
+                <div class="auth-divider">👤 Yönetici Hesabı</div>
 
-                <div class="reg-field">
-                    <label class="reg-label" asp-for="FullName">Ad Soyad</label>
-                    <input class="reg-input @(ViewData.ModelState["FullName"]?.Errors.Any() == true ? "is-invalid" : "")"
+                <div class="auth-field">
+                    <label class="auth-label" asp-for="FullName">Ad Soyad</label>
+                    <input class="auth-input @(ViewData.ModelState["FullName"]?.Errors.Any() == true ? "is-invalid" : "")"
                            asp-for="FullName"
+                           type="text"
+                           autocomplete="name"
                            placeholder="Ahmet Yılmaz" />
-                    <span class="field-error" asp-validation-for="FullName"></span>
+                    @if (ViewData.ModelState["FullName"]?.Errors.Any() == true)
+                    {
+                        <span class="auth-error">@ViewData.ModelState["FullName"]!.Errors.First().ErrorMessage</span>
+                    }
                 </div>
 
-                <div class="reg-field">
-                    <label class="reg-label" asp-for="Username">Kullanıcı Adı</label>
-                    <input class="reg-input @(ViewData.ModelState["Username"]?.Errors.Any() == true ? "is-invalid" : "")"
+                <div class="auth-field">
+                    <label class="auth-label" asp-for="Username">Kullanıcı Adı</label>
+                    <input class="auth-input @(ViewData.ModelState["Username"]?.Errors.Any() == true ? "is-invalid" : "")"
                            asp-for="Username"
+                           type="text"
                            autocomplete="username"
-                           placeholder="ahmet.yilmaz" />
-                    <span class="field-error" asp-validation-for="Username"></span>
+                           autocapitalize="none"
+                           spellcheck="false"
+                           placeholder="ahmet"
+                           id="usernameInput" />
+                    <span class="auth-hint">Sisteme giriş yaparken kullanacağınız kısa ad. Örn: ahmet</span>
+                    @if (ViewData.ModelState["Username"]?.Errors.Any() == true)
+                    {
+                        <span class="auth-error">@ViewData.ModelState["Username"]!.Errors.First().ErrorMessage</span>
+                    }
                 </div>
 
-                <div class="reg-field">
-                    <label class="reg-label" asp-for="Email">E-posta (opsiyonel)</label>
-                    <input class="reg-input @(ViewData.ModelState["Email"]?.Errors.Any() == true ? "is-invalid" : "")"
+                <div class="auth-field">
+                    <label class="auth-label" asp-for="Email">E-posta <span style="opacity:0.55;font-weight:300">(isteğe bağlı)</span></label>
+                    <input class="auth-input @(ViewData.ModelState["Email"]?.Errors.Any() == true ? "is-invalid" : "")"
                            asp-for="Email"
                            type="email"
                            autocomplete="email"
                            placeholder="ahmet@burgerpalace.com" />
-                    <span class="field-error" asp-validation-for="Email"></span>
+                    @if (ViewData.ModelState["Email"]?.Errors.Any() == true)
+                    {
+                        <span class="auth-error">@ViewData.ModelState["Email"]!.Errors.First().ErrorMessage</span>
+                    }
                 </div>
 
-                <div class="reg-field">
-                    <label class="reg-label" asp-for="Password">Şifre</label>
-                    <input class="reg-input @(ViewData.ModelState["Password"]?.Errors.Any() == true ? "is-invalid" : "")"
-                           asp-for="Password"
-                           type="password"
-                           autocomplete="new-password"
-                           placeholder="En az 8 karakter, büyük harf ve rakam içermeli" />
-                    <span class="field-error" asp-validation-for="Password"></span>
+                @* ── Şifre — Güç Göstergesi ── *@
+                <div class="auth-field">
+                    <label class="auth-label" asp-for="Password">Şifre</label>
+                    <div class="auth-input-wrap">
+                        <input class="auth-input @(ViewData.ModelState["Password"]?.Errors.Any() == true ? "is-invalid" : "")"
+                               asp-for="Password"
+                               type="password"
+                               id="regPasswordInput"
+                               autocomplete="new-password"
+                               placeholder="En az 8 karakter" />
+                        <button type="button" class="auth-pw-toggle" id="regPwToggle"
+                                aria-label="Şifreyi göster / gizle"
+                                data-target="regPasswordInput">
+                            👁
+                        </button>
+                    </div>
+                    @* Şifre güç göstergesi *@
+                    <div class="pw-strength-wrap">
+                        <div class="pw-strength-bar">
+                            <div class="pw-strength-fill" id="pwStrengthFill"></div>
+                        </div>
+                        <span class="pw-strength-text" id="pwStrengthText"></span>
+                    </div>
+                    @if (ViewData.ModelState["Password"]?.Errors.Any() == true)
+                    {
+                        <span class="auth-error">@ViewData.ModelState["Password"]!.Errors.First().ErrorMessage</span>
+                    }
                 </div>
 
-                <div class="reg-field">
-                    <label class="reg-label" asp-for="ConfirmPassword">Şifre Tekrar</label>
-                    <input class="reg-input @(ViewData.ModelState["ConfirmPassword"]?.Errors.Any() == true ? "is-invalid" : "")"
-                           asp-for="ConfirmPassword"
-                           type="password"
-                           autocomplete="new-password"
-                           placeholder="••••••••" />
-                    <span class="field-error" asp-validation-for="ConfirmPassword"></span>
+                @* ── Şifre Tekrar — Anlık Eşleşme ── *@
+                <div class="auth-field">
+                    <label class="auth-label" asp-for="ConfirmPassword">Şifre Tekrar</label>
+                    <div class="auth-input-wrap">
+                        <input class="auth-input @(ViewData.ModelState["ConfirmPassword"]?.Errors.Any() == true ? "is-invalid" : "")"
+                               asp-for="ConfirmPassword"
+                               type="password"
+                               id="confirmInput"
+                               autocomplete="new-password"
+                               placeholder="••••••••" />
+                        <button type="button" class="auth-pw-toggle" id="confirmPwToggle"
+                                aria-label="Şifreyi göster / gizle"
+                                data-target="confirmInput">
+                            👁
+                        </button>
+                    </div>
+                    <div id="matchFeedback"></div>
+                    @if (ViewData.ModelState["ConfirmPassword"]?.Errors.Any() == true)
+                    {
+                        <span class="auth-error">@ViewData.ModelState["ConfirmPassword"]!.Errors.First().ErrorMessage</span>
+                    }
                 </div>
 
-                <button type="submit" class="reg-btn">Restoranımı Oluştur 🚀</button>
+                @* ── Submit ── *@
+                <button type="submit" class="auth-submit" id="registerSubmit" style="margin-top:0.6rem">
+                    <span class="auth-spinner" aria-hidden="true"></span>
+                    <span class="auth-submit-text">Restoranımı Oluştur 🚀</span>
+                </button>
             </form>
 
-            <div class="reg-footer">
+            @* ── Alt Linkler ── *@
+            <div class="auth-footer">
                 Zaten hesabınız var mı?
-                <a asp-area="App" asp-controller="Auth" asp-action="Login">Giriş Yap</a>
+                <a asp-area="App" asp-controller="Auth" asp-action="Login">Giriş Yapın →</a>
             </div>
+
+            <p class="auth-terms">
+                Kaydolarak
+                <a href="#">Kullanım Koşulları</a>'nı ve
+                <a href="#">Gizlilik Politikası</a>'nı kabul etmiş olursunuz.
+            </p>
 
         </div>
     </div>
+
+    <script>
+            (function () {
+                'use strict';
+
+                /* ── Şifre göster / gizle (tüm toggle butonlar) ──────────── */
+                document.querySelectorAll('.auth-pw-toggle').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        var inp = document.getElementById(this.getAttribute('data-target'));
+                        if (!inp) return;
+                        var isHidden = inp.type === 'password';
+                        inp.type = isHidden ? 'text' : 'password';
+                        this.textContent = isHidden ? '🙈' : '👁';
+                        this.setAttribute('aria-label', isHidden ? 'Şifreyi gizle' : 'Şifreyi göster');
+                    });
+                });
+
+                /* ── Şifre güç göstergesi ─────────────────────────────────── */
+                var pwInput = document.getElementById('regPasswordInput');
+                var fillEl  = document.getElementById('pwStrengthFill');
+                var textEl  = document.getElementById('pwStrengthText');
+
+                function checkStrength(pw) {
+                    var score = 0;
+                    if (pw.length >= 8)                    score++;
+                    if (/[A-Z]/.test(pw))                  score++;
+                    if (/[0-9]/.test(pw))                  score++;
+                    if (/[^A-Za-z0-9]/.test(pw))           score++;
+                    return score;
+                }
+
+                if (pwInput && fillEl && textEl) {
+                    pwInput.addEventListener('input', function () {
+                        var val = this.value;
+                        if (!val) {
+                            fillEl.style.width = '0%';
+                            fillEl.className = 'pw-strength-fill';
+                            textEl.textContent = '';
+                            textEl.className = 'pw-strength-text';
+                            return;
+                        }
+                        var s = checkStrength(val);
+                        var level = s <= 1 ? 'weak' : s <= 2 ? 'medium' : 'strong';
+                        var pct   = s <= 1 ? '33%' : s <= 2 ? '66%' : '100%';
+                        var label = s <= 1 ? 'Zayıf' : s <= 2 ? 'Orta' : 'Güçlü';
+
+                        fillEl.style.width = pct;
+                        fillEl.className   = 'pw-strength-fill ' + level;
+                        textEl.textContent = label;
+                        textEl.className   = 'pw-strength-text ' + level;
+                    });
+                }
+
+                /* ── Şifre eşleşme kontrolü ──────────────────────────────── */
+                var confirmInput  = document.getElementById('confirmInput');
+                var matchFeedback = document.getElementById('matchFeedback');
+
+                if (confirmInput && matchFeedback && pwInput) {
+                    function checkMatch() {
+                        var pw  = pwInput.value;
+                        var cfm = confirmInput.value;
+                        if (!cfm) { matchFeedback.innerHTML = ''; return; }
+                        if (pw === cfm) {
+                            matchFeedback.innerHTML = '<span class="auth-match-ok">Şifreler eşleşiyor</span>';
+                        } else {
+                            matchFeedback.innerHTML = '<span class="auth-error">Şifreler eşleşmiyor</span>';
+                        }
+                    }
+                    confirmInput.addEventListener('input', checkMatch);
+                    pwInput.addEventListener('input', checkMatch);
+                }
+
+                /* ── Subdomain otomatik küçük harf / kısa çizgi ─────────── */
+                var subInput = document.getElementById('subdomainInput');
+                if (subInput) {
+                    subInput.addEventListener('input', function () {
+                        var raw = this.value
+                            .toLowerCase()
+                            .replace(/\s+/g, '-')
+                            .replace(/[^a-z0-9\-]/g, '');
+                        var pos = this.selectionStart;
+                        this.value = raw;
+                        try { this.setSelectionRange(pos, pos); } catch (e) { /* */ }
+                    });
+                }
+
+                /* ── Submit spinner ──────────────────────────────────────── */
+                var form = document.getElementById('registerForm');
+                var btn  = document.getElementById('registerSubmit');
+                if (form && btn) {
+                    form.addEventListener('submit', function () {
+                        btn.classList.add('loading');
+                    });
+                }
+            })();
+    </script>
+
 </body>
 </html>

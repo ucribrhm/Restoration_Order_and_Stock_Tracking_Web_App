@@ -157,8 +157,7 @@ else
                     }
                     else if (table.TableStatus == 1)
                     {
-                        <a asp-area="App" asp-controller="Orders" asp-action="Create"
-                           asp-route-tableId="@table.TableId"
+                        <a asp-area="App" asp-controller="Orders" asp-action="Detail" asp-route-id="@openOrder!.OrderId"
                            class="card-btn primary">Adisyona Git →</a>
                         <button class="card-btn merge"
                                 onclick="openMergeModal(@table.TableId, '@table.TableName')">

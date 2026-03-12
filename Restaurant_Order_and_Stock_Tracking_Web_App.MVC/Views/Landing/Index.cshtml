@@ -1,318 +1,383 @@
-﻿@{
+﻿@*
+    Views/Landing/Index.cshtml
+    RestaurantOS — Public Landing Page
+
+    Sprint Redesign: Tam yeniden yazım
+    Layout = null — Standalone, kendi CSS/JS'ini yükler
+    Tasarım DNA: Koyu Mor (#1E1B4B) + Playfair Display + Lato + Glassmorphism
+*@
+@{
     Layout = null;
-    ViewData["Title"] = "RestaurantOS — Restoranınızı Dijitalleştirin";
+    ViewData["Title"] = "RestaurantOS — Restoranınızı Bir Sonraki Seviyeye Taşıyın";
 }
 <!DOCTYPE html>
 <html lang="tr" data-theme="dark">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RestaurantOS — Restoranınızı Dijitalleştirin</title>
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+    <title>RestaurantOS — Restoranınızı Bir Sonraki Seviyeye Taşıyın</title>
+    <meta name="description" content="Masa yönetimi, sipariş takibi, mutfak ekranı ve gerçek zamanlı raporlama. Türkiye'nin en gelişmiş restoran yönetim sistemi." />
 
-    <style>
-        :root {
-            /* Vurgu */
-            --accent: #F97316;
-            --accent-hover: #EA6C0A;
-            --accent-glow: rgba(249, 115, 22, 0.15);
-            /* Koyu tema (varsayılan) */
-            --bg: #0D0F12;
-            --surface: #161A20;
-            --surface2: #1E242C;
-            --border: rgba(255, 255, 255, 0.07);
-            --text: #EEF0F3;
-            --text-muted: #687080;
-            --text-faint: #3E4A58;
-            --shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
-        }
+    @* ── FOUC Önleme: Sayfa görüntülenmeden tema uygulanır ── *@
+    <script>
+            (function () {
+                var t = localStorage.getItem('ros-theme') || 'dark';
+                document.documentElement.setAttribute('data-theme', t);
+            })();
+    </script>
 
-        body {
-            font-family: 'DM Sans', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            margin: 0;
-            padding: 0;
-        }
+    @* ── Fontlar ── *@
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;0,900;1,700;1,800;1,900&family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet" />
 
-        /* ── NAVBAR ── */
-        .nav {
-            box-sizing: border-box;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 1.2rem 2.5rem;
-            border-bottom: 1px solid var(--border);
-            background: var(--surface);
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-        }
+    @* ── Global Tema Değişkenleri ── *@
+    <link rel="stylesheet" href="~/css/theme.css" asp-append-version="true" />
 
-        .nav-logo {
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            font-family: 'Syne', sans-serif;
-            font-size: 1.3rem;
-            font-weight: 800;
-            color: var(--text);
-            text-decoration: none;
-        }
-
-        .nav-actions {
-            display: flex;
-            gap: 0.8rem;
-        }
-
-        .btn-ghost {
-            padding: 0.55rem 1.2rem;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            background: transparent;
-            color: var(--text-muted);
-            font-family: 'DM Sans', sans-serif;
-            font-size: 0.9rem;
-            text-decoration: none;
-            cursor: pointer;
-            transition: border-color 0.2s, color 0.2s;
-        }
-
-            .btn-ghost:hover {
-                border-color: var(--accent);
-                color: var(--accent);
-            }
-
-        .btn-primary {
-            padding: 0.55rem 1.4rem;
-            background: var(--accent);
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            font-family: 'DM Sans', sans-serif;
-            font-size: 0.9rem;
-            font-weight: 600;
-            text-decoration: none;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-            .btn-primary:hover {
-                background: var(--accent-hover);
-            }
-
-        /* ── HERO ── */
-        .hero {
-            max-width: 760px;
-            margin: 6rem auto 4rem;
-            text-align: center;
-            padding: 0 1.5rem;
-        }
-
-        .hero-badge {
-            display: inline-block;
-            padding: 0.3rem 1rem;
-            background: rgba(249, 115, 22, 0.12);
-            color: var(--accent);
-            border-radius: 999px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            letter-spacing: 0.04em;
-            margin-bottom: 1.5rem;
-        }
-
-        .hero h1 {
-            font-family: 'Syne', sans-serif;
-            font-size: clamp(2rem, 5vw, 3.2rem);
-            font-weight: 800;
-            line-height: 1.15;
-            color: var(--text);
-            margin: 0 0 1.2rem;
-        }
-
-        .hero p {
-            font-size: 1.05rem;
-            color: var(--text-muted);
-            line-height: 1.7;
-            margin: 0 0 2.5rem;
-        }
-
-        .hero-cta {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .btn-lg {
-            padding: 0.85rem 2rem;
-            font-size: 1rem;
-            font-weight: 600;
-            border-radius: 12px;
-        }
-
-        /* ── ÖZELLİKLER (3'LÜ GENİŞ GRID DÜZENİ) ── */
-        .features {
-            max-width: 1200px; /* Genişliği artırdık ki ekrana yayılsınlar */
-            margin: 0 auto 5rem;
-            padding: 0 1.5rem;
-            display: grid; /* Izgara sistemini açtık */
-            grid-template-columns: repeat(3, 1fr); /* Tam 3 eşit parçaya böldük */
-            gap: 1.5rem; /* Kartlar arası boşluk */
-        }
-
-        .feature-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 1.5rem 1.8rem;
-            display: flex; /* İkon ve yazıyı yan yana tutmak için flex */
-            align-items: center;
-            gap: 1.2rem;
-            transition: transform 0.2s, border-color 0.2s;
-        }
-
-            .feature-card:hover {
-                border-color: var(--accent);
-                transform: translateY(-4px); /* Üzerine gelince hafif yukarı kalkar */
-            }
-
-        .feature-icon {
-            font-size: 2.2rem;
-            flex-shrink: 0;
-            background: rgba(255,255,255,0.03);
-            width: 60px;
-            height: 60px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 12px;
-        }
-
-        .feature-text {
-            text-align: left;
-        }
-
-        .feature-card h3 {
-            font-family: 'Syne', sans-serif;
-            font-size: 1.1rem;
-            font-weight: 700;
-            margin: 0 0 0.4rem;
-            color: var(--text);
-        }
-
-        .feature-card p {
-            font-size: 0.9rem;
-            color: var(--text-muted);
-            margin: 0;
-            line-height: 1.5;
-        }
-
-        /* MOBİL UYUMLULUK (Bunu eklemezsek telefonda da 3 tane yan yana durmaya çalışıp taşar) */
-        @@media (max-width: 992px) {
-            .features
-
-        {
-            grid-template-columns: repeat(2, 1fr); /* Tabletlerde 2'li olsun */
-        }
-
-        }
-
-        @@media (max-width: 768px) {
-            .features
-
-        {
-            grid-template-columns: 1fr; /* Telefonlarda mecbur alt alta 1'li olsun */
-        }
-
-        }
-
-        /* ── FOOTER ── */
-        .footer {
-            text-align: center;
-            padding: 2rem;
-            border-top: 1px solid var(--border);
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-    </style>
+    @* ── Sayfa CSS'i ── *@
+    <link rel="stylesheet" href="~/css/Views/Landing/Index.css" asp-append-version="true" />
 </head>
 <body>
 
-    <nav class="nav">
-        <a class="nav-logo" href="/">🍽️ RestaurantOS</a>
-        <div class="nav-actions">
-            <a class="btn-ghost" asp-area="App" asp-controller="Auth" asp-action="Login">Giriş Yap</a>
-            <a class="btn-primary" asp-area="" asp-controller="Landing" asp-action="Register">Ücretsiz Başla</a>
+    @* ════════════════════════════════════════════════════════
+   MOBILE OVERLAY MENU
+   ════════════════════════════════════════════════════════ *@
+    <div class="mobile-menu" id="mobileMenu">
+        <button class="mobile-menu-close" id="mobileMenuClose" aria-label="Kapat">✕</button>
+        <a class="mobile-nav-link" href="#features">Özellikler</a>
+        <a class="mobile-nav-link" href="#pricing">Fiyatlandırma</a>
+        <a class="mobile-nav-link" href="#about">Hakkımızda</a>
+        <div class="mobile-nav-divider"></div>
+        <a class="mobile-nav-link mobile-cta" asp-area="App" asp-controller="Auth" asp-action="Login">Giriş Yap</a>
+        <a class="mobile-btn-pill" asp-area="" asp-controller="Landing" asp-action="Register">Ücretsiz Başla →</a>
+    </div>
+
+    @* ════════════════════════════════════════════════════════
+   NAVBAR
+   ════════════════════════════════════════════════════════ *@
+    <nav class="navbar" id="navbar" role="navigation">
+        <a class="nav-logo" href="/">
+            <span class="nav-logo-icon">🍽</span> RestaurantOS
+        </a>
+
+        <div class="nav-links" aria-label="Ana navigasyon">
+            <a class="nav-link" href="#features">Özellikler</a>
+            <a class="nav-link" href="#pricing">Fiyatlandırma</a>
+            <a class="nav-link" href="#about">Hakkımızda</a>
         </div>
+
+        <div class="nav-actions">
+            <button class="theme-btn" id="themeBtn" aria-label="Tema değiştir" title="Dark / Light">🌙</button>
+            <a class="btn-ghost" asp-area="App" asp-controller="Auth" asp-action="Login">Giriş Yap</a>
+            <a class="btn-pill" asp-area="" asp-controller="Landing" asp-action="Register">
+                Hemen Başla <span aria-hidden="true">→</span>
+            </a>
+        </div>
+
+        <button class="hamburger" id="hamburger" aria-label="Menü" aria-expanded="false">
+            <span></span><span></span><span></span>
+        </button>
     </nav>
 
-    <section class="hero">
-        <span class="hero-badge">🚀 30 Gün Ücretsiz Deneme</span>
-        <h1>Restoranınızı Tek Panelden Yönetin</h1>
-        <p>
-            Masa yönetimi, sipariş takibi, mutfak ekranı, stok ve raporlama —
-            hepsi tek bir sistemde. Kurulum gerektirmez, anında kullanıma hazır.
-        </p>
-        <div class="hero-cta">
-            <a class="btn-primary btn-lg" asp-area="" asp-controller="Landing" asp-action="Register">
-                Restoranımı Kaydet
-            </a>
-            <a class="btn-ghost btn-lg" asp-area="App" asp-controller="Auth" asp-action="Login">
-                Giriş Yap
+    @* ════════════════════════════════════════════════════════
+   HERO SECTION
+   ════════════════════════════════════════════════════════ *@
+    <section class="hero" id="hero">
+        @* Animasyonlu arka plan orbs *@
+        <div class="orbs-container" aria-hidden="true">
+            <div class="orb orb-1"></div>
+            <div class="orb orb-2"></div>
+            <div class="orb orb-3"></div>
+            <div class="orb orb-4"></div>
+        </div>
+
+        @* İnce grid dokusu *@
+        <div class="hero-grid-overlay" aria-hidden="true"></div>
+
+        <div class="hero-content">
+            <span class="hero-badge">
+                <span class="hero-badge-dot" aria-hidden="true">✦</span>
+                Yeni Nesil Restoran Yönetimi
+            </span>
+
+            <h1>
+                Restoranınızı<br />
+                Bir Sonraki<br />
+                <em class="accent-text">Seviyeye</em> Taşıyın
+            </h1>
+
+            <p class="hero-sub">
+                Masa yönetimi, sipariş takibi, mutfak ekranı ve gerçek zamanlı raporlama —
+                hepsi tek bir güçlü platformda. Kurulum gerektirmez.
+            </p>
+
+            <div class="hero-cta">
+                <a class="btn-pill btn-pill-lg" asp-area="" asp-controller="Landing" asp-action="Register">
+                    Ücretsiz Deneyin →
+                </a>
+            </div>
+
+            <p class="hero-note">
+                <span>Kredi kartı gerekmez</span>
+                <span class="hero-note-sep" aria-hidden="true">·</span>
+                <span>14 gün ücretsiz</span>
+                <span class="hero-note-sep" aria-hidden="true">·</span>
+                <span>Anında kurulum</span>
+            </p>
+        </div>
+
+        <div class="scroll-indicator" aria-hidden="true">
+            <span>keşfet</span>
+            <div class="scroll-arrow"></div>
+        </div>
+    </section>
+
+    @* ════════════════════════════════════════════════════════
+   SOSYAL KANIT — SAYAÇ BANDI
+   ════════════════════════════════════════════════════════ *@
+    <section class="stats-band" id="stats">
+        <div class="stats-inner">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-number" data-target="200" data-suffix="+">0</div>
+                    <div class="stat-label">Aktif Restoran</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" data-target="50000" data-suffix="+" data-format="grouped">0</div>
+                    <div class="stat-label">Günlük Sipariş</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" data-target="99" data-suffix=".9%">0</div>
+                    <div class="stat-label">Uptime Garantisi</div>
+                </div>
+            </div>
+
+            <p class="stats-headline">
+                Türkiye'nin önde gelen restoranları RestaurantOS'a güveniyor
+            </p>
+
+            @* Restoran logoları marquee *@
+            <div class="marquee-track" aria-hidden="true">
+                <div class="marquee-inner">
+                    @* İlk set *@
+                    <span class="marquee-item">Bosphorus Steakhouse</span>
+                    <span class="marquee-sep">◆</span>
+                    <span class="marquee-item">Kebap Sarayı</span>
+                    <span class="marquee-sep">◆</span>
+                    <span class="marquee-item">Deniz Restaurant</span>
+                    <span class="marquee-sep">◆</span>
+                    <span class="marquee-item">Osmanlı Sofrası</span>
+                    <span class="marquee-sep">◆</span>
+                    <span class="marquee-item">Pasta Garden</span>
+                    <span class="marquee-sep">◆</span>
+                    <span class="marquee-item">Urban Burger Co.</span>
+                    <span class="marquee-sep">◆</span>
+                    <span class="marquee-item">Zeytinburnu Balık</span>
+                    <span class="marquee-sep">◆</span>
+                    <span class="marquee-item">Lezzet Durağı</span>
+                    <span class="marquee-sep">◆</span>
+                    @* Sonsuz döngü için duplikat set *@
+                    <span class="marquee-item">Bosphorus Steakhouse</span>
+                    <span class="marquee-sep">◆</span>
+                    <span class="marquee-item">Kebap Sarayı</span>
+                    <span class="marquee-sep">◆</span>
+                    <span class="marquee-item">Deniz Restaurant</span>
+                    <span class="marquee-sep">◆</span>
+                    <span class="marquee-item">Osmanlı Sofrası</span>
+                    <span class="marquee-sep">◆</span>
+                    <span class="marquee-item">Pasta Garden</span>
+                    <span class="marquee-sep">◆</span>
+                    <span class="marquee-item">Urban Burger Co.</span>
+                    <span class="marquee-sep">◆</span>
+                    <span class="marquee-item">Zeytinburnu Balık</span>
+                    <span class="marquee-sep">◆</span>
+                    <span class="marquee-item">Lezzet Durağı</span>
+                    <span class="marquee-sep">◆</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    @* ════════════════════════════════════════════════════════
+   ÖZELLİK KARTLARI
+   ════════════════════════════════════════════════════════ *@
+    <section class="features-section" id="features">
+        <div class="section-header">
+            <span class="section-eyebrow">Platform Özellikleri</span>
+            <h2 class="section-title">
+                Restoranınızın<br />
+                <em>İhtiyaç Duyduğu Her Şey</em>
+            </h2>
+        </div>
+
+        <div class="features-grid">
+            @* Kart 1 *@
+            <div class="feature-card scroll-reveal" style="--reveal-delay: 0ms">
+                <div class="feature-icon-wrap" aria-hidden="true">🧾</div>
+                <div class="feature-title">Akıllı Sipariş Yönetimi</div>
+                <p class="feature-desc">
+                    Masa bazlı adisyon oluşturun, QR menü ile müşteri siparişlerini alın.
+                    Mutfak ekranında gerçek zamanlı sipariş takibi yapın.
+                </p>
+            </div>
+
+            @* Kart 2 *@
+            <div class="feature-card scroll-reveal" style="--reveal-delay: 100ms">
+                <div class="feature-icon-wrap" aria-hidden="true">📊</div>
+                <div class="feature-title">Canlı Raporlama</div>
+                <p class="feature-desc">
+                    Z-Raporu, vardiya takibi ve gelir/gider analizleri. Günlük, haftalık ve
+                    aylık ciro raporlarını tek tıkla görün.
+                </p>
+            </div>
+
+            @* Kart 3 *@
+            <div class="feature-card scroll-reveal" style="--reveal-delay: 200ms">
+                <div class="feature-icon-wrap" aria-hidden="true">🔔</div>
+                <div class="feature-title">Anlık Bildirimler</div>
+                <p class="feature-desc">
+                    SignalR teknolojisiyle garson çağrısı, mutfak-salon iletişimi ve
+                    düşük stok uyarıları anında iletilir.
+                </p>
+            </div>
+
+            @* Kart 4 *@
+            <div class="feature-card scroll-reveal" style="--reveal-delay: 0ms">
+                <div class="feature-icon-wrap" aria-hidden="true">🪑</div>
+                <div class="feature-title">Masa Yönetimi</div>
+                <p class="feature-desc">
+                    Masaların anlık durumunu takip edin, birleştirin veya rezerve edin.
+                    Oturum süreleri otomatik hesaplanır.
+                </p>
+            </div>
+
+            @* Kart 5 *@
+            <div class="feature-card scroll-reveal" style="--reveal-delay: 100ms">
+                <div class="feature-icon-wrap" aria-hidden="true">📦</div>
+                <div class="feature-title">Stok Takibi</div>
+                <p class="feature-desc">
+                    Kritik stok uyarıları alın, israfı önleyin. Hammadde bazında
+                    tüketim analizi ile maliyetlerinizi düşürün.
+                </p>
+            </div>
+
+            @* Kart 6 *@
+            <div class="feature-card scroll-reveal" style="--reveal-delay: 200ms">
+                <div class="feature-icon-wrap" aria-hidden="true">👥</div>
+                <div class="feature-title">Personel Yönetimi</div>
+                <p class="feature-desc">
+                    Admin, Garson, Kasiyer ve Mutfak rolleriyle erişim yönetimi.
+                    Her çalışan yalnızca kendi sayfalarını görür.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    @* ════════════════════════════════════════════════════════
+   CTA BANDI
+   ════════════════════════════════════════════════════════ *@
+    <section class="cta-band scroll-reveal">
+        <div class="cta-band-inner">
+            <div class="cta-band-orb" aria-hidden="true"></div>
+            <span class="section-eyebrow">Ücretsiz Başlayın</span>
+            <h2 class="cta-band-title">
+                Bugün Kaydolun,<br />
+                <em>Yarın Fark Yaratın</em>
+            </h2>
+            <p class="cta-band-sub">
+                Kurulum gerektirmez. 14 gün boyunca tüm özellikleri ücretsiz deneyin.
+            </p>
+            <a class="btn-pill btn-pill-lg" asp-area="" asp-controller="Landing" asp-action="Register">
+                Restoranımı Kaydet →
             </a>
         </div>
     </section>
 
-    <section class="features">
-        <div class="feature-card">
-            <div class="feature-icon">🪑</div>
-            <div class="feature-text">
-                <h3>Masa Yönetimi</h3>
-                <p>Masaların anlık durumunu takip, garson çağrılarını yönetin.</p>
-            </div>
-        </div>
-        <div class="feature-card">
-            <div class="feature-icon">🧾</div>
-            <div class="feature-text">
-                <h3>Sipariş Takibi</h3>
-                <p>Açık adisyonları anlık görün, siparişleri düzenleyin.</p>
-            </div>
-        </div>
-        <div class="feature-card">
-            <div class="feature-icon">🍳</div>
-            <div class="feature-text">
-                <h3>Mutfak Ekranı</h3>
-                <p>Mutfağa gelen siparişleri ekrandan takip edin, hazır işaretleyin.</p>
-            </div>
-        </div>
-        <div class="feature-card">
-            <div class="feature-icon">📦</div>
-            <div class="feature-text">
-                <h3>Stok Takibi</h3>
-                <p>Kritik stok uyarıları alın, israfı önleyin.</p>
-            </div>
-        </div>
-        <div class="feature-card">
-            <div class="feature-icon">📈</div>
-            <div class="feature-text">
-                <h3>Gelir Raporları</h3>
-                <p>Günlük, haftalık ve aylık ciro raporlarını görselleştirin.</p>
-            </div>
-        </div>
-        <div class="feature-card">
-            <div class="feature-icon">👥</div>
-            <div class="feature-text">
-                <h3>Personel Yönetimi</h3>
-                <p>Admin, Garson, Kasiyer ve Mutfak rolleriyle erişimi yönetin.</p>
-            </div>
-        </div>
-    </section>
+    @* ════════════════════════════════════════════════════════
+   FOOTER
+   ════════════════════════════════════════════════════════ *@
+    <footer class="footer" id="about">
+        <div class="footer-inner">
+            <div class="footer-grid">
 
-    <footer class="footer">
-        © @DateTime.Now.Year RestaurantOS — Tüm hakları saklıdır.
+                @* Kolon 1: Marka *@
+                <div class="footer-brand">
+                    <div class="footer-logo">
+                        <span aria-hidden="true">🍽</span> RestaurantOS
+                    </div>
+                    <p class="footer-tagline">
+                        Türkiye'nin en gelişmiş restoran yönetim sistemi.
+                        Küçük kafeden büyük restorana, her ölçekte çalışır.
+                    </p>
+                    <div class="footer-socials" aria-label="Sosyal medya">
+                        <a class="social-btn" href="#" aria-label="X (Twitter)">𝕏</a>
+                        <a class="social-btn" href="#" aria-label="Facebook">📘</a>
+                        <a class="social-btn" href="#" aria-label="Instagram">📸</a>
+                        <a class="social-btn" href="#" aria-label="LinkedIn">💼</a>
+                    </div>
+                </div>
+
+                @* Kolon 2: Ürün *@
+                <div class="footer-col">
+                    <div class="footer-col-title">Ürün</div>
+                    <nav class="footer-links" aria-label="Ürün bağlantıları">
+                        <a class="footer-link" href="#features">Özellikler</a>
+                        <a class="footer-link" href="#pricing">Fiyatlandırma</a>
+                        <a class="footer-link" href="#">Demo İste</a>
+                        <a class="footer-link" href="#">Güncellemeler</a>
+                        <a class="footer-link" href="#">API Dokümantasyonu</a>
+                    </nav>
+                </div>
+
+                @* Kolon 3: Şirket *@
+                <div class="footer-col">
+                    <div class="footer-col-title">Şirket</div>
+                    <nav class="footer-links" aria-label="Şirket bağlantıları">
+                        <a class="footer-link" href="#about">Hakkımızda</a>
+                        <a class="footer-link" href="#">Blog</a>
+                        <a class="footer-link" href="#">Kariyer</a>
+                        <a class="footer-link" href="#">Basın</a>
+                        <a class="footer-link" href="#">İş Ortaklığı</a>
+                    </nav>
+                </div>
+
+                @* Kolon 4: İletişim *@
+                <div class="footer-col">
+                    <div class="footer-col-title">İletişim</div>
+                    <div class="footer-contact">
+                        <div class="footer-contact-item">
+                            <span class="fci-icon" aria-hidden="true">✉</span>
+                            <span>destek@restaurantos.com</span>
+                        </div>
+                        <div class="footer-contact-item">
+                            <span class="fci-icon" aria-hidden="true">📞</span>
+                            <span>+90 212 000 00 00</span>
+                        </div>
+                        <div class="footer-contact-item">
+                            <span class="fci-icon" aria-hidden="true">📍</span>
+                            <span>İstanbul, Türkiye</span>
+                        </div>
+                        <div class="footer-contact-item">
+                            <span class="fci-icon" aria-hidden="true">💬</span>
+                            <span>7/24 Canlı Destek</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <span class="footer-copy">
+                    © @DateTime.Now.Year RestaurantOS — Tüm hakları saklıdır.
+                </span>
+                <nav class="footer-legal" aria-label="Yasal bağlantılar">
+                    <a class="footer-legal-link" href="#">Gizlilik Politikası</a>
+                    <a class="footer-legal-link" href="#">Kullanım Koşulları</a>
+                    <a class="footer-legal-link" href="#">KVKK</a>
+                </nav>
+            </div>
+        </div>
     </footer>
+
+    @* ── Sayfa JS'i ── *@
+    <script src="~/js/Views/Landing/Index.js" asp-append-version="true"></script>
 
 </body>
 </html>
