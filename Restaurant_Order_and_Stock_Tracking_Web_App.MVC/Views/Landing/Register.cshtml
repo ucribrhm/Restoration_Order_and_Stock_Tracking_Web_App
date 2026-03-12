@@ -64,9 +64,9 @@
             }
 
             @*
-            [FIX-405] Form action mutlak yol — asp-area="" .NET 9'da ambient area
-            sızdırarak /Admin/Landing/Register üretebilir ve 405'e yol açar.
-        *@
+                [FIX-405] Form action mutlak yol — asp-area="" .NET 9'da ambient area
+                sızdırarak /Admin/Landing/Register üretebilir ve 405'e yol açar.
+            *@
             <form action="/Landing/Register" method="post" id="registerForm" novalidate>
                 @Html.AntiForgeryToken()
 
@@ -146,6 +146,23 @@
                     @if (ViewData.ModelState["Email"]?.Errors.Any() == true)
                     {
                         <span class="auth-error">@ViewData.ModelState["Email"]!.Errors.First().ErrorMessage</span>
+                    }
+                </div>
+
+                @* ── [SC-5] Telefon Numarası — Trial Koruması ── *@
+                <div class="auth-field">
+                    <label class="auth-label" asp-for="PhoneNumber">Telefon Numarası</label>
+                    <input class="auth-input @(ViewData.ModelState["PhoneNumber"]?.Errors.Any() == true ? "is-invalid" : "")"
+                           asp-for="PhoneNumber"
+                           type="tel"
+                           autocomplete="tel"
+                           placeholder="+90 5XX XXX XX XX"
+                           id="phoneInput"
+                           maxlength="19" />
+                    <span class="auth-hint">Her telefon numarasıyla yalnızca bir deneme hesabı açılabilir.</span>
+                    @if (ViewData.ModelState["PhoneNumber"]?.Errors.Any() == true)
+                    {
+                        <span class="auth-error">@ViewData.ModelState["PhoneNumber"]!.Errors.First().ErrorMessage</span>
                     }
                 </div>
 
@@ -263,10 +280,10 @@
                             textEl.className = 'pw-strength-text';
                             return;
                         }
-                        var s = checkStrength(val);
+                        var s     = checkStrength(val);
                         var level = s <= 1 ? 'weak' : s <= 2 ? 'medium' : 'strong';
-                        var pct   = s <= 1 ? '33%' : s <= 2 ? '66%' : '100%';
-                        var label = s <= 1 ? 'Zayıf' : s <= 2 ? 'Orta' : 'Güçlü';
+                        var pct   = s <= 1 ? '33%'  : s <= 2 ? '66%'    : '100%';
+                        var label = s <= 1 ? 'Zayıf': s <= 2 ? 'Orta'   : 'Güçlü';
 
                         fillEl.style.width = pct;
                         fillEl.className   = 'pw-strength-fill ' + level;
@@ -305,6 +322,97 @@
                         var pos = this.selectionStart;
                         this.value = raw;
                         try { this.setSelectionRange(pos, pos); } catch (e) { /* */ }
+                    });
+                }
+
+                /* ── [SC-5] Telefon maskesi: +90 5XX XXX XX XX ───────────── *
+                 *
+                 *  Mantık:
+                 *  1. Kullanıcının yazdığı her şeyden sadece rakamları al.
+                 *  2. Başında "90" varsa sil (kullanıcı +90 yazmış olabilir).
+                 *  3. İlk rakam "5" değilse uyarı ver, formatlamayı durdur.
+                 *  4. Rakam gruplarını boşluklarla biçimlendir:
+                 *       5XX → XXX → XX → XX
+                 *     ve başına "+90 " ekle.
+                 *  5. Modele gidecek ham değer (hidden input) "+" dahil temiz
+                 *     format: "+905XXXXXXXXX" — sunucu tarafında IdentityUser
+                 *     PhoneNumber sütununa bu şekilde yazılır.
+                 * ──────────────────────────────────────────────────────────── */
+                var phoneInput = document.getElementById('phoneInput');
+                if (phoneInput) {
+
+                    phoneInput.addEventListener('input', function (e) {
+                        // İmleç pozisyonunu kaydet (silme işlemlerinde kayma önlenir)
+                        var cursorPos = this.selectionStart;
+                        var prevLen   = this.value.length;
+
+                        // 1. Sadece rakamları al
+                        var digits = this.value.replace(/\D/g, '');
+
+                        // 2. Başında "90" prefix varsa temizle
+                        //    (+90... veya 90... ile başlayan girişler normalize edilir)
+                        if (digits.startsWith('90')) {
+                            digits = digits.slice(2);
+                        }
+
+                        // 3. Maksimum 10 rakam (5XXXXXXXXX)
+                        digits = digits.slice(0, 10);
+
+                        // 4. Boş girişte temizle
+                        if (digits.length === 0) {
+                            this.value = '';
+                            this.removeAttribute('data-invalid-phone');
+                            return;
+                        }
+
+                        // 5. Türk mobil numarası 5 ile başlamalı
+                        if (digits[0] !== '5') {
+                            this.setAttribute('data-invalid-phone', '1');
+                            this.classList.add('is-invalid');
+                        } else {
+                            this.removeAttribute('data-invalid-phone');
+                            this.classList.remove('is-invalid');
+                        }
+
+                        // 6. "+90 5XX XXX XX XX" formatına sok
+                        //    Grup boyutları: 3 + 3 + 2 + 2
+                        var p1 = digits.slice(0, 3);           // 5XX
+                        var p2 = digits.slice(3, 6);           // XXX
+                        var p3 = digits.slice(6, 8);           // XX
+                        var p4 = digits.slice(8, 10);          // XX
+
+                        var formatted = '+90 ' + p1;
+                        if (p2) formatted += ' ' + p2;
+                        if (p3) formatted += ' ' + p3;
+                        if (p4) formatted += ' ' + p4;
+
+                        this.value = formatted;
+
+                        // 7. İmleç konumunu doğal hissettiren noktada tut
+                        var newLen = this.value.length;
+                        var delta  = newLen - prevLen;
+                        try { this.setSelectionRange(cursorPos + delta, cursorPos + delta); } catch (ex) { /* */ }
+                    });
+
+                    // Paste olayında da aynı temizleme çalışsın
+                    phoneInput.addEventListener('paste', function () {
+                        setTimeout(function () {
+                            phoneInput.dispatchEvent(new Event('input'));
+                        }, 0);
+                    });
+
+                    // Odak gelince "+90 " prefix'i hazır yaz (alan boşsa)
+                    phoneInput.addEventListener('focus', function () {
+                        if (this.value === '') {
+                            this.value = '+90 ';
+                        }
+                    });
+
+                    // Odak gidince sadece prefix kaldıysa temizle
+                    phoneInput.addEventListener('blur', function () {
+                        if (this.value.trim() === '+90') {
+                            this.value = '';
+                        }
                     });
                 }
 
