@@ -1,4 +1,5 @@
-﻿namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.ViewModels.Reports
+﻿// ViewModels/Reports/Wastereportviewmodel.cs
+namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.ViewModels.Reports
 {
     public class WasteItemDto
     {
@@ -10,19 +11,7 @@
         public DateTime Date { get; set; }
         public string Note { get; set; } = "";
         public string CancelReason { get; set; } = "";
-
-        // ── YENİ ALANLAR ────────────────────────────────────────────────────
-
-        /// <summary>
-        /// "SiparişKaynaklı" veya "StokKaynaklı"
-        /// Rapor tablosunda hangi sütunların gösterileceğini belirler.
-        /// </summary>
         public string SourceType { get; set; } = "";
-
-        /// <summary>
-        /// SiparişKaynaklı fire'larda ilgili adisyon numarası.
-        /// StokKaynaklı için null.
-        /// </summary>
         public int? OrderId { get; set; }
     }
 
@@ -38,24 +27,20 @@
         public DateRangeFilter Filter { get; set; } = new();
 
         public decimal TotalWasteLoss { get; set; }
+
+        /// <summary>Fire olarak zayi edilen toplam ürün adedi (SiparişKaynaklı + StokKaynaklı)</summary>
         public int TotalWasteCount { get; set; }
 
-        /// <summary>
-        /// StockLog SourceType="SiparişKaynaklı" kayıtları.
-        /// (Eski: OrderItem.IsWasted=true — artık StockLog'dan okunuyor, Bug 5 düzeldi)
-        /// </summary>
+        /// <summary>Stoka iade edilen toplam ürün adedi (IsWasted=false olan iptal kalemleri)</summary>
+        public int TotalReturnCount { get; set; }   // ← YENİ: TotalRefundedToStock (tutar) ile karıştırılmamalı
+
         public List<WasteItemDto> OrderWastes { get; set; } = new();
-
-        /// <summary>StockLog SourceType="StokKaynaklı" kayıtları</summary>
         public List<WasteItemDto> StockLogWastes { get; set; } = new();
-
-        /// <summary>En fazla fire veren 10 ürün</summary>
         public List<TopWasteProductDto> TopWasteProducts { get; set; } = new();
 
-        /// <summary>IsWasted=false olan iptal kalemlerin toplam tutarı (stoka iade)</summary>
+        /// <summary>Stoka iade edilen toplam TUTAR (adet × birim fiyat)</summary>
         public decimal TotalRefundedToStock { get; set; }
 
-        // Chart için
         public decimal OrderWasteTotal { get; set; }
         public decimal StockLogWasteTotal { get; set; }
     }

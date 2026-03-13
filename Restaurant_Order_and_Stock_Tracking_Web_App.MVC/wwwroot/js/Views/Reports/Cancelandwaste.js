@@ -1,4 +1,5 @@
-﻿document.addEventListener("DOMContentLoaded", () => {
+﻿// wwwroot/js/Views/Reports/Cancelandwaste.js
+document.addEventListener("DOMContentLoaded", () => {
 
     // ── 1. C# Verilerini HTML'den (JSON Adacığından) Oku ──────────────────────
     const configEl = document.getElementById('wasteReportConfig');
@@ -18,7 +19,6 @@
     function gridColor() { return isDark() ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.06)'; }
     function textColor() { return isDark() ? '#687080' : '#8A95A3'; }
 
-    // ── Para Birimi Formatlama ─────────────────────────────────────────────────
     function formatCurrency(val) {
         return '₺' + Number(val || 0).toLocaleString('tr-TR', {
             minimumFractionDigits: 2,
@@ -26,13 +26,22 @@
         });
     }
 
-    // ── FIX: Widget DOM Güncellemesi ───────────────────────────────────────────
-    // Eski yapı: navigatePage() → window.location → full page reload.
-    //   Grafikler AJAX ile yüklenirken widget'lar Razor'ın ilk render değerinde
-    //   kalıyordu; filtre değiştikçe sayfa tamamen yeniden yüklenmek zorundaydı.
-    // Yeni yapı: applyFilter() → loadWasteCharts() AJAX → hem grafikler hem de
-    //   3 özet kart aynı fetch cevabıyla anlık güncellenir (Sales.js ile aynı pattern).
+    // ── Widget DOM Güncellemesi ────────────────────────────────────────────────
+    //
+    // FIX-COUNT-4: updateSummaryCards() — wv-waste-count ve wv-return-count eklendi.
+    //
+    // SORUN (eski):
+    //   → data.wasteCount  = undefined  (AJAX JSON'da yoktu)
+    //   → data.returnCount = undefined  (AJAX JSON'da yoktu)
+    //   → undefined || 0  → "0 kalem" basılıyordu
+    //
+    // ÇÖZÜM:
+    //   → GetWasteChartData artık wasteCount + returnCount dönüyor (int, .Sum(Qty))
+    //   → ASP.NET Core JSON serializer camelCase üretir: C# wasteCount → JS data.wasteCount ✓
+    //   → Fallback: (data.wasteCount ?? 0) → undefined/null güvenli
+    // ──────────────────────────────────────────────────────────────────────────
     function updateSummaryCards(data) {
+        // Tutar kartları (değişmedi)
         const total = document.getElementById('wv-total');
         const order = document.getElementById('wv-order');
         const stock = document.getElementById('wv-stock');
@@ -40,6 +49,21 @@
         if (total) total.textContent = formatCurrency(data.totalWasteLoss);
         if (order) order.textContent = formatCurrency(data.orderWasteTotal);
         if (stock) stock.textContent = formatCurrency(data.stockLogWasteTotal);
+
+        // FIX-COUNT-4a: Zayi Adet kartı
+        // data.wasteCount → camelCase (ASP.NET Core JSON default)
+        // ?? 0 → undefined veya null gelirse güvenli fallback
+        const wasteCountEl = document.getElementById('wv-waste-count');
+        if (wasteCountEl) {
+            wasteCountEl.textContent = (data.wasteCount ?? 0) + ' kalem';
+        }
+
+        // FIX-COUNT-4b: Stoka İade Adet kartı
+        // data.returnCount → camelCase (ASP.NET Core JSON default)
+        const returnCountEl = document.getElementById('wv-return-count');
+        if (returnCountEl) {
+            returnCountEl.textContent = (data.returnCount ?? 0) + ' kalem';
+        }
     }
 
     // ── QueryString Oluşturucu ─────────────────────────────────────────────────
@@ -54,7 +78,7 @@
 
     // ── Filtre Uygulama: AJAX (full reload yok) ────────────────────────────────
     function applyFilter() {
-        history.replaceState(null, '', `/Reports/CancelAndWaste?${buildQs()}`);
+        history.replaceState(null, '', `/App/Reports/CancelAndWaste?${buildQs()}`);
         loadWasteCharts();
     }
 
@@ -83,7 +107,7 @@
             if (dateFromEl) dateFromEl.style.display = isCustom ? '' : 'none';
             if (dateToEl) dateToEl.style.display = isCustom ? '' : 'none';
 
-            if (!isCustom) applyFilter();  // eski: navigatePage() → full reload
+            if (!isCustom) applyFilter();
         });
     });
 
@@ -100,7 +124,7 @@
     const btnCsv = document.getElementById('btnCsv');
     if (btnCsv) {
         btnCsv.addEventListener('click', () => {
-            window.location = `/Reports/ExportCsv?type=waste&${buildQs()}`;
+            window.location = `/App/Reports/ExportCsv?type=waste&${buildQs()}`;
         });
     }
 
@@ -112,14 +136,14 @@
         if (prodLoading) prodLoading.style.display = 'flex';
 
         try {
-            const res = await fetch(`/Reports/GetWasteChartData?${buildQs()}`);
+            const res = await fetch(`/App/Reports/GetWasteChartData?${buildQs()}`);
             if (!res.ok) throw new Error("Veri çekilemedi.");
             const data = await res.json();
 
             if (srcLoading) srcLoading.style.display = 'none';
             if (prodLoading) prodLoading.style.display = 'none';
 
-            // ── FIX: Fetch cevabıyla 3 özet kartı anında güncelle ─────────────
+            // Tüm 5 kartı güncelle (3 tutar + 2 adet)
             updateSummaryCards(data);
 
             // ── Kaynak Dağılımı (Doughnut) ────────────────────────────────────

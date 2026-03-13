@@ -19,7 +19,7 @@
     }
 
     function navigate() {
-        window.location = `/Reports/Table?${buildQs()}`;
+        window.location = `/App/Reports/Table?${buildQs()}`;
     }
 
     // ── 3. Olay Dinleyicileri (Event Listeners) ──
@@ -57,7 +57,7 @@
     const btnCsv = document.getElementById('btnCsv');
     if (btnCsv) {
         btnCsv.addEventListener('click', () => {
-            window.location = `/Reports/ExportCsv?type=table&${buildQs()}`;
+            window.location = `/App/Reports/ExportCsv?type=table&${buildQs()}`;
         });
     }
 

@@ -7,6 +7,8 @@ function getToken() {
 }
 
 // ── Fetch Yardımcısı ─────────────────────────────────────────
+// [FIX-1a] alert() kaldırıldı → showToast ile kullanıcı dostu hata gösterimi
+// [FIX-1b] 400 (antiforgery) ile 401 (session) artık ayrı handle ediliyor
 async function postJson(url, payload) {
     const res = await fetch(url, {
         method: 'POST',
@@ -18,10 +20,27 @@ async function postJson(url, payload) {
     });
 
     const ct = res.headers.get('content-type') || '';
-    if (res.status === 401 || (!ct.includes('application/json') && !res.ok)) {
-        alert('Oturumunuz sona erdi. Giriş sayfasına yönlendiriliyorsunuz.');
-        window.location.href = '/App/Auth/Login';
+
+    // [FIX-1a] Gerçek oturum hatası (401) → toast + yönlendirme
+    if (res.status === 401) {
+        showToast('session-expired', 'danger', '🔒',
+            'Oturum Sona Erdi',
+            'Giriş sayfasına yönlendiriliyorsunuz...',
+            3000);
+        setTimeout(() => { window.location.href = '/Auth/Login'; }, 3000);
         throw new Error('Unauthorized');
+    }
+
+    // [FIX-1b] JSON dışı yanıt (404, 400, 500 HTML sayfası) → toast, session hatası DEĞİL
+    // Bu durum genellikle yanlış URL veya antiforgery token hatasıdır.
+    if (!ct.includes('application/json') && !res.ok) {
+        console.error('[postJson] Beklenmeyen yanıt:', res.status, res.statusText, url);
+        showToast(`fetch-err-${Date.now()}`, 'danger', '⚠️',
+            'İstek Hatası',
+            `Sunucu beklenmedik bir yanıt döndürdü (${res.status}). Sayfa yenilenecek.`,
+            4000);
+        setTimeout(() => location.reload(), 4500);
+        throw new Error('BadResponse');
     }
 
     return res.json();
@@ -84,7 +103,7 @@ async function submitReserve() {
     };
 
     try {
-        const data = await postJson('/Tables/Reserve', payload);
+        const data = await postJson('/App/Tables/Reserve', payload);
         if (data.success) {
             window.location.href = data.redirectUrl || window.location.href;
         } else {
@@ -100,7 +119,7 @@ async function cancelReserve(tableId) {
     if (!confirm('Rezervasyon iptal edilsin mi?')) return;
 
     try {
-        const data = await postJson('/Tables/CancelReserve', { tableId });
+        const data = await postJson('/App/Tables/CancelReserve', { tableId });
         if (data.success) { location.reload(); }
         else { alert('Hata: ' + (data.message || 'Bilinmeyen hata')); }
     } catch (e) {
@@ -113,7 +132,7 @@ async function deleteTable(tableId, tableName) {
     if (!confirm(`'${tableName}' silinsin mi?`)) return;
 
     try {
-        const data = await postJson('/Tables/Delete', { tableId });
+        const data = await postJson('/App/Tables/Delete', { tableId });
         if (data.success) { location.reload(); }
         else { alert('Hata: ' + (data.message || 'Bilinmeyen hata')); }
     } catch (e) {
@@ -191,7 +210,7 @@ async function submitMerge() {
     submitBtn.textContent = '⏳ Birleştiriliyor...';
 
     try {
-        const data = await postJson('/Tables/MergeOrder', {
+        const data = await postJson('/App/Tables/MergeOrder', {
             sourceTableId: mergeSourceId,
             targetTableId: mergeTargetId
         });
@@ -392,12 +411,25 @@ setInterval(tickSlaTimers, 15000);
 
 
 // ── Garson Çağrısını Onayla ───────────────────────────────────
+// ── Garson Çağrısını Onayla ───────────────────────────────────
+// [FIX-1c] URL: '/Tables/DismissWaiter' → '/App/Tables/DismissWaiter'
+//           Eksik '/App/' prefix'i 404 → HTML yanıt → false-positive session
+//           hatasına yol açıyordu. Tüm TablesController endpoint'leri /App/ alanındadır.
 async function dismissWaiter(tableName) {
     try {
-        const data = await postJson('/Tables/DismissWaiter', { tableName });
-        if (!data.success) console.warn('DismissWaiter başarısız:', data.message);
+        const data = await postJson('/App/Tables/DismissWaiter', { tableName });
+        if (!data.success) {
+            console.warn('[dismissWaiter] Sunucu hatası:', data.message);
+            showToast(`dismiss-err-${Date.now()}`, 'warning', '⚠️',
+                'İşlem Başarısız', data.message || 'Bilinmeyen hata.', 4000);
+        }
+        // Başarı durumunda UI güncelleme SignalR WaiterDismissed event'i yapar.
+        // Ekstra UI müdahalesine gerek yok.
     } catch (err) {
-        console.error('DismissWaiter hatası:', err);
+        // postJson zaten toast basar; burada sadece log
+        if (err.message !== 'Unauthorized' && err.message !== 'BadResponse') {
+            console.error('[dismissWaiter] Ağ hatası:', err);
+        }
     }
 }
 

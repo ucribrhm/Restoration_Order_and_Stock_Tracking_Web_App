@@ -25,7 +25,7 @@
     }
 
     function navigate() {
-        window.location = `/Reports/Stock?${buildQs()}`;
+        window.location = `/App/Reports/Stock?${buildQs()}`;
     }
 
     // ── Olay Dinleyicileri (Event Listeners) ──
@@ -79,7 +79,7 @@
     const btnCsv = document.getElementById('btnCsv');
     if (btnCsv) {
         btnCsv.addEventListener('click', () => {
-            window.location = `/Reports/ExportCsv?type=stock&${buildQs()}`;
+            window.location = `/App/Reports/ExportCsv?type=stock&${buildQs()}`;
         });
     }
 
@@ -103,7 +103,7 @@
         }
 
         try {
-            const res = await fetch(`/Reports/GetStockTrendData?menuItemId=${id}&days=30`);
+            const res = await fetch(`/App/Reports/GetStockTrendData?menuItemId=${id}&days=30`);
             const data = await res.json();
 
             document.getElementById('trendLoading').style.display = 'none';

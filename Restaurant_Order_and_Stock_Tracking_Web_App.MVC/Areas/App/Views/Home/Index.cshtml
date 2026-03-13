@@ -1479,63 +1479,89 @@
                    Hub: /notificationHub  (Program.cs → app.MapHub<NotificationHub>)
                    Event: ReceiveNotification  →  { icon, message, color, time }
                    ════════════════════════════════════════════════════════════════════════ */
-                !function initSignalR() {
-                    const C = document.getElementById('toast-c');
+        !function initSignalR() {
 
-                    // ── Toast DOM oluştur ve göster ─────────────────────────────────────
-                    function showToast(icon, message, color, time) {
-                        const t = document.createElement('div');
-                        t.className = 'ti';
-                        t.style.borderLeft = `3px solid ${color}`;
-                        t.innerHTML =
-                            `<span class="ti-ico">${icon}</span>` +
-                            `<span class="ti-msg">${message}</span>` +
-                            `<span class="ti-t">${time}</span>`;
-                        C.appendChild(t);
+        // [FIX-3] Container IIFE başında bir kez değil, her gösterimde DOM'dan taze oku.
+        // Eski: const C = document.getElementById('toast-c');  ← IIFE başında null kalabiliyordu
+        function getToastContainer() {
+        return document.getElementById('toast-c');
+        }
 
-                        // 5 saniye görünür → fadeOut → DOM'dan sil
-                        setTimeout(() => {
-                            t.classList.add('out');
-                            setTimeout(() => t.remove(), 320);
-                        }, 5000);
+        // ── Toast DOM oluştur ve göster ─────────────────────────────────────
+        function showToast(icon, message, color, time) {
+        const C = getToastContainer(); // [FIX-3]
+        if (!C) {
+        // [FIX-4] Container yoksa sessiz return — crash değil
+        console.warn('[SignalR] #toast-c bulunamadı, toast gösterilemiyor');
+        return;
+        }
 
-                        // Maksimum 4 toast aynı anda görünsün
-                        while (C.children.length > 4) C.firstChild.remove();
-                    }
+        const t = document.createElement('div');
+        t.className = 'ti';
+        t.style.borderLeft = `3px solid ${color}`;
+        t.innerHTML =
+        `<span class="ti-ico">${icon}</span>` +
+        `<span class="ti-msg">${message}</span>` +
+        `<span class="ti-t">${time}</span>`;
+        C.appendChild(t);
 
-                    // ── SignalR bağlantısı kur ──────────────────────────────────────────
-                    const connection = new signalR.HubConnectionBuilder()
-                        .withUrl('/notificationHub')
-                        .withAutomaticReconnect([0, 2000, 5000, 10000, 30000]) // ms cinsinden retry
-                        .configureLogging(signalR.LogLevel.Warning)
-                        .build();
+        // 5 saniye görünür → fadeOut → DOM'dan sil
+        setTimeout(() => {
+        t.classList.add('out');
+        setTimeout(() => t.remove(), 320);
+        }, 5000);
 
-                    // ── Sunucudan gelen gerçek event ─────────────────────────────────────
-                    // OrdersController → NotifyAsync() → ReceiveNotification
-                    connection.on('ReceiveNotification', function (payload) {
-                        const { icon = '🔔', message = '', color = '#f97316', time = '' } = payload;
-                        showToast(icon, message, color, time);
-                    });
+        // Maksimum 4 toast aynı anda görünsün
+        while (C.children.length > 4) C.firstChild.remove();
+        }
 
-                    // ── Bağlantı yönetimi ────────────────────────────────────────────────
-                    async function startConnection() {
-                        try {
-                            await connection.start();
-                            console.info('[SignalR] NotificationHub bağlandı.');
-                        } catch (err) {
-                            console.warn('[SignalR] Bağlantı hatası, 10sn sonra tekrar denenecek:', err);
-                            setTimeout(startConnection, 10000);
-                        }
-                    }
+        // ── SignalR bağlantısı kur ──────────────────────────────────────────
+        const connection = new signalR.HubConnectionBuilder()
+        .withUrl('/notificationHub')
+        .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+        .configureLogging(signalR.LogLevel.Information) // [FIX-1] Warning → Information
+        .build();
 
-                    connection.onreconnecting(() => console.info('[SignalR] Yeniden bağlanıyor…'));
-                    connection.onreconnected(() => console.info('[SignalR] Yeniden bağlandı.'));
-                    connection.onclose(err => {
-                        console.warn('[SignalR] Bağlantı kapandı, yeniden başlatılıyor…', err);
-                        setTimeout(startConnection, 5000);
-                    });
+        // ── Sunucudan gelen gerçek event ─────────────────────────────────────
+        // OrderService → NotifyDashboardAsync() → ReceiveNotification
+        connection.on('ReceiveNotification', function (payload) {
+        try {
+        console.info('[SignalR Dashboard] ReceiveNotification geldi:', payload); // [FIX-5]
 
-                    startConnection();
-                }();
+        if (!payload) return; // [FIX-4] null-guard
+
+        // [FIX-3] camelCase/PascalCase çift okuma
+        const icon    = payload.icon    ?? payload.Icon    ?? '🔔';
+        const message = payload.message ?? payload.Message ?? '';
+        const color   = payload.color   ?? payload.Color   ?? '#f97316';
+        const time    = payload.time    ?? payload.Time    ?? '';
+
+        showToast(icon, message, color, time);
+        } catch (err) {
+        // [FIX-2] Handler hatası → listener ölmez, bir sonraki event yine gelir
+        console.error('[SignalR Dashboard] ReceiveNotification handler hatası:', err);
+        }
+        });
+
+        // ── Bağlantı yönetimi ────────────────────────────────────────────────
+        async function startConnection() {
+        try {
+        await connection.start();
+        console.info('[SignalR] NotificationHub bağlandı ✅');
+        } catch (err) {
+        console.warn('[SignalR] Bağlantı hatası, 10sn sonra tekrar denenecek:', err);
+        setTimeout(startConnection, 10000);
+        }
+        }
+
+        connection.onreconnecting(() => console.info('[SignalR] Yeniden bağlanıyor…'));
+        connection.onreconnected(() => console.info('[SignalR] Yeniden bağlandı ✅'));
+        connection.onclose(err => {
+        console.warn('[SignalR] Bağlantı kapandı, yeniden başlatılıyor…', err);
+        setTimeout(startConnection, 5000);
+        });
+
+        startConnection();
+        }();
     </script>
 }

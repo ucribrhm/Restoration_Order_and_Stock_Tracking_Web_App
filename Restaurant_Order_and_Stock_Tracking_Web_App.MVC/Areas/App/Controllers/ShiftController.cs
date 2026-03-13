@@ -676,6 +676,11 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
         // [P-02] Tüm parasal toplamlar + gruplama sorguları DB'de çalışır
         // [F-01] İndirim DB aggregate farkından türetilir
         // ═════════════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════════════
+        // PRIVATE — BuildDetailViewModel
+        // [P-02] Tüm parasal toplamlar + gruplama sorguları DB'de çalışır
+        // [F-01] İndirim DB aggregate farkından türetilir
+        // ═════════════════════════════════════════════════════════════════════
         private async Task<ShiftDetailViewModel> BuildDetailViewModel(ShiftLog shift)
         {
             var closedAt = shift.ClosedAt ?? DateTime.UtcNow;
@@ -709,7 +714,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                          && p.PaymentsMethod == 3)
                 .SumAsync(p => p.PaymentsAmount);
 
-            // ── [P-02] İptal adedi — DB SumAsync ───────────────────────────────
+            // ── [P-02] İptal adedi — DB SumAsync (tüm iptaller, IsWasted ayrımı yok) ─
             int cancelledCount = await _db.OrderItems
                 .Where(oi => oi.CancelledQuantity > 0
                           && (
@@ -739,6 +744,48 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                     (oi.OrderItemUnitPrice > 0
                         ? oi.OrderItemUnitPrice
                         : oi.MenuItem!.MenuItemPrice));
+
+            // ── [FIX] WasteCount — Zayi olan kalemlerin ÜRÜN ADEDİ ──────────────
+            // SORUN : WasteCount ViewModel'de tanımlı ama bu metotta hiç hesaplanmıyor,
+            //         return bloğuna atanmıyordu → her zaman 0 basılıyordu.
+            // ÇÖZÜM : IsWasted == true + .Sum(CancelledQuantity)
+            //         .Count() → kaç farklı satır (yanlış)
+            //         .Sum()   → kaç adet ürün zayi edildi (doğru)
+            //         Örn: 1 satır "Kola ×5 zayi" → Count()=1, Sum()=5
+            // (int?) + ?? 0 : eşleşen satır yoksa EF Core null döner, güvenli fallback
+            // ────────────────────────────────────────────────────────────────────
+            int wasteCount = await _db.OrderItems
+                .Where(oi => oi.IsWasted == true
+                          && oi.CancelledQuantity > 0
+                          && (
+                              (oi.Order.OrderClosedAt != null
+                               && oi.Order.OrderClosedAt >= shift.OpenedAt
+                               && oi.Order.OrderClosedAt <= closedAt)
+                              ||
+                              (oi.Order.OrderClosedAt == null
+                               && oi.OrderItemAddedAt >= shift.OpenedAt
+                               && oi.OrderItemAddedAt <= closedAt)
+                          ))
+                .SumAsync(oi => (int?)oi.CancelledQuantity) ?? 0;
+
+            // ── [FIX] StockReturnCount — Stoğa iade edilen kalemlerin ÜRÜN ADEDİ ─
+            // SORUN : StockReturnCount ViewModel'de tanımlı ama hiç hesaplanmıyor → 0.
+            // ÇÖZÜM : IsWasted == false + .Sum(CancelledQuantity)
+            //         IsWasted=false → iptal edildi ama zayi değil, stoka iade edildi.
+            // ────────────────────────────────────────────────────────────────────
+            int stockReturnCount = await _db.OrderItems
+                .Where(oi => oi.IsWasted == false
+                          && oi.CancelledQuantity > 0
+                          && (
+                              (oi.Order.OrderClosedAt != null
+                               && oi.Order.OrderClosedAt >= shift.OpenedAt
+                               && oi.Order.OrderClosedAt <= closedAt)
+                              ||
+                              (oi.Order.OrderClosedAt == null
+                               && oi.OrderItemAddedAt >= shift.OpenedAt
+                               && oi.OrderItemAddedAt <= closedAt)
+                          ))
+                .SumAsync(oi => (int?)oi.CancelledQuantity) ?? 0;
 
             // ── [P-02] Garson bazlı satış — DB GroupBy ──────────────────────────
             var waiterSales = await _db.Orders
@@ -796,6 +843,8 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                 TotalOther = other,
                 CancelledItemCount = cancelledCount,
                 WasteAmount = wasteAmount,
+                WasteCount = wasteCount,       // [FIX] önceden atanmıyordu → 0 kalıyordu
+                StockReturnCount = stockReturnCount, // [FIX] önceden atanmıyordu → 0 kalıyordu
                 WaiterSales = waiterSales,
                 TopProducts = topProducts,
                 CategorySales = categorySales

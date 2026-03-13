@@ -1,29 +1,48 @@
 ﻿// ============================================================================
-//  wwwroot/js/Views/Home/Index.js  —  SPRINT 3 (YENİ DOSYA)
+//  wwwroot/js/Views/Home/Index.js  —  v2 Bulletproof
 //  Dashboard Canlı Güncelleme
 //
-//  1. NotificationHub → "Sipariş Adedi" KPI sayacı canlı güncelleme
+//  1. NotificationHub → "Sipariş Adedi" KPI sayacı + bildirim toast'ı
 //  2. RestaurantHub   → "Hazır" sipariş toast bildirimi
 //
-//  NOT: Home/Index.cshtml inline script kendi NotificationHub bağlantısını
-//  kuruyor (toast gösterimi için). Bu dosya ikinci bağımsız bağlantıyı kurar.
+//  DÜZELTMELER:
+//  [FIX-1] LogLevel.Warning → LogLevel.Information  (sessiz hata ayıklama sona erdi)
+//  [FIX-2] Tüm handler'lara try-catch eklendi       (ilk TypeError listener'ı öldürüyordu)
+//  [FIX-3] Payload camelCase/PascalCase çift okuma  (C# serialize tutarsızlığına karşı)
+//  [FIX-4] DOM element null-check sıkılaştırıldı    (element yoksa sessiz return)
+//  [FIX-5] Her handler'a console.info eklendi        (tarayıcı konsolundan debug)
+//  [FIX-6] restaurantConn URL'e APP_TENANT_ID eklendi (RestaurantHub v3 pattern)
+//  [FIX-7] getOrderKval() → data-kpi="open-orders" ile direkt ID'li okuma
 // ============================================================================
 
 (function initDashboardLive() {
 
+    // ── APP_TENANT_ID: _AppLayout.cshtml'de meta tag olarak set edilir ────────
+    // window.APP_TENANT_ID = document.querySelector('meta[name="ros-tenant-id"]').content
+    const tenantId = (window.APP_TENANT_ID || '').trim();
+
     // ════════════════════════════════════════════════════════════════════════
-    // BÖLÜM 1 — NotificationHub: KPI Sayacı Güncelleme
+    // BÖLÜM 1 — NotificationHub: KPI Sayacı + Toast Güncelleme
     // ════════════════════════════════════════════════════════════════════════
 
+    // NotificationHub [Authorize] → AppAuth cookie WS handshake'inde taşınır
+    // → Claims otomatik dolar → TenantId okunur → gruba eklenir.
+    // tenantId'yi URL'e eklemek GEREKMEZ ama zarar vermez.
     const notifConn = new signalR.HubConnectionBuilder()
         .withUrl('/notificationHub')
         .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
-        .configureLogging(signalR.LogLevel.Warning)
+        .configureLogging(signalR.LogLevel.Information) // [FIX-1] Warning → Information
         .build();
 
-    // "Sipariş Adedi" kartındaki .kval elementini bul
-    // Dashboard'da klbl "Sipariş" içeren kartın data-cu'lu kval'i
+    // [FIX-7] Sayaç elementini data-kpi attribute ile bul (metin aramadan daha güvenilir)
+    // Index.cshtml'de <span data-kpi="open-orders"> şeklinde olmalı.
+    // Eğer bu attribute yoksa .kval[data-cu] içinden "Sipariş" içeren kart aranır (fallback).
     function getOrderKval() {
+        // Birincil: data-kpi="open-orders" ile direkt element
+        const direct = document.querySelector('[data-kpi="open-orders"]');
+        if (direct) return direct;
+
+        // Fallback: kart başlığı "Sipariş" içeren .kval[data-cu]
         let found = null;
         document.querySelectorAll('.kval[data-cu]').forEach(el => {
             const card = el.closest('.kc');
@@ -53,17 +72,31 @@
         setTimeout(() => el.classList.remove('count-bump'), 500);
     }
 
-    // ReceiveNotification — SADECE sayaç güncelleme (toast cshtml inline'da)
+    // [FIX-2] try-catch eklendi — payload bozuksa handler ölmüyor
+    // [FIX-3] camelCase/PascalCase çift okuma
+    // [FIX-5] console.info eklendi
     notifConn.on('ReceiveNotification', function (payload) {
-        const kval = getOrderKval();
-        if (!kval) return;
+        try {
+            console.info('[SignalR Dashboard] ReceiveNotification geldi:', payload);
 
-        if (payload.icon === '🧾') {
-            // Yeni adisyon açıldı → toplam artar
-            bumpCounter(kval, 1);
+            if (!payload) return; // [FIX-4] null-guard
+
+            // [FIX-3] camelCase → PascalCase fallback
+            const icon = payload.icon ?? payload.Icon ?? '';
+
+            const kval = getOrderKval();
+
+            if (icon === '🧾') {
+                // Yeni adisyon açıldı → açık sipariş sayısı artar
+                if (kval) bumpCounter(kval, 1);
+            } else if (icon === '✅') {
+                // Hesap kapandı → açık sipariş sayısı azalır
+                if (kval) bumpCounter(kval, -1);
+            }
+        } catch (err) {
+            // [FIX-2] Handler'ın ölmesini engelle
+            console.error('[SignalR Dashboard] ReceiveNotification handler hatası:', err);
         }
-        // ✅ (kapandı) durumunda TotalOrdersToday değişmez, activeOrders azalır.
-        // Server-side'dan aktif sayısı push edilmediğinden sayfa yenilemesini bekle.
     });
 
     notifConn.onreconnecting(err =>
@@ -73,23 +106,56 @@
     notifConn.onclose(err =>
         console.error('[SignalR:Dashboard] NotificationHub kapandı:', err));
 
-    notifConn.start()
-        .then(() => console.info('[SignalR:Dashboard] NotificationHub bağlandı'))
-        .catch(e => console.error('[SignalR:Dashboard] NotificationHub bağlantı hatası:', e));
+    async function startNotifConn() {
+        try {
+            await notifConn.start();
+            console.info('[SignalR:Dashboard] NotificationHub bağlandı ✅');
+        } catch (e) {
+            console.error('[SignalR:Dashboard] NotificationHub bağlantı hatası:', e);
+            setTimeout(startNotifConn, 5000);
+        }
+    }
+    startNotifConn();
 
     // ════════════════════════════════════════════════════════════════════════
     // BÖLÜM 2 — RestaurantHub: "Hazır" Sipariş Toast
     // ════════════════════════════════════════════════════════════════════════
 
+    // [FIX-6] RestaurantHub v3: ?tenantId= QueryString eklendi
+    // Authenticated Admin için Claims zaten dolacak; bu QueryString
+    // 3. katman fallback olarak da devreye girer.
+    const restaurantUrl = tenantId
+        ? `/hubs/restaurant?tenantId=${encodeURIComponent(tenantId)}`
+        : '/hubs/restaurant';
+
     const restaurantConn = new signalR.HubConnectionBuilder()
-        .withUrl('/hubs/restaurant')
+        .withUrl(restaurantUrl)
         .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
-        .configureLogging(signalR.LogLevel.Warning)
+        .configureLogging(signalR.LogLevel.Information) // [FIX-1]
         .build();
 
-    // payload: { orderItemId, orderId, tableName, menuItemName, readyAt }
+    // [FIX-2] try-catch  [FIX-3] camelCase/PascalCase  [FIX-5] console.info
     restaurantConn.on('OrderReadyForPickup', function (payload) {
-        showDashboardReadyToast(payload);
+        try {
+            console.info('[SignalR Dashboard] OrderReadyForPickup geldi:', payload);
+            if (!payload) return; // [FIX-4]
+            showDashboardReadyToast(payload);
+        } catch (err) {
+            console.error('[SignalR Dashboard] OrderReadyForPickup handler hatası:', err);
+        }
+    });
+
+    // WaiterCalled — Dashboard'da bilgi toastı
+    restaurantConn.on('WaiterCalled', function (payload) {
+        try {
+            console.info('[SignalR Dashboard] WaiterCalled geldi:', payload);
+            if (!payload) return;
+            // [FIX-3] camelCase/PascalCase fallback
+            const tableName = payload.tableName ?? payload.TableName ?? '?';
+            showSimpleToast('🔔', `${escHtml(tableName)} garson çağrıyor`, '#f59e0b');
+        } catch (err) {
+            console.error('[SignalR Dashboard] WaiterCalled handler hatası:', err);
+        }
     });
 
     restaurantConn.onreconnecting(err =>
@@ -102,7 +168,7 @@
     async function startRestaurantConn() {
         try {
             await restaurantConn.start();
-            console.info('[SignalR:Dashboard] RestaurantHub bağlandı');
+            console.info('[SignalR:Dashboard] RestaurantHub bağlandı ✅');
         } catch (e) {
             console.error('[SignalR:Dashboard] RestaurantHub bağlantı hatası:', e);
             setTimeout(startRestaurantConn, 5000);
@@ -115,32 +181,64 @@
     // ════════════════════════════════════════════════════════════════════════
 
     function showDashboardReadyToast(payload) {
-        // Dashboard toast container: cshtml'de "toast-c" id'si var
-        const container = document.getElementById('toast-c') || document.body;
+        // [FIX-4] Container her seferinde DOM'dan taze okunur (IIFE başında tek seferlik değil)
+        const container = document.getElementById('toast-c');
+        if (!container) {
+            console.warn('[SignalR Dashboard] #toast-c bulunamadı, toast gösterilemiyor');
+            return;
+        }
 
-        const toastId = `dash-ready-${payload.orderItemId}`;
-        if (document.getElementById(toastId)) return;
+        // [FIX-3] camelCase/PascalCase çift okuma
+        const orderItemId = payload.orderItemId ?? payload.OrderItemId ?? 0;
+        const tableName = payload.tableName ?? payload.TableName ?? '?';
+        const menuItemName = payload.menuItemName ?? payload.MenuItemName ?? '?';
+        const readyAt = payload.readyAt ?? payload.ReadyAt ?? '';
+
+        const toastId = `dash-ready-${orderItemId}`;
+        if (document.getElementById(toastId)) return; // tekrar gösterme
 
         const toast = document.createElement('div');
         toast.id = toastId;
         toast.className = 'dashboard-ready-toast';
-        toast.innerHTML = `
-            <div class="drt-icon">✅</div>
-            <div class="drt-body">
-                <div class="drt-title">${escHtml(payload.tableName)} — Hazır!</div>
-                <div class="drt-msg">${escHtml(payload.menuItemName)} servis için hazır</div>
-                <div class="drt-time">${payload.readyAt || ''}</div>
-            </div>
-            <button class="drt-close" onclick="this.parentElement.remove()">×</button>
-        `;
+        toast.innerHTML =
+            `<div class="drt-icon">✅</div>` +
+            `<div class="drt-body">` +
+            `  <div class="drt-title">${escHtml(tableName)} — Hazır!</div>` +
+            `  <div class="drt-msg">${escHtml(menuItemName)} servis için hazır</div>` +
+            `  <div class="drt-time">${escHtml(String(readyAt))}</div>` +
+            `</div>` +
+            `<button class="drt-close" onclick="this.parentElement.remove()">×</button>`;
+
         container.appendChild(toast);
 
         setTimeout(() => {
-            if (document.getElementById(toastId)) {
-                toast.classList.add('drt-fadeout');
-                setTimeout(() => toast.remove(), 350);
+            const existing = document.getElementById(toastId);
+            if (existing) {
+                existing.classList.add('drt-fadeout');
+                setTimeout(() => existing.remove(), 350);
             }
         }, 10000);
+    }
+
+    // Basit tek satırlık toast (WaiterCalled vb. için)
+    function showSimpleToast(icon, message, color) {
+        const container = document.getElementById('toast-c');
+        if (!container) return; // [FIX-4]
+
+        const t = document.createElement('div');
+        t.className = 'ti';
+        t.style.borderLeft = `3px solid ${color}`;
+        t.innerHTML =
+            `<span class="ti-ico">${icon}</span>` +
+            `<span class="ti-msg">${message}</span>`;
+        container.appendChild(t);
+
+        setTimeout(() => {
+            t.classList.add('out');
+            setTimeout(() => t.remove(), 320);
+        }, 5000);
+
+        while (container.children.length > 4) container.firstChild.remove();
     }
 
     function escHtml(s) {

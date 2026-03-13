@@ -193,6 +193,8 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
         }
 
         // ── GET /Reports/CancelAndWaste ──────────────────────────────────────
+        // Areas/App/Controllers/ReportsController.cs
+        // ── GET /Reports/CancelAndWaste ──────────────────────────────────────────────
         public async Task<IActionResult> CancelAndWaste(
             string preset = "today",
             DateTime? from = null,
@@ -204,24 +206,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             var fromUtc = filter.FromUtc;
             var toUtc = filter.ToUtc;
 
-            // ══════════════════════════════════════════════════════════
-            // BUG 1+4+5 DÜZELTMESİ — CancelAndWaste sorguları
-            //
-            // ESKI (hatalı):
-            //   OrderWastes = OrderItems WHERE IsWasted==true
-            //   → Quantity = OrderItemQty - CancelledQty = KALAN adet (0 oluyor!)
-            //   → TotalLoss = OrderItemLineTotal = KALAN tutar (0 oluyor!)
-            //   → Adisyon No bilgisi yok
-            //   → Stok kaynaklı ile tip ayrımı yok (tüm Çıkış'lar birleşiyor)
-            //
-            // YENİ (doğru):
-            //   Her iki kaynak StockLog.SourceType filtresiyle ayrışıyor.
-            //   Qty   = Math.Abs(QuantityChange) → iptal edilen gerçek miktar
-            //   Tutar = Qty * UnitPrice (OrderItem fiyatından kaydedildi)
-            //   OrderId → raporda adisyon no gösterimi için
-            // ══════════════════════════════════════════════════════════
-
-            // 1. Sipariş Kaynaklı Fire: CancelItem'da IsWasted=true ile yazılan StockLog'lar
+            // 1. Sipariş Kaynaklı Fire: CancelItem(IsWasted=true) → StockLog.SourceType="SiparişKaynaklı"
             var orderWastes = await _context.StockLogs
                 .Where(sl => sl.SourceType == "SiparişKaynaklı"
                           && sl.CreatedAt >= fromUtc
@@ -229,19 +214,19 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                 .Select(sl => new WasteItemDto
                 {
                     ProductName = sl.MenuItem.MenuItemName,
-                    Quantity = Math.Abs(sl.QuantityChange),          // iptal edilen gerçek miktar
+                    Quantity = Math.Abs(sl.QuantityChange),
                     UnitPrice = sl.UnitPrice ?? sl.MenuItem.MenuItemPrice,
                     CostPrice = sl.MenuItem.CostPrice,
                     TotalLoss = Math.Abs(sl.QuantityChange) * (sl.UnitPrice ?? sl.MenuItem.MenuItemPrice),
                     Date = sl.CreatedAt,
                     CancelReason = sl.Note ?? "",
                     SourceType = "SiparişKaynaklı",
-                    OrderId = sl.OrderId                             // adisyon no raporda görünür
+                    OrderId = sl.OrderId
                 })
                 .OrderByDescending(x => x.Date)
                 .ToListAsync();
 
-            // 2. Stok Kaynaklı Fire: UpdateStock fire modundan gelen StockLog'lar
+            // 2. Stok Kaynaklı Fire: UpdateStock fire modu → StockLog.SourceType="StokKaynaklı"
             var stockLogWastes = await _context.StockLogs
                 .Where(sl => sl.SourceType == "StokKaynaklı"
                           && sl.CreatedAt >= fromUtc
@@ -256,24 +241,49 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                     Date = sl.CreatedAt,
                     Note = sl.Note ?? "",
                     SourceType = "StokKaynaklı",
-                    OrderId = null                                   // adisyon bağlantısı yok
+                    OrderId = null
                 })
                 .OrderByDescending(x => x.Date)
                 .ToListAsync();
 
-            // IsWasted=false → stoka iade (refund)
+            // 3. Stoka İade Tutarı (IsWasted=false → iptal edildi ama zayi değil, stoka döndü)
             var refundedToStock = await _context.OrderItems
                 .Where(oi => oi.IsWasted == false
                           && oi.OrderItemAddedAt >= fromUtc
                           && oi.OrderItemAddedAt < toUtc
                           && oi.CancelledQuantity > 0)
-                .SumAsync(oi => oi.CancelledQuantity * oi.OrderItemUnitPrice);
+                .SumAsync(oi => (decimal?)oi.CancelledQuantity * oi.OrderItemUnitPrice) ?? 0m;
+
+            // ────────────────────────────────────────────────────────────────────────
+            // FIX-COUNT-1: Zayi Adet — .Count() (satır sayısı) DEĞİL,
+            //              .Sum(x => x.Quantity) (gerçek ürün adedi) kullan.
+            //
+            // .Count() → kaç farklı iptal satırı var = yanlış
+            // .Sum(x => x.Quantity) → kaç adet ürün zayi edildi = doğru
+            //
+            // Örn: 1 satır "Kola ×5 zayi" → Count()=1, Sum()=5
+            // ────────────────────────────────────────────────────────────────────────
+            var allWasteItems = orderWastes.Concat(stockLogWastes).ToList();
+
+            var totalWasteCount = allWasteItems.Sum(x => x.Quantity); // ← .Sum(Qty), .Count() değil
+
+            // ────────────────────────────────────────────────────────────────────────
+            // FIX-COUNT-2: Stoka İade Adet — TotalRefundedToStock (decimal tutar) ile
+            //              karıştırma! Bu ayrı bir int sayım sorgusudur.
+            //
+            // ESKİ (yok): TotalReturnCount alanı ViewModel'de tanımlı değildi
+            // YENİ: CancelledQuantity toplamı → stoka kaç adet döndü
+            // ────────────────────────────────────────────────────────────────────────
+            var totalReturnCount = await _context.OrderItems
+                .Where(oi => oi.IsWasted == false
+                          && oi.OrderItemAddedAt >= fromUtc
+                          && oi.OrderItemAddedAt < toUtc
+                          && oi.CancelledQuantity > 0)
+                .SumAsync(oi => (int?)oi.CancelledQuantity) ?? 0; // ← .Sum(Qty), .Count() değil
 
             var orderWasteTotal = orderWastes.Sum(x => x.TotalLoss);
             var stockLogWasteTotal = stockLogWastes.Sum(x => x.TotalLoss);
 
-            // Top waste products (her iki kaynaktan birleştir)
-            var allWasteItems = orderWastes.Concat(stockLogWastes).ToList();
             var topWaste = allWasteItems
                 .GroupBy(x => x.ProductName)
                 .Select(g => new TopWasteProductDto
@@ -292,9 +302,10 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                 OrderWastes = orderWastes,
                 StockLogWastes = stockLogWastes,
                 TotalWasteLoss = orderWasteTotal + stockLogWasteTotal,
-                TotalWasteCount = allWasteItems.Sum(x => x.Quantity),
+                TotalWasteCount = totalWasteCount,    // FIX-COUNT-1: .Sum(Qty) ile hesaplandı
+                TotalReturnCount = totalReturnCount,   // FIX-COUNT-2: yeni alan, .Sum(Qty) ile
                 TopWasteProducts = topWaste,
-                TotalRefundedToStock = refundedToStock,
+                TotalRefundedToStock = refundedToStock,  // tutar (ayrı, karıştırılmamalı)
                 OrderWasteTotal = orderWasteTotal,
                 StockLogWasteTotal = stockLogWasteTotal
             };
@@ -640,6 +651,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             });
         }
 
+        // Areas/App/Controllers/ReportsController.cs
         [HttpGet]
         public async Task<IActionResult> GetWasteChartData(
             string preset = "today",
@@ -650,7 +662,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             var fromUtc = filter.FromUtc;
             var toUtc = filter.ToUtc;
 
-            // BUG 3 DÜZELTMESİ — GetWasteChartData: SourceType bazlı sorgular
             var orderWasteTotal = await _context.StockLogs
                 .Where(sl => sl.SourceType == "SiparişKaynaklı"
                           && sl.CreatedAt >= fromUtc
@@ -677,17 +688,41 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                 .Take(10)
                 .ToListAsync();
 
-            // FIX: Widget toplamları — filtre değiştiğinde 3 kart da AJAX ile güncellenir
-            var totalWasteLoss = orderWasteTotal + stockLogWasteTotal;
+            // ────────────────────────────────────────────────────────────────────────
+            // FIX-COUNT-3: AJAX response'a wasteCount + returnCount EKLENDİ.
+            //
+            // ESKİ JSON: { orderWasteTotal, stockLogWasteTotal, topProducts, totalWasteLoss }
+            //   → JS data.wasteCount  = undefined → || 0  → "0 kalem"
+            //   → JS data.returnCount = undefined → || 0  → "0 kalem"
+            //
+            // YENİ JSON: + wasteCount (int), + returnCount (int)
+            //   → JS data.wasteCount  = gerçek zayi adedi
+            //   → JS data.returnCount = gerçek iade adedi
+            //
+            // NOT: .SumAsync(Math.Abs(QuantityChange)) = gerçek ürün adedi
+            //      .CountAsync() = satır sayısı (yanlış)
+            // ────────────────────────────────────────────────────────────────────────
+            var wasteCount = await _context.StockLogs
+                .Where(sl => (sl.SourceType == "SiparişKaynaklı" || sl.SourceType == "StokKaynaklı")
+                          && sl.CreatedAt >= fromUtc
+                          && sl.CreatedAt < toUtc)
+                .SumAsync(sl => (int?)Math.Abs(sl.QuantityChange)) ?? 0; // ← .Sum(Qty), .Count() değil
+
+            var returnCount = await _context.OrderItems
+                .Where(oi => oi.IsWasted == false
+                          && oi.OrderItemAddedAt >= fromUtc
+                          && oi.OrderItemAddedAt < toUtc
+                          && oi.CancelledQuantity > 0)
+                .SumAsync(oi => (int?)oi.CancelledQuantity) ?? 0; // ← .Sum(Qty), .Count() değil
 
             return Json(new
             {
-                // Grafik dizileri (değişmedi)
                 orderWasteTotal,
                 stockLogWasteTotal,
+                totalWasteLoss = orderWasteTotal + stockLogWasteTotal,
                 topProducts = topProducts.Select(x => new { x.Name, x.Loss }).ToList(),
-                // Yeni: widget'lar için özet toplamlar
-                totalWasteLoss
+                wasteCount,    // ← YENİ: Zayi Adet (int)
+                returnCount    // ← YENİ: Stoka İade Adet (int)
             });
         }
 

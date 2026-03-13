@@ -27,7 +27,7 @@
     <input type="date" id="dateTo" class="filter-date" value="@f.To.AddDays(-1).ToString("yyyy-MM-dd")" style="display:@(f.Preset == "custom" ? "" : "none")" />
 </div>
 
-<!-- ── Özet Kartlar ── -->
+<!-- Cancelandwaste.cshtml — sum-grid bölümünü bu ile değiştir -->
 <div class="sum-grid">
     <div class="sum-card red">
         <div class="sum-val" id="wv-total">₺@Model.TotalWasteLoss.ToString("N2")</div>
@@ -40,6 +40,16 @@
     <div class="sum-card blue">
         <div class="sum-val" id="wv-stock">₺@Model.StockLogWasteTotal.ToString("N2")</div>
         <div class="sum-label">Stok Kaynaklı Fire</div>
+    </div>
+
+    <div class="sum-card red">
+        <div class="sum-val" id="wv-waste-count">@Model.TotalWasteCount kalem</div>
+        <div class="sum-label">Zayi Adet</div>
+    </div>
+
+    <div class="sum-card green">
+        <div class="sum-val" id="wv-return-count">@Model.TotalReturnCount kalem</div>
+        <div class="sum-label">Stoka İade Adet</div>
     </div>
 </div>
 

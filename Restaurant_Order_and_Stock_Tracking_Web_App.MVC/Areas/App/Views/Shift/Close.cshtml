@@ -222,27 +222,88 @@
             this.textContent = 'Kapatılıyor…';
 
             try {
-                // [DÜZELTME] fetch URL'si /App/... olarak güncellendi
-                const res = await fetch(`/App/Shift/Close/${shiftId}`, {
-                    method:  'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body:    JSON.stringify({ closingBalance, notes, differenceThreshold })
-                });
-                const d = await res.json();
+    // 1. Sayfadaki CSRF Token'ı yakala
+    const __afToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 
-                if (res.ok && d.success) {
-                    // [DÜZELTME] Yönlendirme URL'si /App/... olarak güncellendi
-                    window.location.href = `/App/Shift/Detail/${d.shiftId}`;
-                } else {
-                    showAlert(d.message || 'Vardiya kapatılamadı.');
-                    this.disabled    = false;
-                    this.innerHTML   = '⏹&nbsp; Vardiyayı Kapat &amp; Z Raporu Oluştur';
-                }
-            } catch {
-                showAlert('Sunucu bağlantı hatası. Tekrar deneyin.');
-                this.disabled    = false;
-                this.innerHTML   = '⏹&nbsp; Vardiyayı Kapat &amp; Z Raporu Oluştur';
+    // 2. İsteği at (Token'ı headers içine ekledik)
+    const res = await fetch(`/App/Shift/Close/${shiftId}`, {
+        method:  'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'RequestVerificationToken': __afToken // <-- Eksik olan kritik satır
+        },
+        body: JSON.stringify({ closingBalance, notes, differenceThreshold })
+    });
+
+    // 3. Sunucu JSON harici bir hata döndürdüyse (400, 404, 500) bunu yakala
+    if (!res.ok) {
+        const errorText = await res.text(); // Sunucunun gönderdiği HTML veya hata metni
+        console.error("Sunucu Hatası Detayı:", errorText); 
+        showAlert('İşlem reddedildi. Lütfen konsolu kontrol edin.');
+        this.disabled  = false;
+        this.innerHTML = '⏹&nbsp; Vardiyayı Kapat &amp; Z Raporu Oluştur';
+        return; // İşlemi burada kes
+    }
+
+    // 4. Yanıt başarılıysa JSON olarak parse et
+    const d = await res.json();
+
+    if (d.success) {
+        window.location.href = `/App/Shift/Detail/${d.shiftId}`;
+    } else {
+        showAlert(d.message || 'Vardiya kapatılamadı.');
+        this.disabled  = false;
+        this.innerHTML = '⏹&nbsp; Vardiyayı Kapat &amp; Z Raporu Oluştur';
+    }
+} catch (err) {
+    // Hatayı tarayıcı konsoluna yazdır ki gerçek sebebi görebilelim
+    console.error("Fetch Catch Hatası:", err); 
+    
+    showAlert('Sunucu bağlantı hatası. Tekrar deneyin.');
+    this.disabled  = false;
+    this.innerHTML = '⏹&nbsp; Vardiyayı Kapat &amp; Z Raporu Oluştur';
+        }try {
+            // 1. Sayfadaki CSRF Token'ı yakala
+            const __afToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+
+            // 2. İsteği at (Token'ı headers içine ekledik)
+            const res = await fetch(`/App/Shift/Close/${shiftId}`, {
+                method:  'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': __afToken // <-- Eksik olan kritik satır
+                },
+                body: JSON.stringify({ closingBalance, notes, differenceThreshold })
+            });
+
+            // 3. Sunucu JSON harici bir hata döndürdüyse (400, 404, 500) bunu yakala
+            if (!res.ok) {
+                const errorText = await res.text(); // Sunucunun gönderdiği HTML veya hata metni
+                console.error("Sunucu Hatası Detayı:", errorText);
+                showAlert('İşlem reddedildi. Lütfen konsolu kontrol edin.');
+                this.disabled  = false;
+                this.innerHTML = '⏹&nbsp; Vardiyayı Kapat &amp; Z Raporu Oluştur';
+                return; // İşlemi burada kes
             }
+
+            // 4. Yanıt başarılıysa JSON olarak parse et
+            const d = await res.json();
+
+            if (d.success) {
+                window.location.href = `/App/Shift/Detail/${d.shiftId}`;
+            } else {
+                showAlert(d.message || 'Vardiya kapatılamadı.');
+                this.disabled  = false;
+                this.innerHTML = '⏹&nbsp; Vardiyayı Kapat &amp; Z Raporu Oluştur';
+            }
+        } catch (err) {
+            // Hatayı tarayıcı konsoluna yazdır ki gerçek sebebi görebilelim
+            console.error("Fetch Catch Hatası:", err);
+    
+            showAlert('Sunucu bağlantı hatası. Tekrar deneyin.');
+            this.disabled  = false;
+            this.innerHTML = '⏹&nbsp; Vardiyayı Kapat &amp; Z Raporu Oluştur';
+        }
         });
 
         function showAlert(msg) {
