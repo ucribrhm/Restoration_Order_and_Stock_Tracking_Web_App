@@ -342,5 +342,98 @@
             setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 350); }, 3200);
         }
     </script>
+
+    @* ══════════════════════════════════════════════════════════════════════════
+       [v3-YENİ] SignalR — QR Menü için WaiterDismissed Dinleyici
+       ══════════════════════════════════════════════════════════════════════════
+       SORUN: QR Menü'de SignalR YOKTU.
+              Garson "İlgilenildi"ye bastığında backend WaiterDismissed atıyor
+              ama QR telefon dinlemiyordu → "Garson Çağrıldı" butonu F5'e
+              kadar sıfırlanamıyordu.
+
+       ÇÖZÜM: SignalR bağlantısı ?tenantId= QueryString ile kurulur.
+              WaiterDismissed handler → butonu anında sıfırlar.
+
+       BAĞLANTI URL: /hubs/restaurant?tenantId=X
+       TENANT_ID_JS: Razor tarafında zaten tanımlı (üstteki Razor bloğu)
+       TABLE_NAME_JS: Masa adı, sadece bu masanın event'ini filtreler
+    ── *@
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <script>
+        (function initQrSignalR() {
+            'use strict';
+
+            // TENANT_ID_JS ve TABLE_NAME_JS üstteki Razor script bloğunda tanımlı
+            const _tenantId = (typeof TENANT_ID_JS !== 'undefined' ? TENANT_ID_JS : '').trim();
+            const _tableName = (typeof TABLE_NAME_JS !== 'undefined' ? TABLE_NAME_JS : '').trim();
+
+            if (!_tenantId) {
+                console.warn('[QR SignalR] TenantId boş — SignalR bağlantısı atlandı.');
+                return;
+            }
+
+            // [v3] QueryString ile bağlan — anonim cihaz için tek güvenilir yöntem
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl(`/hubs/restaurant?tenantId=${encodeURIComponent(_tenantId)}`)
+                .withAutomaticReconnect([0, 3000, 10000, 30000])
+                .configureLogging(signalR.LogLevel.Warning)
+                .build();
+
+            // ── Payload case-insensitive okuma yardımcısı ─────────────────────
+            function qp(payload, key) {
+                const c = key.charAt(0).toLowerCase() + key.slice(1);
+                const P = key.charAt(0).toUpperCase() + key.slice(1);
+                const v = payload[c] ?? payload[P];
+                return (v === undefined || v === null) ? null : v;
+            }
+
+            // ── WaiterDismissed ───────────────────────────────────────────────
+            // Garson "İlgilenildi"ye bastı → butonu "Garson Çağır" haline döndür
+            // Payload: { tableName }
+            connection.on('WaiterDismissed', function (payload) {
+                try {
+                    console.info('[QR SignalR] WaiterDismissed ←', payload);
+
+                    const tName = qp(payload, 'tableName');
+                    if (!tName) {
+                        console.warn('[QR SignalR] WaiterDismissed — tableName boş.');
+                        return;
+                    }
+
+                    // Sadece BU masanın event'ini işle; diğer masaları yoksay
+                    if (tName !== _tableName) return;
+
+                    const btn = document.getElementById('btnCallWaiter');
+                    if (!btn) {
+                        console.warn('[QR SignalR] WaiterDismissed — #btnCallWaiter bulunamadı.');
+                        return;
+                    }
+
+                    // Butonu "Garson Çağır" haline döndür (F5 gerekmez)
+                    btn.disabled = false;
+                    btn.innerHTML = '<span class="btn-waiter-icon">◌</span><span>Garson Çağır</span>';
+                    btn.removeAttribute('data-called');
+
+                    console.info('[QR SignalR] Buton sıfırlandı: "Garson Çağır"');
+
+                } catch (err) {
+                    console.error('[QR SignalR] WaiterDismissed hatası:', err);
+                }
+            });
+
+            // ── Bağlantıyı başlat ──────────────────────────────────────────────
+            async function startQrConnection() {
+                try {
+                    await connection.start();
+                    console.info('[QR SignalR] ✅ Bağlandı — Tenant:', _tenantId, 'Masa:', _tableName);
+                } catch (err) {
+                    console.error('[QR SignalR] Bağlantı hatası, 5sn sonra tekrar:', err);
+                    setTimeout(startQrConnection, 5000);
+                }
+            }
+
+            startQrConnection();
+        })();
+    </script>
 </body>
 </html>

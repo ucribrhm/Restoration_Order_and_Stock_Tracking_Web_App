@@ -57,103 +57,52 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders
 
         // ── Özel Yardımcı: Dashboard SignalR Bildirimi ────────────────────────
         // Fire-and-forget; hub hatası operasyonu durdurmamalı.
-        private async Task NotifyDashboardAsync(string icon, string message, string color = "#f97316")
+        // 🚨 DÜZELTME: TenantId ana thread'den parametre olarak geliyor!
+        private async Task NotifyDashboardAsync(string tenantId, string icon, string message, string color = "#f97316")
         {
             try
             {
-                await _notifHub.Clients
-                    .Group(_tenantService.TenantId ?? "")
-                    .SendAsync("ReceiveNotification", new
-                    {
-                        icon,
-                        message,
-                        color,
-                        time = DateTime.Now.ToString("HH:mm")
-                    });
+                if (string.IsNullOrEmpty(tenantId)) return;
+                await _notifHub.Clients.Group(tenantId).SendAsync("ReceiveNotification", new
+                {
+                    icon,
+                    message,
+                    color,
+                    time = DateTime.Now.ToString("HH:mm")
+                });
             }
-            catch (Exception ex)
-            {
-                // Hub hatası iş akışını durdurmamalı; ancak artık log'a düşüyor.
-                // Böylece "dashboard boş, neden?" sorularına canlıda yanıt bulunabilir.
-                _logger.LogError(ex,
-                    "[OrderService] Dashboard SignalR bildirimi gönderilemedi. " +
-                    "TenantId: {TenantId} | Mesaj: {Message}",
-                    _tenantService.TenantId, message);
-            }
+            catch (Exception ex) { _logger.LogError(ex, "Dashboard SignalR hatası"); }
         }
 
-        // ── Özel Yardımcı: KDS SignalR Bildirimi ─────────────────────────────
-        private async Task NotifyKitchenAsync(object payload)
+        // 🚨 DÜZELTME: TenantId ana thread'den parametre olarak geliyor!
+        private async Task NotifyKitchenAsync(string tenantId, object payload)
         {
             try
             {
-                await _kitchenHub.Clients
-                    .Group(_tenantService.TenantId ?? "")
-                    .SendAsync("NewOrderItem", payload);
+                if (string.IsNullOrEmpty(tenantId)) return;
+                await _kitchenHub.Clients.Group(tenantId).SendAsync("NewOrderItem", payload);
+                _logger.LogInformation($"🚨 [KDS SIGNALR] {tenantId} odasına yeni sipariş ATEŞLENDİ!");
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex,
-                    "[OrderService] KDS SignalR bildirimi gönderilemedi. " +
-                    "TenantId: {TenantId}",
-                    _tenantService.TenantId);
-            }
+            catch (Exception ex) { _logger.LogError(ex, "KDS SignalR hatası"); }
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
-        //  1. CreateOrderAsync — Adisyon Aç
-        // ═══════════════════════════════════════════════════════════════════════
-        // ═══════════════════════════════════════════════════════════════════════
-        //  1. CreateOrderAsync — Adisyon Aç
-        //
-        //  [PERF-01 FIX] Çift N+1 Döngüsü → Tek WhereIn + Dictionary
-        //
-        //  ESKİ YÖNTEM (N+1 × 2):
-        //    Döngü-1 (stok ön kontrol) → her satır için FindAsync()  = N istek
-        //    Döngü-2 (item oluşturma)  → her satır için FindAsync()  = N istek
-        //    5 ürünlük sipariş = 10 DB çağrısı
-        //
-        //  YENİ YÖNTEM (1 + 1 = 2 sabit DB çağrısı):
-        //    Tüm benzersiz MenuItemId'ler toplanır.
-        //    Tek bir WHERE IN sorgusuyla hepsi çekilir ve Dictionary'e alınır.
-        //    Her iki döngü de artık bu Dictionary üzerinden O(1) lookup yapar.
-        // ═══════════════════════════════════════════════════════════════════════
-        public async Task<ServiceResult<CreateOrderResult>> CreateOrderAsync(
-            OrderCreateDto dto, string openedBy)
+        public async Task<ServiceResult<CreateOrderResult>> CreateOrderAsync(OrderCreateDto dto, string openedBy)
         {
-            if (dto.Items == null || !dto.Items.Any())
-                return new(false, "En az bir ürün eklemelisiniz.");
-
+            if (dto.Items == null || !dto.Items.Any()) return new(false, "En az bir ürün eklemelisiniz.");
             var table = await _db.Tables.FindAsync(dto.TableId);
-            if (table == null)
-                return new(false, "Masa bulunamadı.");
+            if (table == null) return new(false, "Masa bulunamadı.");
 
-            // ── [PERF-01] Tüm MenuItemId'leri tek sorguda çek ────────────────
-            //
-            // dto.Items içindeki tüm benzersiz MenuItemId'leri bir WHERE IN
-            // sorgusuna çeviriyoruz. EF Core bunu tek bir
-            //   SELECT … WHERE "MenuItemId" IN (1, 2, 3, …)
-            // olarak üretiyor. Sonuç bir Dictionary'e alınır; ardından her iki
-            // döngü sabit O(1) maliyetle lookup yapıyor.
-            var uniqueIds = dto.Items
-                .Where(i => i.Quantity >= 1)
-                .Select(i => i.MenuItemId)
-                .Distinct()
-                .ToList();
+            // 🚨 GÜVENLİ KOPYA: İşlem bitmeden Dükkan Kodunu alıp cebe koyuyoruz
+            string safeTenantId = _tenantService.TenantId ?? "";
 
-            var menuItemMap = await _db.MenuItems
-                .Where(m => uniqueIds.Contains(m.MenuItemId))
-                .ToDictionaryAsync(m => m.MenuItemId);
+            var uniqueIds = dto.Items.Where(i => i.Quantity >= 1).Select(i => i.MenuItemId).Distinct().ToList();
+            var menuItemMap = await _db.MenuItems.Where(m => uniqueIds.Contains(m.MenuItemId)).ToDictionaryAsync(m => m.MenuItemId);
 
-            // ── Stok ön kontrolü — Dictionary üzerinden ──────────────────────
             foreach (var line in dto.Items)
             {
-                if (line.Quantity < 1) continue;
-                if (!menuItemMap.TryGetValue(line.MenuItemId, out var miCheck)) continue;
+                if (line.Quantity < 1 || !menuItemMap.TryGetValue(line.MenuItemId, out var miCheck)) continue;
                 if (miCheck.TrackStock && miCheck.StockQuantity < line.Quantity)
-                    return new(false,
-                        $"Stok yetersiz: {miCheck.MenuItemName} — mevcut {miCheck.StockQuantity} adet",
-                        new CreateOrderResult(0, table.TableName, 0));
+                    return new(false, $"Stok yetersiz: {miCheck.MenuItemName} — mevcut {miCheck.StockQuantity} adet", new CreateOrderResult(0, table.TableName, 0));
             }
 
             using var tx = await _db.Database.BeginTransactionAsync();
@@ -162,28 +111,26 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders
                 var order = new Order
                 {
                     TableId = dto.TableId,
-                    OrderStatus = OrderStatus.Open,           // [ENUM]
+                    OrderStatus = OrderStatus.Open,
                     OrderOpenedBy = openedBy,
                     OrderNote = string.IsNullOrWhiteSpace(dto.OrderNote) ? null : dto.OrderNote.Trim(),
                     OrderTotalAmount = 0,
                     OrderOpenedAt = DateTime.UtcNow,
-                    TenantId = _tenantService.TenantId!
+                    TenantId = safeTenantId
                 };
                 _db.Orders.Add(order);
                 await _db.SaveChangesAsync();
 
                 decimal total = 0;
+                var kdsPayloads = new List<object>();
 
-                // ── Item oluşturma — Dictionary üzerinden ────────────────────
                 foreach (var line in dto.Items)
                 {
-                    // [PERF-01] FindAsync() YOK — Dictionary'den O(1) lookup
                     if (!menuItemMap.TryGetValue(line.MenuItemId, out var mi)) continue;
-
                     int qty = Math.Max(1, line.Quantity);
                     decimal lineTotal = mi.MenuItemPrice * qty;
 
-                    _db.OrderItems.Add(new OrderItem
+                    var newItem = new OrderItem
                     {
                         OrderId = order.OrderId,
                         MenuItemId = mi.MenuItemId,
@@ -192,16 +139,30 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders
                         OrderItemUnitPrice = mi.MenuItemPrice,
                         OrderItemLineTotal = lineTotal,
                         OrderItemNote = string.IsNullOrWhiteSpace(line.Note) ? null : line.Note.Trim(),
-                        OrderItemStatus = OrderItemStatus.Pending, // [ENUM]
+                        OrderItemStatus = OrderItemStatus.Pending,
                         OrderItemAddedAt = DateTime.UtcNow
-                    });
-                    total += lineTotal;
+                    };
+                    _db.OrderItems.Add(newItem);
+                    await _db.SaveChangesAsync(); // Id almak için kaydediyoruz
 
+                    total += lineTotal;
                     if (mi.TrackStock)
                     {
                         mi.StockQuantity -= qty;
                         if (mi.StockQuantity <= 0) { mi.StockQuantity = 0; mi.IsAvailable = false; }
                     }
+
+                    // KDS Payload hazırlığı
+                    kdsPayloads.Add(new
+                    {
+                        orderItemId = newItem.OrderItemId,
+                        orderId = order.OrderId,
+                        tableName = table.TableName,
+                        menuItemName = mi.MenuItemName,
+                        quantity = qty,
+                        note = newItem.OrderItemNote,
+                        addedAt = DateTime.UtcNow
+                    });
                 }
 
                 order.OrderTotalAmount = total;
@@ -209,12 +170,14 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders
                 await _db.SaveChangesAsync();
                 await tx.CommitAsync();
 
-                // SignalR — Dashboard
-                _ = NotifyDashboardAsync("🧾",
-                    $"{table.TableName} için yeni adisyon açıldı — ₺{total:N0}", "#f97316");
+                // 🚨 DÜZELTME: "AWAIT" kullanarak gönderiyoruz, fire-and-forget tuzağı bitti!
+                await NotifyDashboardAsync(safeTenantId, "🧾", $"{table.TableName} için yeni adisyon açıldı — ₺{total:N0}");
+                foreach (var payload in kdsPayloads)
+                {
+                    await NotifyKitchenAsync(safeTenantId, payload);
+                }
 
-                return new(true, "Adisyon açıldı.",
-                    new CreateOrderResult(order.OrderId, table.TableName, total));
+                return new(true, "Adisyon açıldı.", new CreateOrderResult(order.OrderId, table.TableName, total));
             }
             catch (Exception ex)
             {
@@ -223,39 +186,24 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
-        //  2. AddItemAsync — Tekil Ürün Ekle
-        // ═══════════════════════════════════════════════════════════════════════
         public async Task<ServiceResult<AddItemResult>> AddItemAsync(OrderItemAddDto dto)
         {
-            var order = await _db.Orders
-                .Include(o => o.OrderItems)
-                .Include(o => o.Table)
-                .FirstOrDefaultAsync(o => o.OrderId == dto.OrderId);
+            var order = await _db.Orders.Include(o => o.OrderItems).Include(o => o.Table).FirstOrDefaultAsync(o => o.OrderId == dto.OrderId);
             var mi = await _db.MenuItems.FindAsync(dto.MenuItemId);
 
-            if (order == null || mi == null)
-                return new(false, "Adisyon veya ürün bulunamadı.");
-            if (order.OrderStatus != OrderStatus.Open)  // [ENUM]
-                return new(false, "Kapalı adisyona ürün eklenemez.");
-
+            if (order == null || mi == null) return new(false, "Adisyon veya ürün bulunamadı.");
+            if (order.OrderStatus != OrderStatus.Open) return new(false, "Kapalı adisyona ürün eklenemez.");
             if (dto.Quantity < 1) dto.Quantity = 1;
+            if (mi.TrackStock && mi.StockQuantity < dto.Quantity) return new(false, $"Stok yetersiz: mevcut {mi.StockQuantity} adet.");
 
-            if (mi.TrackStock && mi.StockQuantity < dto.Quantity)
-                return new(false,
-                    $"Stok yetersiz: mevcut {mi.StockQuantity} adet. ({mi.MenuItemName})");
+            string safeTenantId = _tenantService.TenantId ?? "";
 
             using var tx = await _db.Database.BeginTransactionAsync();
             try
             {
                 var noteNorm = string.IsNullOrWhiteSpace(dto.Note) ? null : dto.Note.Trim();
                 int savedItemId;
-
-                var existing = order.OrderItems.FirstOrDefault(oi =>
-                    oi.MenuItemId == dto.MenuItemId &&
-                    oi.OrderItemStatus != OrderItemStatus.Cancelled && // [ENUM]
-                    oi.PaidQuantity < oi.OrderItemQuantity &&
-                    oi.OrderItemNote == noteNorm);
+                var existing = order.OrderItems.FirstOrDefault(oi => oi.MenuItemId == dto.MenuItemId && oi.OrderItemStatus != OrderItemStatus.Cancelled && oi.PaidQuantity < oi.OrderItemQuantity && oi.OrderItemNote == noteNorm);
 
                 if (existing != null)
                 {
@@ -274,44 +222,39 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders
                         OrderItemUnitPrice = mi.MenuItemPrice,
                         OrderItemLineTotal = mi.MenuItemPrice * dto.Quantity,
                         OrderItemNote = noteNorm,
-                        OrderItemStatus = OrderItemStatus.Pending, // [ENUM]
+                        OrderItemStatus = OrderItemStatus.Pending,
                         OrderItemAddedAt = DateTime.UtcNow
                     };
                     _db.OrderItems.Add(newItem);
-                    await _db.SaveChangesAsync(); // Id için erken kayıt
+                    await _db.SaveChangesAsync();
                     savedItemId = newItem.OrderItemId;
                 }
 
                 order.OrderTotalAmount += mi.MenuItemPrice * dto.Quantity;
-
-                if (mi.TrackStock)
-                {
-                    mi.StockQuantity -= dto.Quantity;
-                    if (mi.StockQuantity <= 0) { mi.StockQuantity = 0; mi.IsAvailable = false; }
-                }
+                if (mi.TrackStock) { mi.StockQuantity -= dto.Quantity; if (mi.StockQuantity <= 0) { mi.StockQuantity = 0; mi.IsAvailable = false; } }
 
                 await _db.SaveChangesAsync();
                 await tx.CommitAsync();
 
-                // SignalR — Dashboard
-                _ = NotifyDashboardAsync("🍽️",
-                    $"{order.Table?.TableName ?? $"#{order.OrderId}"} — {mi.MenuItemName} ×{dto.Quantity}",
-                    "#f97316");
+                // 🚨 AWAIT EKLENDİ
+                await NotifyDashboardAsync(safeTenantId, "🍽️", $"{order.Table?.TableName ?? $"#{order.OrderId}"} — {mi.MenuItemName} ×{dto.Quantity}");
 
-                // SignalR — KDS
-                _ = NotifyKitchenAsync(new
+                var notifyStatus = existing?.OrderItemStatus ?? OrderItemStatus.Pending;
+                if (notifyStatus == OrderItemStatus.Pending)
                 {
-                    orderItemId = savedItemId,
-                    orderId = order.OrderId,
-                    tableName = order.Table?.TableName ?? $"#{order.OrderId}",
-                    menuItemName = mi.MenuItemName,
-                    quantity = dto.Quantity,
-                    note = noteNorm,
-                    addedAt = DateTime.UtcNow
-                });
+                    await NotifyKitchenAsync(safeTenantId, new
+                    {
+                        orderItemId = savedItemId,
+                        orderId = order.OrderId,
+                        tableName = order.Table?.TableName ?? $"#{order.OrderId}",
+                        menuItemName = mi.MenuItemName,
+                        quantity = dto.Quantity,
+                        note = noteNorm,
+                        addedAt = DateTime.UtcNow
+                    });
+                }
 
-                return new(true, $"{mi.MenuItemName} eklendi.",
-                    new AddItemResult(savedItemId, mi.MenuItemName));
+                return new(true, $"{mi.MenuItemName} eklendi.", new AddItemResult(savedItemId, mi.MenuItemName));
             }
             catch (Exception ex)
             {
@@ -320,43 +263,24 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
-        //  3. AddItemBulkAsync — Toplu Ürün Ekle
-        //  [PERF] N+1 Çözümü: Tek WHERE IN sorgusuyla tüm MenuItems belleğe alınır
-        // ═══════════════════════════════════════════════════════════════════════
         public async Task<ServiceResult> AddItemBulkAsync(BulkAddDto dto)
         {
-            if (dto.Items == null || !dto.Items.Any())
-                return new(false, "Eklenecek ürün bulunamadı.");
+            if (dto.Items == null || !dto.Items.Any()) return new(false, "Eklenecek ürün bulunamadı.");
+            var order = await _db.Orders.Include(o => o.OrderItems).Include(o => o.Table).FirstOrDefaultAsync(o => o.OrderId == dto.OrderId);
 
-            var order = await _db.Orders
-                .Include(o => o.OrderItems)
-                .Include(o => o.Table)
-                .FirstOrDefaultAsync(o => o.OrderId == dto.OrderId);
+            if (order == null) return new(false, "Adisyon bulunamadı.");
+            if (order.OrderStatus != OrderStatus.Open) return new(false, "Kapalı adisyona ürün eklenemez.");
 
-            if (order == null)
-                return new(false, "Adisyon bulunamadı.");
-            if (order.OrderStatus != OrderStatus.Open)  // [ENUM]
-                return new(false, "Kapalı adisyona ürün eklenemez.");
+            string safeTenantId = _tenantService.TenantId ?? "";
 
-            // ── [PERF] N+1 ÇÖZÜMÜ ─────────────────────────────────────────────
-            // ESKİ: foreach içinde her satır için FindAsync() → N adet SELECT
-            // YENİ: Benzersiz ID'leri topla → tek SELECT WHERE IN → Dictionary
             var uniqueIds = dto.Items.Select(i => i.MenuItemId).Distinct().ToList();
+            var menuItemsDict = await _db.MenuItems.Where(m => uniqueIds.Contains(m.MenuItemId)).ToDictionaryAsync(m => m.MenuItemId);
 
-            var menuItemsDict = await _db.MenuItems
-                .Where(m => uniqueIds.Contains(m.MenuItemId))
-                .ToDictionaryAsync(m => m.MenuItemId);
-            // ── [PERF] Artık döngüde DB isteği yapılmıyor ─────────────────────
-
-            // Stok ön kontrolü — transaction başlamadan hepsini kontrol et
             foreach (var line in dto.Items)
             {
                 if (!menuItemsDict.TryGetValue(line.MenuItemId, out var miCheck)) continue;
                 int qty = Math.Max(1, line.Quantity);
-                if (miCheck.TrackStock && miCheck.StockQuantity < qty)
-                    return new(false,
-                        $"Stok yetersiz: {miCheck.MenuItemName} — mevcut {miCheck.StockQuantity} adet");
+                if (miCheck.TrackStock && miCheck.StockQuantity < qty) return new(false, $"Stok yetersiz: {miCheck.MenuItemName} — mevcut {miCheck.StockQuantity} adet");
             }
 
             using var tx = await _db.Database.BeginTransactionAsync();
@@ -371,12 +295,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders
                     int qty = Math.Max(1, line.Quantity);
                     var noteNorm = string.IsNullOrWhiteSpace(line.Note) ? null : line.Note.Trim();
 
-                    var existing = order.OrderItems.FirstOrDefault(oi =>
-                        oi.MenuItemId == line.MenuItemId &&
-                        oi.OrderItemStatus != OrderItemStatus.Cancelled && // [ENUM]
-                        oi.CancelledQuantity == 0 &&
-                        oi.PaidQuantity < oi.OrderItemQuantity &&
-                        oi.OrderItemNote == noteNorm);
+                    var existing = order.OrderItems.FirstOrDefault(oi => oi.MenuItemId == line.MenuItemId && oi.OrderItemStatus != OrderItemStatus.Cancelled && oi.CancelledQuantity == 0 && oi.PaidQuantity < oi.OrderItemQuantity && oi.OrderItemNote == noteNorm);
 
                     int savedItemId;
                     if (existing != null)
@@ -397,7 +316,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders
                             OrderItemUnitPrice = mi.MenuItemPrice,
                             OrderItemLineTotal = mi.MenuItemPrice * qty,
                             OrderItemNote = noteNorm,
-                            OrderItemStatus = OrderItemStatus.Pending, // [ENUM]
+                            OrderItemStatus = OrderItemStatus.Pending,
                             OrderItemAddedAt = DateTime.UtcNow
                         };
                         _db.OrderItems.Add(newItem);
@@ -406,37 +325,22 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders
                     }
 
                     totalAdded += mi.MenuItemPrice * qty;
+                    if (mi.TrackStock) { mi.StockQuantity -= qty; if (mi.StockQuantity <= 0) { mi.StockQuantity = 0; mi.IsAvailable = false; } }
 
-                    if (mi.TrackStock)
+                    var existingStatus = existing?.OrderItemStatus ?? OrderItemStatus.Pending;
+                    if (existingStatus == OrderItemStatus.Pending)
                     {
-                        mi.StockQuantity -= qty;
-                        if (mi.StockQuantity <= 0) { mi.StockQuantity = 0; mi.IsAvailable = false; }
+                        kdsPayloads.Add(new { orderItemId = savedItemId, orderId = order.OrderId, tableName = order.Table?.TableName ?? $"#{order.OrderId}", menuItemName = mi.MenuItemName, quantity = qty, note = noteNorm, addedAt = DateTime.UtcNow });
                     }
-
-                    kdsPayloads.Add(new
-                    {
-                        orderItemId = savedItemId,
-                        orderId = order.OrderId,
-                        tableName = order.Table?.TableName ?? $"#{order.OrderId}",
-                        menuItemName = mi.MenuItemName,
-                        quantity = qty,
-                        note = noteNorm,
-                        addedAt = DateTime.UtcNow
-                    });
                 }
 
                 order.OrderTotalAmount += totalAdded;
                 await _db.SaveChangesAsync();
                 await tx.CommitAsync();
 
-                // SignalR — Dashboard
-                _ = NotifyDashboardAsync("🛒",
-                    $"{order.Table?.TableName ?? $"#{order.OrderId}"} — {dto.Items.Count} ürün eklendi (+₺{totalAdded:N0})",
-                    "#f97316");
-
-                // SignalR — KDS (her kalem için ayrı event)
-                foreach (var payload in kdsPayloads)
-                    _ = NotifyKitchenAsync(payload);
+                // 🚨 AWAIT EKLENDİ
+                await NotifyDashboardAsync(safeTenantId, "🛒", $"{order.Table?.TableName ?? $"#{order.OrderId}"} — {dto.Items.Count} ürün eklendi (+₺{totalAdded:N0})");
+                foreach (var payload in kdsPayloads) { await NotifyKitchenAsync(safeTenantId, payload); }
 
                 return new(true, $"{dto.Items.Count} ürün eklendi.");
             }
@@ -446,7 +350,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders
                 return new(false, "Ürünler eklenirken hata oluştu: " + ex.Message);
             }
         }
-
         // ═══════════════════════════════════════════════════════════════════════
         //  4. UpdateItemStatusAsync — Kalem Durum Güncelle
         // ═══════════════════════════════════════════════════════════════════════

@@ -495,7 +495,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             await _hub.Clients
                 .Group(_tenantService.TenantId ?? "")
                 .SendAsync("WaiterDismissed", new { tableName = table.TableName });
-
+            Console.WriteLine($"🚨 [DISMISS TEST] İlgilenildi mesajı '{_tenantService.TenantId}' odasına atılıyor. Masa: {table.TableName}");
             return Json(new { success = true });
         }
 

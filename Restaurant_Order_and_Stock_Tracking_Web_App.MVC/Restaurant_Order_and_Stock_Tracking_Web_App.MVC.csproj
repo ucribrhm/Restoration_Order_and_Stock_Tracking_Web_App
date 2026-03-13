@@ -7,6 +7,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="wwwroot\js\Views\Shared\**" />
+    <Content Remove="wwwroot\js\Views\Shared\**" />
+    <EmbeddedResource Remove="wwwroot\js\Views\Shared\**" />
+    <None Remove="wwwroot\js\Views\Shared\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.13" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.13">
       <PrivateAssets>all</PrivateAssets>
@@ -24,7 +31,6 @@
   <ItemGroup>
     <Folder Include="Areas\App\Views\Orders\" />
     <Folder Include="wwwroot\images\menu\" />
-    <Folder Include="wwwroot\js\Views\Shared\" />
   </ItemGroup>
 
   <ProjectExtensions><VisualStudio><UserProperties properties_4launchsettings_1json__JsonSchema="https://jsonapi.org/schema" /></VisualStudio></ProjectExtensions>

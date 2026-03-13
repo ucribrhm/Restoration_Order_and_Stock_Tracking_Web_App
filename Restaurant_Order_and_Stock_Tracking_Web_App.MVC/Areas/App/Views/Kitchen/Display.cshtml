@@ -18,6 +18,19 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>🍳 KDS — Mutfak Ekranı</title>
+    @* [v3] KDS TenantId meta — SignalR QueryString handshake için *@
+    @{
+        // KDS anonim çalışır (AllowAnonymous). TenantId'yi 3 kaynaktan çöz:
+        // 1. Claims (KDS Kitchen rolüyle girildiyse)
+        // 2. Cookie "ros-tenant" (Display() önceki istekte set etti)
+        // 3. QueryString ?tenantId= (ilk kurulum, cookie henüz yok)
+        var _kdsTenantId =
+            Context.User?.FindFirst("TenantId")?.Value
+            ?? Context.Request.Cookies["ros-tenant"]
+            ?? Context.Request.Query["tenantId"].ToString()
+            ?? "";
+    }
+    <meta name="kds-tenant-id" content="@_kdsTenantId" />
     @* [G-05] CSRF token — JS fetch() bu meta'yı okuyarak header'a ekler *@
     <meta name="csrf-token" content="@_csrfToken" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -651,10 +664,20 @@
           }, 4500);
         }
 
-        // ══ SİGNALR BAĞLANTISI ════════════════════════════════════════════════════════
-        // ══ SİGNALR BAĞLANTISI — Bulletproof Edition ═══════════════════════════
+        // ══ SİGNALR BAĞLANTISI — Bulletproof v3 ═════════════════════════════════
+        // [v3-FIX] TenantId'yi QueryString ile Hub'a ilet.
+        // KDS anonim olduğu için Claims boş. Cookie'nin WebSocket handshake'inde
+        // iletilip iletilmediği tarayıcıya bağlı (SameSite=Strict → sorun).
+        // QueryString en güvenilir yöntemdir; tüm transport türlerinde çalışır.
+        const _kdsTenantId = (document.querySelector('meta[name="kds-tenant-id"]')?.content ?? '').trim();
+        const _kdsHubUrl = _kdsTenantId
+            ? `/hubs/restaurant?tenantId=${encodeURIComponent(_kdsTenantId)}`
+            : '/hubs/restaurant';
+
+        console.info('[KDS] Hub URL:', _kdsHubUrl);
+
         const connection = new signalR.HubConnectionBuilder()
-        .withUrl('/hubs/restaurant')
+        .withUrl(_kdsHubUrl)
         .withAutomaticReconnect([0, 2000, 5000, 10000, 20000])
         // [FIX] Warning → Information: gelen frame'ler konsolda görünür
         .configureLogging(signalR.LogLevel.Information)

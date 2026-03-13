@@ -20,7 +20,7 @@ async function postJson(url, payload) {
     const ct = res.headers.get('content-type') || '';
     if (res.status === 401 || (!ct.includes('application/json') && !res.ok)) {
         alert('Oturumunuz sona erdi. Giriş sayfasına yönlendiriliyorsunuz.');
-        window.location.href = '/Auth/Login';
+        window.location.href = '/App/Auth/Login';
         throw new Error('Unauthorized');
     }
 
@@ -60,7 +60,7 @@ async function submitCreateTable() {
     };
 
     try {
-        const data = await postJson('/Tables/Create', payload);
+        const data = await postJson('/App/Tables/Create', payload);
         if (data.success) {
             window.location.href = data.redirectUrl || window.location.href;
         } else {
@@ -469,7 +469,9 @@ async function serveOrder(tableId, tableName) {
 // Bu fonksiyon hem serveOrder hem de SignalR OrderServed handler tarafından
 // çağrılır → idempotent tasarım (iki kez çağrılması sorun yaratmaz).
 function _clearReadyState(tableId) {
-    const card = document.querySelector(`.table-card[data-table-id="${tableId}"]`);
+    // [v3-FIX] tableId type normalize: SignalR'dan int gelir, dataset string → String()
+    const id = String(tableId);
+    const card = document.querySelector(`.table-card[data-table-id="${id}"]`);
     if (!card) return;
 
     // CSS sınıflarını kaldır
@@ -491,8 +493,24 @@ function _clearReadyState(tableId) {
 // ══════════════════════════════════════════════════════════════
 (function initSignalR() {
 
+    // ── [v3-FIX] TenantId'yi QueryString ile Hub'a ilet ─────────────────────
+    // SORUN: withUrl('/hubs/restaurant') — QueryString yok.
+    // Hub anonim/cookie'siz istemcileri Abort() ediyordu → sistem sağır.
+    //
+    // ÇÖZÜM: window.APP_TENANT_ID, _AppLayout.cshtml'de
+    //   <meta name="ros-tenant-id"> tag'inden set edilir.
+    // Garsonda: User.FindFirst("TenantId")?.Value (Claims)
+    // KDS/QR'de:  meta tag'den okunur (QueryString ile Hub'a iletilir)
+    //
+    // WebSocket handshake'i bir HTTP isteğidir → QueryString korunur.
+    // Tüm transport türlerinde (WS, LongPolling, SSE) güvenilir çalışır.
+    const _tenantId = (window.APP_TENANT_ID || '').trim();
+    const _hubUrl = _tenantId
+        ? `/hubs/restaurant?tenantId=${encodeURIComponent(_tenantId)}`
+        : '/hubs/restaurant'; // SysAdmin fallback (gruba eklenmez)
+
     const connection = new signalR.HubConnectionBuilder()
-        .withUrl('/hubs/restaurant')
+        .withUrl(_hubUrl)
         .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
         // Information: gelen frame'ler konsolda görünür → debug için F12 → "[SignalR:Tables]"
         .configureLogging(signalR.LogLevel.Information)
