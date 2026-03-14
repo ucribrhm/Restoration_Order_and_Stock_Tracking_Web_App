@@ -126,14 +126,20 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders
                 await _db.SaveChangesAsync();
 
                 decimal total = 0;
+                // [KDS-FIX] Sipariş kalemlerini oluştururken KDS payload'larını da hazırla.
+                // SaveChangesAsync'ten SONRA OrderItemId atanır — bu yüzden önce entity listesi,
+                // sonra commit, sonra payload üret.
+                var createdItems = new List<(OrderItem item, MenuItem mi, int qty, string? note)>();
+
                 foreach (var line in dto.Items)
                 {
                     var mi = await _db.MenuItems.FindAsync(line.MenuItemId);
                     if (mi == null) continue;
                     int qty = Math.Max(1, line.Quantity);
                     decimal lineTotal = mi.MenuItemPrice * qty;
+                    var noteNorm = string.IsNullOrWhiteSpace(line.Note) ? null : line.Note.Trim();
 
-                    _db.OrderItems.Add(new OrderItem
+                    var oi = new OrderItem
                     {
                         OrderId = order.OrderId,
                         MenuItemId = mi.MenuItemId,
@@ -141,10 +147,11 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders
                         PaidQuantity = 0,
                         OrderItemUnitPrice = mi.MenuItemPrice,
                         OrderItemLineTotal = lineTotal,
-                        OrderItemNote = string.IsNullOrWhiteSpace(line.Note) ? null : line.Note.Trim(),
+                        OrderItemNote = noteNorm,
                         OrderItemStatus = OrderItemStatus.Pending, // [ENUM]
                         OrderItemAddedAt = DateTime.UtcNow
-                    });
+                    };
+                    _db.OrderItems.Add(oi);
                     total += lineTotal;
 
                     if (mi.TrackStock)
@@ -152,16 +159,35 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders
                         mi.StockQuantity -= qty;
                         if (mi.StockQuantity <= 0) { mi.StockQuantity = 0; mi.IsAvailable = false; }
                     }
+
+                    createdItems.Add((oi, mi, qty, noteNorm));
                 }
 
                 order.OrderTotalAmount = total;
                 table.TableStatus = 1;
-                await _db.SaveChangesAsync();
+                await _db.SaveChangesAsync(); // ← OrderItemId'ler burada atanır
                 await tx.CommitAsync();
 
                 // SignalR — Dashboard
                 _ = NotifyDashboardAsync("🧾",
                     $"{table.TableName} için yeni adisyon açıldı — ₺{total:N0}", "#f97316");
+
+                // SignalR — KDS: Her kalem için ayrı NewOrderItem eventi
+                // [KDS-FIX] CreateOrderAsync daha önce KDS'e hiç bildirim atmıyordu.
+                // Adisyon ilk açıldığında mutfak ekranı F5 olmadan güncelleniyordu.
+                foreach (var (oi, mi, qty, note) in createdItems)
+                {
+                    _ = NotifyKitchenAsync(new
+                    {
+                        orderItemId = oi.OrderItemId,
+                        orderId = order.OrderId,
+                        tableName = table.TableName,
+                        menuItemName = mi.MenuItemName,
+                        quantity = qty,
+                        note = note,
+                        addedAt = oi.OrderItemAddedAt
+                    });
+                }
 
                 return new(true, "Adisyon açıldı.",
                     new CreateOrderResult(order.OrderId, table.TableName, total));
@@ -264,15 +290,20 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders
                     "#f97316");
 
                 // SignalR — KDS
-                // [FIX-2a] savedItemId artık her zaman Pending bir item'a ait.
-                // KDS Display sadece Pending/Preparing gösterdiğinden eşleşir.
+                // [FIX-QTY] Birleştirme durumunda quantity = güncel TOPLAM miktar.
+                // dto.Quantity sadece eklenen deltayı taşır (örn: 1).
+                // existing != null ise KDS'de ×1 olan satırı ×2 yapmak için
+                // toplam olan existing.OrderItemQuantity gönderilmeli.
+                // existing == null ise yeni satır → dto.Quantity zaten doğru.
+                int kdsQuantity = existing != null ? existing.OrderItemQuantity : dto.Quantity;
+
                 _ = NotifyKitchenAsync(new
                 {
                     orderItemId = savedItemId,
                     orderId = order.OrderId,
                     tableName = order.Table?.TableName ?? $"#{order.OrderId}",
                     menuItemName = mi.MenuItemName,
-                    quantity = dto.Quantity,
+                    quantity = kdsQuantity,
                     note = noteNorm,
                     addedAt = DateTime.UtcNow
                 });

@@ -1093,7 +1093,7 @@
                 <span class="kbadge @TrendClass(Model.RevenueTrendPercentage)">@TrendText(Model.RevenueTrendPercentage)</span>
             </div>
             <div class="klbl">Günlük Ciro</div>
-            <div class="kval" data-cu="@((double)Model.DailyTotalRevenue)" data-pre="₺" data-fmt="cur">₺0</div>
+            <div class="kval" id="kpi-revenue" data-cu="@((double)Model.DailyTotalRevenue).ToString(System.Globalization.CultureInfo.InvariantCulture)" data-pre="₺" data-fmt="cur">₺0</div>
             <div class="kmeta">Dün: ₺@Model.YesterdayRevenue.ToString("N0")</div>
         </div>
 
@@ -1103,8 +1103,8 @@
                 <span class="kbadge up">Bugün</span>
             </div>
             <div class="klbl">Sipariş Adedi</div>
-            <div class="kval" data-cu="@Model.TotalOrdersToday">0</div>
-            <div class="kmeta">
+            <div class="kval" id="kpi-total-orders" data-cu="@Model.TotalOrdersToday">0</div>
+            <div class="kmeta" id="kpi-orders-meta">
                 <span class="ka-dot"></span>
                 @Model.ActiveOrdersNow aktif &nbsp;·&nbsp; @Model.ClosedOrdersToday kapandı
             </div>
@@ -1116,30 +1116,30 @@
                 <span class="kbadge neutral">Ort.</span>
             </div>
             <div class="klbl">Adisyon Ortalaması</div>
-            <div class="kval" data-cu="@((double)Model.AverageOrderValue)" data-pre="₺" data-fmt="cur">₺0</div>
+            <div class="kval" id="kpi-avg-order" data-cu="@((double)Model.AverageOrderValue).ToString(System.Globalization.CultureInfo.InvariantCulture)" data-pre="₺" data-fmt="cur">₺0</div>
             <div class="kmeta">Kapanan adisyonlar</div>
         </div>
 
         <div class="card kc wu d6">
             <div class="kc-top">
                 <div class="kc-ico">🪑</div>
-                <span class="kbadge @(ts.OccupancyRate > 70 ? "up" : "neutral")">
+                <span class="kbadge @(ts.OccupancyRate > 70 ? "up" : "neutral")" id="kpi-occupancy-badge">
                     %@ts.OccupancyRate.ToString("F0") Dolu
                 </span>
             </div>
             <div class="klbl">Masa Durumu</div>
-            <div class="kval">
-                @ts.Occupied<span style="font-size:1rem;font-weight:500;color:var(--text3)"> / @ts.Total</span>
+            <div class="kval" id="kpi-tables">
+                <span id="kpi-tables-occupied">@ts.Occupied</span><span style="font-size:1rem;font-weight:500;color:var(--text3)"> / <span id="kpi-tables-total">@ts.Total</span></span>
             </div>
             <div class="tsb">
-                <div class="tsb-o" style="width:@occPct.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)%"></div>
-                <div class="tsb-r" style="width:@resPct.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)%"></div>
+                <div class="tsb-o" id="kpi-tsb-occ" style="width:@occPct.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)%"></div>
+                <div class="tsb-r" id="kpi-tsb-res" style="width:@resPct.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)%"></div>
                 <div class="tsb-e"></div>
             </div>
             <div class="tsb-lgd">
-                <div class="tsl"><span class="tsl-d" style="background:var(--accent)"></span>Dolu (@ts.Occupied)</div>
-                <div class="tsl"><span class="tsl-d" style="background:var(--blue)"></span>Rezerve (@ts.Reserved)</div>
-                <div class="tsl"><span class="tsl-d" style="background:var(--surface3)"></span>Boş (@ts.Empty)</div>
+                <div class="tsl"><span class="tsl-d" style="background:var(--accent)"></span>Dolu (<span id="kpi-leg-occ">@ts.Occupied</span>)</div>
+                <div class="tsl"><span class="tsl-d" style="background:var(--blue)"></span>Rezerve (<span id="kpi-leg-res">@ts.Reserved</span>)</div>
+                <div class="tsl"><span class="tsl-d" style="background:var(--surface3)"></span>Boş (<span id="kpi-leg-empty">@ts.Empty</span>)</div>
             </div>
         </div>
 
@@ -1233,7 +1233,7 @@
                         <div class="dc-lbl">adet</div>
                     </div>
                 </div>
-                <div>
+                <div id="top-products-list">
                     @for (int i = 0; i < Model.TopSellingProducts.Count; i++)
                     {
                         var p = Model.TopSellingProducts[i];
@@ -1283,7 +1283,7 @@
                 <div class="ch" style="margin-bottom:12px">
                     <div><div class="ch-t">📦 Stok Durumu</div><div class="ch-s">Malzeme seviyeleri</div></div>
                 </div>
-                <div style="display:flex;flex-direction:column;gap:8px">
+                <div id="stock-alerts-container" style="display:flex;flex-direction:column;gap:8px">
                     @foreach (var s in Model.StockAlerts)
                     {
                         var col = StockLevelColor(s.Level);
@@ -1350,218 +1350,446 @@
    SCRIPTS
    ════════════════════════════════════════════════════════════════════════ *@
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@@8.0.7/dist/browser/signalr.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/9.0.0/signalr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script>
-                /* ── Razor → JS Veri Köprüsü ──────────────────────────────────────────── */
-                const HOURLY  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-                                                                                            Model.HourlyOrderTrends.Select(h => new { lbl = h.HourLabel, n = h.OrderCount, c = (double)h.Revenue })
-                                                            ));
+                            /* ── Razor → JS Veri Köprüsü ──────────────────────────────────────────── */
+                            const HOURLY  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            Model.HourlyOrderTrends.Select(h => new { lbl = h.HourLabel, n = h.OrderCount, c = (double)h.Revenue })
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            ));
     const TOP5    = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-                                                                Model.TopSellingProducts.Select(p => new { nm = p.ProductName, q = p.Quantity, r = (double)p.Revenue })
-                                ));
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                Model.TopSellingProducts.Select(p => new { nm = p.ProductName, q = p.Quantity, r = (double)p.Revenue })
+                                                                                                                                                                                                                                                                ));
     const WEEKLY  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-                                                                Model.WeeklyTrend.Select(w => new { d = w.DayLabel, tw = (double)w.ThisWeek, lw = (double)w.LastWeek })
-                                ));
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                Model.WeeklyTrend.Select(w => new { d = w.DayLabel, tw = (double)w.ThisWeek, lw = (double)w.LastWeek })
+                                                                                                                                                                                                                                                                ));
 
-    /* ── 1. CANLI SAAT ─────────────────────────────────────────────────────── */
-    !function liveClock(){
-        const c=document.getElementById('liveClk'), dt=document.getElementById('liveDate');
-        const p=n=>String(n).padStart(2,'0');
-        function tick(){
-            const n=new Date();
-            c&&(c.textContent=`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`);
-            dt&&(dt.textContent=n.toLocaleDateString('tr-TR',{weekday:'long',year:'numeric',month:'long',day:'numeric'}));
-        }
-        tick(); setInterval(tick,1000);
-    }();
+    // [FIX] TenantId Razor'dan JS'e güvenli aktarım
+    const TENANT_ID = '@(User.FindFirst("TenantId")?.Value ?? "")';
 
-                /* ── 2. COUNT-UP ───────────────────────────────────────────────────────── */
-                function countUp(el,target,dur,pre,isCur){
-                    const t0=performance.now();
-                    (function step(ts){
-                        const p=Math.min((ts-t0)/dur,1), e=1-Math.pow(1-p,4), v=Math.round(e*target);
-                        el.textContent=pre+(isCur?v.toLocaleString('tr-TR'):v);
-                        p<1&&requestAnimationFrame(step);
-                    })(performance.now());
-                }
-                document.querySelectorAll('[data-cu]').forEach(el=>{
-                    setTimeout(()=>countUp(el,+el.dataset.cu,1500,el.dataset.pre||'',el.dataset.fmt==='cur'),350);
-                });
+                /* ── 1. CANLI SAAT ─────────────────────────────────────────────────────── */
+                !function liveClock(){
+                    const c=document.getElementById('liveClk'), dt=document.getElementById('liveDate');
+                    const p=n=>String(n).padStart(2,'0');
+                    function tick(){
+                        const n=new Date();
+                        c&&(c.textContent=`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`);
+                        dt&&(dt.textContent=n.toLocaleDateString('tr-TR',{weekday:'long',year:'numeric',month:'long',day:'numeric'}));
+                    }
+                    tick(); setInterval(tick,1000);
+                }();
 
-                /* ── 3. CHART.JS DEFAULTS ─────────────────────────────────────────────── */
-                const ACC='#f97316', GC='rgba(255,255,255,0.05)', TC='#5a5668';
-                Chart.defaults.font.family="'Outfit',sans-serif"; Chart.defaults.font.size=11; Chart.defaults.color=TC;
-                const TIP={ backgroundColor:'#1a1a28', borderColor:'rgba(255,255,255,0.1)', borderWidth:1,
-                            titleColor:'#f0ece8', bodyColor:TC, padding:10, cornerRadius:10 };
-                const SC={ x:{grid:{color:GC},ticks:{color:TC},border:{display:false}},
-                           y:{grid:{color:GC},ticks:{color:TC},border:{display:false},beginAtZero:true} };
+                            /* ── 2. COUNT-UP ───────────────────────────────────────────────────────── */
+                            function countUp(el,target,dur,pre,isCur){
+                                // [FIX-NaN] target NaN ise (tr-TR locale virgüllü float → JS parse hatası)
+                                // 0 olarak başlat, sessiz çık — sayfayı kırmaz
+                                if (!isFinite(target)) { el.textContent = pre + '0'; return; }
+                                const t0=performance.now();
+                                (function step(ts){
+                                    const p=Math.min((ts-t0)/dur,1), e=1-Math.pow(1-p,4), v=Math.round(e*target);
+                                    el.textContent=pre+(isCur?v.toLocaleString('tr-TR'):v);
+                                    p<1&&requestAnimationFrame(step);
+                                })(performance.now());
+                            }
+                            document.querySelectorAll('[data-cu]').forEach(el=>{
+                                // [FIX-NaN] +el.dataset.cu → parseFloat ile InvariantCulture uyumlu okuma
+                                const raw = parseFloat(el.dataset.cu);
+                                setTimeout(()=>countUp(el, isFinite(raw) ? raw : 0, 1500, el.dataset.pre||'', el.dataset.fmt==='cur'), 350);
+                            });
 
-                /* ── 4. AREA CHART ─────────────────────────────────────────────────────── */
-                const aEl=document.getElementById('areaChart');
-                if(aEl&&HOURLY.length){
-                    const ctx=aEl.getContext('2d'), g=ctx.createLinearGradient(0,0,0,200);
-                    g.addColorStop(0,'rgba(249,115,22,.32)'); g.addColorStop(.6,'rgba(249,115,22,.07)'); g.addColorStop(1,'rgba(249,115,22,0)');
-                    new Chart(ctx,{
-                        type:'line',
-                        data:{ labels:HOURLY.map(h=>h.lbl),
-                               datasets:[{label:'Sipariş',data:HOURLY.map(h=>h.n),borderColor:ACC,backgroundColor:g,
-                                          borderWidth:2.5,pointRadius:4,pointBackgroundColor:ACC,pointBorderColor:'#0a0a0f',
-                                          pointBorderWidth:2,pointHoverRadius:6,fill:true,tension:.4}]},
-                        options:{ responsive:true,maintainAspectRatio:false,
-                            animation:{duration:900,easing:'easeOutQuart'},
-                            interaction:{mode:'index',intersect:false},
-                            plugins:{legend:{display:false},tooltip:{...TIP,callbacks:{label:c=>` ${c.parsed.y} sipariş`}}},
-                            scales:{...SC,y:{...SC.y,ticks:{...SC.y.ticks,stepSize:1,callback:v=>Number.isInteger(v)?v:''}}} }
-                    });
-                }
+                            /* ── 3. CHART.JS DEFAULTS ─────────────────────────────────────────────── */
+                            const ACC='#f97316', GC='rgba(255,255,255,0.05)', TC='#5a5668';
+                            Chart.defaults.font.family="'Outfit',sans-serif"; Chart.defaults.font.size=11; Chart.defaults.color=TC;
+                            const TIP={ backgroundColor:'#1a1a28', borderColor:'rgba(255,255,255,0.1)', borderWidth:1,
+                                        titleColor:'#f0ece8', bodyColor:TC, padding:10, cornerRadius:10 };
+                            const SC={ x:{grid:{color:GC},ticks:{color:TC},border:{display:false}},
+                                       y:{grid:{color:GC},ticks:{color:TC},border:{display:false},beginAtZero:true} };
 
-                /* ── 5. DONUT CHART ────────────────────────────────────────────────────── */
-                const dEl=document.getElementById('donutChart');
-                if(dEl&&TOP5.length){
-                    const PAL=['#f97316','#fb923c','#fdba74','#c2410c','#431407'];
-                    new Chart(dEl.getContext('2d'),{
-                        type:'doughnut',
-                        data:{ labels:TOP5.map(p=>p.nm),
-                               datasets:[{data:TOP5.map(p=>p.q),backgroundColor:PAL,borderColor:'#0a0a0f',borderWidth:3,hoverOffset:8}]},
-                        options:{ responsive:true,maintainAspectRatio:false,cutout:'70%',
-                            animation:{duration:800,animateRotate:true},
-                            plugins:{legend:{display:false},tooltip:{...TIP,callbacks:{label:c=>` ${c.parsed} adet`}}} }
-                    });
-                }
+                            /* ── 4. AREA CHART ─────────────────────────────────────────────────────── */
+                            // [LIVE] let — global değişkende tutuluyor, updateMetricDOM içinde update() çağrılır
+                            let areaChartObj = null;
+                            const aEl=document.getElementById('areaChart');
+                            if(aEl&&HOURLY.length){
+                                const ctx=aEl.getContext('2d'), g=ctx.createLinearGradient(0,0,0,200);
+                                g.addColorStop(0,'rgba(249,115,22,.32)'); g.addColorStop(.6,'rgba(249,115,22,.07)'); g.addColorStop(1,'rgba(249,115,22,0)');
+                                areaChartObj = new Chart(ctx,{
+                                    type:'line',
+                                    data:{ labels:HOURLY.map(h=>h.lbl),
+                                           datasets:[{label:'Sipariş',data:HOURLY.map(h=>h.n),borderColor:ACC,backgroundColor:g,
+                                                      borderWidth:2.5,pointRadius:4,pointBackgroundColor:ACC,pointBorderColor:'#0a0a0f',
+                                                      pointBorderWidth:2,pointHoverRadius:6,fill:true,tension:.4}]},
+                                    options:{ responsive:true,maintainAspectRatio:false,
+                                        animation:{duration:900,easing:'easeOutQuart'},
+                                        interaction:{mode:'index',intersect:false},
+                                        plugins:{legend:{display:false},tooltip:{...TIP,callbacks:{label:c=>` ${c.parsed.y} sipariş`}}},
+                                        scales:{...SC,y:{...SC.y,ticks:{...SC.y.ticks,stepSize:1,callback:v=>Number.isInteger(v)?v:''}}} }
+                                });
+                            }
 
-                /* ── 6. WEEKLY LINE CHART ──────────────────────────────────────────────── */
-                const wEl=document.getElementById('weeklyChart');
-                if(wEl&&WEEKLY.length){
-                    new Chart(wEl.getContext('2d'),{
-                        type:'line',
-                        data:{ labels:WEEKLY.map(w=>w.d),
-                               datasets:[
-                                   {label:'Bu Hafta',data:WEEKLY.map(w=>w.tw),borderColor:ACC,backgroundColor:'transparent',
-                                    borderWidth:3,pointRadius:5,pointBackgroundColor:ACC,pointBorderColor:'#0a0a0f',
-                                    pointBorderWidth:2,pointHoverRadius:7,tension:.35},
-                                   {label:'Geçen Hafta',data:WEEKLY.map(w=>w.lw),borderColor:'rgba(255,255,255,.18)',
-                                    backgroundColor:'transparent',borderWidth:2,borderDash:[5,4],
-                                    pointRadius:3,pointBackgroundColor:'rgba(255,255,255,.18)',tension:.35}
-                               ]},
-                        options:{ responsive:true,maintainAspectRatio:false,animation:{duration:900},
-                            interaction:{mode:'index',intersect:false},
-                            plugins:{legend:{display:false},
-                                     tooltip:{...TIP,callbacks:{label:c=>` ${c.dataset.label}: ₺${Math.round(c.parsed.y).toLocaleString('tr-TR')}`}}},
-                            scales:{...SC,y:{...SC.y,ticks:{...SC.y.ticks,callback:v=>'₺'+(v/1000).toFixed(0)+'K'}}} }
-                    });
-                }
+                            /* ── 5. DONUT CHART ────────────────────────────────────────────────────── */
+                            // [LIVE] global değişken
+                            let donutChartObj = null;
+                            const PAL=['#f97316','#fb923c','#fdba74','#c2410c','#431407'];
+                            const dEl=document.getElementById('donutChart');
+                            if(dEl&&TOP5.length){
+                                donutChartObj = new Chart(dEl.getContext('2d'),{
+                                    type:'doughnut',
+                                    data:{ labels:TOP5.map(p=>p.nm),
+                                           datasets:[{data:TOP5.map(p=>p.q),backgroundColor:PAL,borderColor:'#0a0a0f',borderWidth:3,hoverOffset:8}]},
+                                    options:{ responsive:true,maintainAspectRatio:false,cutout:'70%',
+                                        animation:{duration:800,animateRotate:true},
+                                        plugins:{legend:{display:false},tooltip:{...TIP,callbacks:{label:c=>` ${c.parsed} adet`}}} }
+                                });
+                            }
 
-                /* ── 7. BAR CHART ─────────────────────────────────────────────────────── */
-                const bEl=document.getElementById('barChart');
-                if(bEl&&HOURLY.length){
-                    const mx=Math.max(...HOURLY.map(h=>h.c));
-                    const cols=HOURLY.map(h=>h.c===mx?ACC:'rgba(249,115,22,.25)');
-                    new Chart(bEl.getContext('2d'),{
-                        type:'bar',
-                        data:{ labels:HOURLY.map(h=>h.lbl),
-                               datasets:[{label:'Ciro',data:HOURLY.map(h=>h.c),backgroundColor:cols,borderWidth:0,
-                                          borderRadius:5,borderSkipped:false,hoverBackgroundColor:ACC}]},
-                        options:{ responsive:true,maintainAspectRatio:false,animation:{duration:900,easing:'easeOutQuart'},
-                            plugins:{legend:{display:false},tooltip:{...TIP,callbacks:{label:c=>` ₺${Math.round(c.parsed.y).toLocaleString('tr-TR')}`}}},
-                            scales:{...SC,x:{...SC.x,ticks:{...SC.x.ticks,maxRotation:45}},
-                                        y:{...SC.y,ticks:{...SC.y.ticks,callback:v=>'₺'+(v/1000).toFixed(0)+'K'}}} }
-                    });
-                }
+                            /* ── 6. WEEKLY LINE CHART ──────────────────────────────────────────────── */
+                            // [LIVE] global değişken
+                            let weeklyChartObj = null;
+                            const wEl=document.getElementById('weeklyChart');
+                            if(wEl&&WEEKLY.length){
+                                weeklyChartObj = new Chart(wEl.getContext('2d'),{
+                                    type:'line',
+                                    data:{ labels:WEEKLY.map(w=>w.d),
+                                           datasets:[
+                                               {label:'Bu Hafta',data:WEEKLY.map(w=>w.tw),borderColor:ACC,backgroundColor:'transparent',
+                                                borderWidth:3,pointRadius:5,pointBackgroundColor:ACC,pointBorderColor:'#0a0a0f',
+                                                pointBorderWidth:2,pointHoverRadius:7,tension:.35},
+                                               {label:'Geçen Hafta',data:WEEKLY.map(w=>w.lw),borderColor:'rgba(255,255,255,.18)',
+                                                backgroundColor:'transparent',borderWidth:2,borderDash:[5,4],
+                                                pointRadius:3,pointBackgroundColor:'rgba(255,255,255,.18)',tension:.35}
+                                           ]},
+                                    options:{ responsive:true,maintainAspectRatio:false,animation:{duration:900},
+                                        interaction:{mode:'index',intersect:false},
+                                        plugins:{legend:{display:false},
+                                                 tooltip:{...TIP,callbacks:{label:c=>` ${c.dataset.label}: ₺${Math.round(c.parsed.y).toLocaleString('tr-TR')}`}}},
+                                        scales:{...SC,y:{...SC.y,ticks:{...SC.y.ticks,callback:v=>'₺'+(v/1000).toFixed(0)+'K'}}} }
+                                });
+                            }
+
+                            /* ── 7. BAR CHART ─────────────────────────────────────────────────────── */
+                            // [LIVE] global değişken
+                            let barChartObj = null;
+                            const bEl=document.getElementById('barChart');
+                            if(bEl&&HOURLY.length){
+                                const mx=Math.max(...HOURLY.map(h=>h.c));
+                                const cols=HOURLY.map(h=>h.c===mx?ACC:'rgba(249,115,22,.25)');
+                                barChartObj = new Chart(bEl.getContext('2d'),{
+                                    type:'bar',
+                                    data:{ labels:HOURLY.map(h=>h.lbl),
+                                           datasets:[{label:'Ciro',data:HOURLY.map(h=>h.c),backgroundColor:cols,borderWidth:0,
+                                                      borderRadius:5,borderSkipped:false,hoverBackgroundColor:ACC}]},
+                                    options:{ responsive:true,maintainAspectRatio:false,animation:{duration:900,easing:'easeOutQuart'},
+                                        plugins:{legend:{display:false},tooltip:{...TIP,callbacks:{label:c=>` ₺${Math.round(c.parsed.y).toLocaleString('tr-TR')}`}}},
+                                        scales:{...SC,x:{...SC.x,ticks:{...SC.x.ticks,maxRotation:45}},
+                                                    y:{...SC.y,ticks:{...SC.y.ticks,callback:v=>'₺'+(v/1000).toFixed(0)+'K'}}} }
+                                });
+                            }
 
                 /* ════════════════════════════════════════════════════════════════════════
-                   8. GERÇEK ZAMANLI BİLDİRİM SİSTEMİ — SignalR
+                   8. GERÇEK ZAMANLI — SignalR + Canlı Metrik Güncelleme
                    ════════════════════════════════════════════════════════════════════════
-                   Mock/setInterval kodu tamamen kaldırıldı.
-                   Artık yalnızca OrdersController'dan gelen gerçek aksiyonlar
-                   (Adisyon Aç, Ürün Ekle, Hesap Kapat vb.) bildirim üretir.
-
-                   Hub: /notificationHub  (Program.cs → app.MapHub<NotificationHub>)
-                   Event: ReceiveNotification  →  { icon, message, color, time }
+                   [FIX-401] Hub URL'ine ?tenantId=... eklendi.
+                             signalR.HubConnectionBuilder withUrl seçeneği withCredentials:true
+                             olmadan Cookie üzerinden çalışmaz; ancak aynı origin'de olduğumuzdan
+                             browser cookie'yi zaten gönderir. Ek tenantId param ise Hub'ın
+                             OnConnectedAsync fallback'ini devreye sokar.
+                   [FIX-CDN] signalr.min.js 8.0.7 → 9.0.0 (proje ile uyumlu)
                    ════════════════════════════════════════════════════════════════════════ */
-        !function initSignalR() {
+                !function initSignalR() {
 
-        // [FIX-3] Container IIFE başında bir kez değil, her gösterimde DOM'dan taze oku.
-        // Eski: const C = document.getElementById('toast-c');  ← IIFE başında null kalabiliyordu
-        function getToastContainer() {
-        return document.getElementById('toast-c');
-        }
+                    /* ── Güvenli getElementById yardımcısı ──────────────────────────── */
+                    function el(id) { return document.getElementById(id); }
 
-        // ── Toast DOM oluştur ve göster ─────────────────────────────────────
-        function showToast(icon, message, color, time) {
-        const C = getToastContainer(); // [FIX-3]
-        if (!C) {
-        // [FIX-4] Container yoksa sessiz return — crash değil
-        console.warn('[SignalR] #toast-c bulunamadı, toast gösterilemiyor');
-        return;
-        }
+                    /* ── Toast göster ───────────────────────────────────────────────── */
+                    function showToast(icon, message, color, time) {
+                        const C = el('toast-c');
+                        if (!C) { console.warn('[SignalR] #toast-c bulunamadı'); return; }
 
-        const t = document.createElement('div');
-        t.className = 'ti';
-        t.style.borderLeft = `3px solid ${color}`;
-        t.innerHTML =
-        `<span class="ti-ico">${icon}</span>` +
-        `<span class="ti-msg">${message}</span>` +
-        `<span class="ti-t">${time}</span>`;
-        C.appendChild(t);
+                        const t = document.createElement('div');
+                        t.className = 'ti';
+                        t.style.borderLeft = `3px solid ${color}`;
+                        t.innerHTML =
+                            `<span class="ti-ico">${icon}</span>` +
+                            `<span class="ti-msg">${message}</span>` +
+                            `<span class="ti-t">${time}</span>`;
+                        C.appendChild(t);
 
-        // 5 saniye görünür → fadeOut → DOM'dan sil
-        setTimeout(() => {
-        t.classList.add('out');
-        setTimeout(() => t.remove(), 320);
-        }, 5000);
+                        setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 320); }, 5000);
+                        while (C.children.length > 4) C.firstChild.remove();
+                    }
 
-        // Maksimum 4 toast aynı anda görünsün
-        while (C.children.length > 4) C.firstChild.remove();
-        }
+                    /* ── KPI + Grafik + Heatmap + Stok + Hedef DOM güncelle ──────── */
+                    function updateMetricDOM(d) {
 
-        // ── SignalR bağlantısı kur ──────────────────────────────────────────
-        const connection = new signalR.HubConnectionBuilder()
-        .withUrl('/notificationHub')
-        .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
-        .configureLogging(signalR.LogLevel.Information) // [FIX-1] Warning → Information
-        .build();
+                        /* ── A. KPI KARTLARI ──────────────────────────────────────── */
+                        const rev = el('kpi-revenue');
+                        if (rev) rev.textContent = '₺' + Math.round(d.dailyRevenue).toLocaleString('tr-TR');
 
-        // ── Sunucudan gelen gerçek event ─────────────────────────────────────
-        // OrderService → NotifyDashboardAsync() → ReceiveNotification
-        connection.on('ReceiveNotification', function (payload) {
-        try {
-        console.info('[SignalR Dashboard] ReceiveNotification geldi:', payload); // [FIX-5]
+                        const tot = el('kpi-total-orders');
+                        if (tot) tot.textContent = d.totalOrders;
 
-        if (!payload) return; // [FIX-4] null-guard
+                        const meta = el('kpi-orders-meta');
+                        if (meta) meta.innerHTML =
+                            `<span class="ka-dot"></span>${d.activeOrders} aktif &nbsp;·&nbsp; ${d.closedOrders} kapandı`;
 
-        // [FIX-3] camelCase/PascalCase çift okuma
-        const icon    = payload.icon    ?? payload.Icon    ?? '🔔';
-        const message = payload.message ?? payload.Message ?? '';
-        const color   = payload.color   ?? payload.Color   ?? '#f97316';
-        const time    = payload.time    ?? payload.Time    ?? '';
+                        const avg = el('kpi-avg-order');
+                        if (avg) avg.textContent = '₺' + Math.round(d.avgOrder).toLocaleString('tr-TR');
 
-        showToast(icon, message, color, time);
-        } catch (err) {
-        // [FIX-2] Handler hatası → listener ölmez, bir sonraki event yine gelir
-        console.error('[SignalR Dashboard] ReceiveNotification handler hatası:', err);
-        }
-        });
+                        const occ    = el('kpi-tables-occupied'); if (occ)    occ.textContent    = d.occupied;
+                        const ttl    = el('kpi-tables-total');    if (ttl)    ttl.textContent    = d.total;
+                        const legOcc = el('kpi-leg-occ');         if (legOcc) legOcc.textContent = d.occupied;
+                        const legRes = el('kpi-leg-res');         if (legRes) legRes.textContent = d.reserved;
+                        const legEmp = el('kpi-leg-empty');       if (legEmp) legEmp.textContent = d.empty;
 
-        // ── Bağlantı yönetimi ────────────────────────────────────────────────
-        async function startConnection() {
-        try {
-        await connection.start();
-        console.info('[SignalR] NotificationHub bağlandı ✅');
-        } catch (err) {
-        console.warn('[SignalR] Bağlantı hatası, 10sn sonra tekrar denenecek:', err);
-        setTimeout(startConnection, 10000);
-        }
-        }
+                        const occPct = d.total > 0 ? (d.occupied / d.total * 100) : 0;
+                        const resPct = d.total > 0 ? (d.reserved / d.total * 100) : 0;
+                        const tsbO = el('kpi-tsb-occ'); if (tsbO) tsbO.style.width = occPct.toFixed(1) + '%';
+                        const tsbR = el('kpi-tsb-res'); if (tsbR) tsbR.style.width = resPct.toFixed(1) + '%';
 
-        connection.onreconnecting(() => console.info('[SignalR] Yeniden bağlanıyor…'));
-        connection.onreconnected(() => console.info('[SignalR] Yeniden bağlandı ✅'));
-        connection.onclose(err => {
-        console.warn('[SignalR] Bağlantı kapandı, yeniden başlatılıyor…', err);
-        setTimeout(startConnection, 5000);
-        });
+                        const badge = el('kpi-occupancy-badge');
+                        if (badge) badge.textContent = '%' + (d.occupancyRate ?? 0).toFixed(0) + ' Dolu';
 
-        startConnection();
-        }();
+                        /* ── B. CHART.JS GRAFİKLERİ ───────────────────────────────
+                           Her grafik için: yeni veriyi ata → chart.update()
+                           Null guard: grafik oluşturulmamışsa (canvas yoktu) sessiz geç. */
+
+                        // B1. Area Chart — saatlik sipariş yoğunluğu
+                        if (areaChartObj && Array.isArray(d.hourlyTrends) && d.hourlyTrends.length) {
+                            areaChartObj.data.labels                 = d.hourlyTrends.map(h => h.lbl);
+                            areaChartObj.data.datasets[0].data       = d.hourlyTrends.map(h => h.n);
+                            areaChartObj.update('none'); // 'none' → animasyon yok, yalnızca redraw
+                        }
+
+                        // B2. Bar Chart — saatlik ciro (Area ile aynı veri kaynağı)
+                        if (barChartObj && Array.isArray(d.hourlyTrends) && d.hourlyTrends.length) {
+                            const mx   = Math.max(...d.hourlyTrends.map(h => h.c), 0);
+                            const cols = d.hourlyTrends.map(h => h.c === mx ? ACC : 'rgba(249,115,22,.25)');
+                            barChartObj.data.labels                    = d.hourlyTrends.map(h => h.lbl);
+                            barChartObj.data.datasets[0].data          = d.hourlyTrends.map(h => h.c);
+                            barChartObj.data.datasets[0].backgroundColor = cols;
+                            barChartObj.update('none');
+                        }
+
+                        // B3. Donut Chart — en çok satanlar
+                        if (donutChartObj && Array.isArray(d.topProducts)) {
+                            donutChartObj.data.labels               = d.topProducts.map(p => p.nm);
+                            donutChartObj.data.datasets[0].data     = d.topProducts.map(p => p.q);
+                            donutChartObj.data.datasets[0].backgroundColor = PAL.slice(0, d.topProducts.length);
+                            donutChartObj.update('none');
+
+                            // Donut merkezdeki toplam adet sayısını güncelle
+                            const dcVal = document.querySelector('.dc-val');
+                            if (dcVal) dcVal.textContent = d.topProducts.reduce((s, p) => s + p.q, 0);
+
+                            // Top-list satırlarını yeniden oluştur
+                            const topList = document.getElementById('top-products-list');
+                            if (topList && d.topProducts.length) {
+                                const maxQ = d.topProducts[0]?.q || 1;
+                                topList.innerHTML = d.topProducts.map((p, i) => {
+                                    const pct = maxQ > 0 ? Math.round(p.q / maxQ * 100) : 0;
+                                    return `<div class="top-item">
+                                        <div class="top-rank">#${i+1}</div>
+                                        <div class="top-name" title="${escHtml(p.nm)}">${escHtml(p.nm)}</div>
+                                        <div class="top-bw"><div class="top-bar" style="width:${pct}%"></div></div>
+                                        <div class="top-qty">${p.q} ad</div>
+                                    </div>`;
+                                }).join('');
+                            }
+                        }
+
+                        // B4. Weekly Line Chart — haftalık trend
+                        if (weeklyChartObj && Array.isArray(d.weeklyTrend) && d.weeklyTrend.length) {
+                            weeklyChartObj.data.labels               = d.weeklyTrend.map(w => w.d);
+                            weeklyChartObj.data.datasets[0].data     = d.weeklyTrend.map(w => w.tw);
+                            weeklyChartObj.data.datasets[1].data     = d.weeklyTrend.map(w => w.lw);
+                            weeklyChartObj.update('none');
+                        }
+
+                        /* ── C. MASA HARITASI (Heatmap) ───────────────────────────
+                           .hmg div'inin innerHTML'ini JSON'dan template literal ile yeniden oluştur. */
+                        if (Array.isArray(d.tableHeatmap) && d.tableHeatmap.length) {
+                            const hmg = document.querySelector('.hmg');
+                            if (hmg) {
+                                hmg.innerHTML = d.tableHeatmap.map(m => {
+                                    const billHtml = (m.status === 'occupied' || m.status === 'waiter')
+                                        ? `<div class="hm-bill">₺${Math.round(m.currentBill).toLocaleString('tr-TR')}</div>`
+                                        : m.status === 'reserved' && m.reservationTime
+                                            ? `<div class="hm-bill">${escHtml(m.reservationTime)}</div>`
+                                            : '';
+
+                                    let tipBody = '';
+                                    if (m.status === 'occupied' || m.status === 'waiter') {
+                                        tipBody = `<div class="hm-tip-r">💰 ₺${Math.round(m.currentBill).toLocaleString('tr-TR')}</div>
+                                                   <div class="hm-tip-r">👥 ${m.guestCount} kişi · ⏱ ${escHtml(m.durationText)}</div>
+                                                   ${m.status === 'waiter' ? '<div class="hm-tip-r" style="color:var(--amber)">🔔 Garson çağırıyor!</div>' : ''}`;
+                                    } else if (m.status === 'reserved') {
+                                        tipBody = `<div class="hm-tip-r">📅 Rezervasyon · ⏰ ${escHtml(m.reservationTime ?? '')}</div>`;
+                                    } else {
+                                        tipBody = `<div class="hm-tip-r">✅ Müsait masa</div>`;
+                                    }
+
+                                    return `<div class="hmc ${escHtml(m.status)}">
+                                        <div class="hm-id">${m.tableId}</div>
+                                        ${billHtml}
+                                        <div class="hm-tip">
+                                            <div class="hm-tip-t">${escHtml(m.tableName)}</div>
+                                            ${tipBody}
+                                        </div>
+                                    </div>`;
+                                }).join('');
+                            }
+
+                            // Heatmap başlığındaki "X/Y Dolu" badge'ini güncelle
+                            const hmTag = document.querySelector('.ch-tag.ch-tag-g');
+                            if (hmTag) hmTag.textContent = `${d.occupied}/${d.total} Dolu`;
+                        }
+
+                        /* ── D. STOK DURUMU ───────────────────────────────────────
+                           Stok kartlarının bulunduğu flex container'ı yeniden yaz. */
+                        if (Array.isArray(d.stockAlerts)) {
+                            const stockContainer = document.getElementById('stock-alerts-container');
+                            if (stockContainer) {
+                                if (d.stockAlerts.length === 0) {
+                                    stockContainer.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:16px 0">✅ Stok seviyeleri normal</div>';
+                                } else {
+                                    stockContainer.innerHTML = d.stockAlerts.map(s => {
+                                        const col = s.level === 'critical' ? '#ef4444' : '#f59e0b';
+                                        const bg  = s.level === 'critical' ? 'rgba(239,68,68,.1)'  : 'rgba(245,158,11,.1)';
+                                        const brd = s.level === 'critical' ? 'rgba(239,68,68,.3)'  : 'rgba(245,158,11,.3)';
+                                        const lbl = s.level === 'critical' ? 'KRİTİK' : 'DÜŞÜK';
+                                        const pct = Math.min(s.percentRemaining, 100).toFixed(1);
+                                        return `<div class="sc ${s.level === 'critical' ? 'critical' : ''}"
+                                                     style="background:${bg};border:1px solid ${brd}">
+                                            <div class="sc-top">
+                                                <div class="sc-nm">${escHtml(s.productName)}</div>
+                                                <span class="sc-bdg" style="background:${bg};color:${col};border:1px solid ${brd}">${lbl}</span>
+                                            </div>
+                                            <div class="sc-row">
+                                                <span>${s.currentQty} ${s.unit} / ${s.maxQty} ${s.unit}</span>
+                                                <span style="color:${col};font-weight:700">%${pct}</span>
+                                            </div>
+                                            <div class="sc-pb">
+                                                <div class="sc-pf" style="width:${pct}%;background:${col};opacity:.8"></div>
+                                            </div>
+                                        </div>`;
+                                    }).join('');
+                                }
+                            }
+                        }
+
+                        /* ── E. GÜNLÜK CİRO HEDEFİ ───────────────────────────────
+                           SVG ring stroke-dashoffset + progress bar genişliği + metinler */
+                        if (d.revenueTargetPct !== undefined) {
+                            const pct      = Math.min(d.revenueTargetPct, 100);
+                            const dashLen  = 169.6;
+                            const offset   = dashLen * (1 - pct / 100);
+
+                            // SVG ring
+                            const tgtFg = document.querySelector('.tgt-fg');
+                            if (tgtFg) tgtFg.setAttribute('stroke-dashoffset', offset.toFixed(1));
+
+                            // Yüzde etiketi (ring merkezi)
+                            const tgtLbl = document.querySelector('.tgt-lbl');
+                            if (tgtLbl) tgtLbl.textContent = '%' + pct.toFixed(0);
+
+                            // Ciro değeri
+                            const tgtVal = document.querySelector('.tgt-val');
+                            if (tgtVal) tgtVal.textContent = '₺' + Math.round(d.dailyRevenue).toLocaleString('tr-TR');
+
+                            // Progress bar dolgu
+                            const tgtBf = document.querySelector('.tgt-bf');
+                            if (tgtBf) tgtBf.style.width = pct.toFixed(1) + '%';
+
+                            // Alt tick — orta etiket
+                            const ticks = document.querySelectorAll('.tgt-tks span');
+                            if (ticks.length >= 2) {
+                                ticks[1].textContent = '₺' + Math.round(d.dailyRevenue).toLocaleString('tr-TR') + ' ✓';
+                            }
+                        }
+                    }
+
+                    /* ── Güvenli HTML escape (XSS önlemi) ──────────────────────── */
+                    function escHtml(s) {
+                        if (s == null) return '';
+                        return String(s)
+                            .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                            .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+                    }
+
+                    /* ── /App/Home/GetLiveMetrics fetch et, DOM'u güncelle ─────────── */
+                    function fetchAndUpdateMetrics() {
+                        fetch('/App/Home/GetLiveMetrics', {
+                            method: 'GET',
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                            credentials: 'same-origin'
+                        })
+                        .then(r => {
+                            if (!r.ok) { console.warn('[Metrics] HTTP', r.status); return null; }
+                            return r.json();
+                        })
+                        .then(d => { if (d) updateMetricDOM(d); })
+                        .catch(err => console.error('[Metrics] Fetch hatası:', err));
+                    }
+
+                    /* ── Hub URL: tenantId query param eklendi (401 fallback için) ── */
+                    const hubUrl = TENANT_ID
+                        ? `/notificationHub?tenantId=${encodeURIComponent(TENANT_ID)}`
+                        : '/notificationHub';
+
+                    const connection = new signalR.HubConnectionBuilder()
+                        .withUrl(hubUrl)
+                        .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+                        .configureLogging(signalR.LogLevel.Warning)
+                        .build();
+
+                    /* ── ReceiveNotification: toast + metrik güncelle ───────────────── */
+                    connection.on('ReceiveNotification', function (payload) {
+                        try {
+                            if (!payload) return;
+
+                            // Case-insensitive okuma
+                            const icon    = payload.icon    ?? payload.Icon    ?? '🔔';
+                            const message = payload.message ?? payload.Message ?? '';
+                            const color   = payload.color   ?? payload.Color   ?? '#f97316';
+                            const time    = payload.time    ?? payload.Time    ?? '';
+
+                            showToast(icon, message, color, time);
+
+                            // Bildirim düşünce metrikleri de güncelle
+                            fetchAndUpdateMetrics();
+                        } catch (err) {
+                            console.error('[SignalR] ReceiveNotification handler hatası:', err);
+                        }
+                    });
+
+                    /* ── UpdateDashboardMetrics: doğrudan metrik güncelleme event'i ── */
+                    connection.on('UpdateDashboardMetrics', function () {
+                        fetchAndUpdateMetrics();
+                    });
+
+                    /* ── Bağlantı yönetimi ──────────────────────────────────────────── */
+                    async function startConnection() {
+                        try {
+                            await connection.start();
+                            console.info('[SignalR] NotificationHub bağlandı ✅');
+                            fetchAndUpdateMetrics(); // Bağlanınca ilk veriyi hemen çek
+                        } catch (err) {
+                            console.warn('[SignalR] Bağlantı hatası, 10sn sonra tekrar:', err);
+                            setTimeout(startConnection, 10000);
+                        }
+                    }
+
+                    connection.onreconnecting(() => console.info('[SignalR] Yeniden bağlanıyor…'));
+                    connection.onreconnected(() => {
+                        console.info('[SignalR] Yeniden bağlandı ✅');
+                        fetchAndUpdateMetrics();
+                    });
+                    connection.onclose(err => {
+                        console.warn('[SignalR] Bağlantı kapandı, yeniden başlatılıyor…', err);
+                        setTimeout(startConnection, 5000);
+                    });
+
+                    startConnection();
+                }();
     </script>
 }
