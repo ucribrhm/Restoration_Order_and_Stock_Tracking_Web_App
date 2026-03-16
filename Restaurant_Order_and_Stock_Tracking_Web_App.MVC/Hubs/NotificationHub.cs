@@ -20,7 +20,12 @@ using System.Security.Claims;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Hubs
 {
-    [Authorize]
+    // [FIX-401] AuthenticationSchemes = "AppAuth" eklendi.
+    // Varsayılan scheme bırakıldığında .NET, Identity'nin default scheme'ini
+    // (AddIdentity → "Identity.Application") deniyor; bu scheme SignalR
+    // negotiate isteğindeki "RestaurantOS.AppAuth" cookie'yi tanımıyor → 401.
+    // AppAuth açıkça belirtilince doğru cookie okunur, 401 düzelir.
+    [Authorize(AuthenticationSchemes = "AppAuth")]
     public class NotificationHub : Hub
     {
         // [SEC-04] Tenant doğrulaması için DbContext inject edildi.
@@ -37,15 +42,22 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Hubs
         // ── [SIG-1] Bağlantı Kurulunca — Tenant Doğrula + Gruba Ekle ────────
         public override async Task OnConnectedAsync()
         {
+            // [FIX-TENANT] TenantId çözümleme sırası:
+            // 1. Claims (normal login — en güvenilir)
+            // 2. QueryString ?tenantId=xxx  (SignalR negotiate URL'inden)
+            // 3. Cookie "ros-tenant"         (fallback)
             var tenantId = Context.User?.FindFirstValue("TenantId");
 
-            // [Authorize] attribute gereği bu noktaya kimliksiz kullanıcı
-            // ulaşamaz; ancak TenantId claim'i kasıtlı eklenmemiş olabilir
-            // (örn: SysAdmin — AdminAuth cookie'sinde TenantId yok).
+            if (string.IsNullOrEmpty(tenantId))
+                tenantId = Context.GetHttpContext()?.Request.Query["tenantId"].ToString();
+
+            if (string.IsNullOrEmpty(tenantId))
+                tenantId = Context.GetHttpContext()?.Request.Cookies["ros-tenant"];
+
             if (string.IsNullOrEmpty(tenantId))
             {
-                // SysAdmin veya TenantId'siz kullanıcı → gruba katılmadan devam et.
-                // Bağlantıyı kesmiyoruz; bu kullanıcı bildirim almaz, zararsız.
+                // TenantId hiçbir yerden çözülemediyse (SysAdmin vb.) → lobi.
+                // Bağlantıyı kesmiyoruz; bildirim almaz ama çökmez.
                 await base.OnConnectedAsync();
                 return;
             }

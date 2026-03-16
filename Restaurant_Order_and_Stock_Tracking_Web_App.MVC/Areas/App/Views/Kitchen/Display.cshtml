@@ -25,10 +25,10 @@
         // 2. Cookie "ros-tenant" (Display() önceki istekte set etti)
         // 3. QueryString ?tenantId= (ilk kurulum, cookie henüz yok)
         var _kdsTenantId =
-            Context.User?.FindFirst("TenantId")?.Value
-            ?? Context.Request.Cookies["ros-tenant"]
-            ?? Context.Request.Query["tenantId"].ToString()
-            ?? "";
+        Context.User?.FindFirst("TenantId")?.Value
+        ?? Context.Request.Cookies["ros-tenant"]
+        ?? Context.Request.Query["tenantId"].ToString()
+        ?? "";
     }
     <meta name="kds-tenant-id" content="@_kdsTenantId" />
     @* [G-05] CSRF token — JS fetch() bu meta'yı okuyarak header'a ekler *@
@@ -556,13 +556,12 @@
           cardEl.classList.add('card-dismiss');
           setTimeout(() => { cardEl.remove(); checkEmpty(); }, 600);
         }
-
         // ══ YENİ SİPARİŞ KALEMİ EKLE (SignalR NewOrderItem) ═════════════════════════
         function addNewItem(data) {
           const grid = document.getElementById('cardsGrid');
           let card = document.getElementById('order-card-' + data.orderId);
 
-          // Kart yoksa oluştur
+          // 1. Kart yoksa oluştur (Adisyona ilk kez ürün giriliyorsa)
           if (!card) {
             const nowUnix = Math.floor(Date.now() / 1000);
             card = document.createElement('div');
@@ -593,9 +592,37 @@
             grid.appendChild(card);
           }
 
-          // Satır zaten var mı?
-          if (document.getElementById('item-row-' + data.orderItemId)) return;
+          // 2. Satır zaten var mı? [FIX-QTY: MEVCUDUN ÜSTÜNE EKLEME ZIRHI]
+          const existingRow = document.getElementById('item-row-' + data.orderItemId);
+          if (existingRow) {
+            // Miktarı gösteren HTML etiketini (span) bul
+            const qtySpan = existingRow.querySelector('span.rounded-md') || existingRow.querySelector('span[style*="background:rgba(255,255,255,.1)"]');
 
+            if (qtySpan) {
+              // Ekrandaki mevcut sayıyı oku (Örn: '×1' ise 1 yap)
+              const currentText = qtySpan.textContent.replace('×', '').trim();
+              const currentQty = parseInt(currentText, 10) || 1;
+
+              // C#'tan gelen "yeni eklenen (delta)" miktarı oku
+              const addedQty = parseInt(data.quantity, 10) || 1;
+
+              // TOPLAM = Mevcut + Yeni Gelen
+              const finalQty = currentQty + addedQty;
+
+              // Sayıyı DOM'a bas
+              qtySpan.textContent = '×' + finalQty;
+
+              // Kısa flash animasyonu ile güncellendiğini belli et
+              qtySpan.style.transition = 'background .25s';
+              qtySpan.style.background = 'rgba(251,191,36,.45)'; // Sarı parlama
+              setTimeout(() => { qtySpan.style.background = 'rgba(255,255,255,.1)'; }, 700);
+            }
+
+            setLastUpdate();
+            return; // ÇIKIŞ YAP! (Aşağıdaki yeni satır ekleme koduna inme)
+          }
+
+          // 3. EĞER SATIR YOKSA (YEPYENİ BİR ÜRÜNSE) ALT KISMA ÇİZ
           const body = document.getElementById('card-body-' + data.orderId);
           if (!body) return;
 
@@ -636,7 +663,6 @@
           refreshActiveCount();
           setLastUpdate();
         }
-
         // ══ TOAST BİLDİRİMİ ═══════════════════════════════════════════════════════════
         function showToast(msg, color = 'green') {
           const colors = {
