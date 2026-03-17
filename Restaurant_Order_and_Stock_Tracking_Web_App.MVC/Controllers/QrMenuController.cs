@@ -4,11 +4,14 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Filters;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Hubs;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Controllers
 {
     [AllowAnonymous] // QR Menü herkese açıktır
+   
     public class QrMenuController : Controller
     {
         private readonly RestaurantDbContext _context;

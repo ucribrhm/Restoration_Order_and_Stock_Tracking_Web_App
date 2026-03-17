@@ -31,6 +31,7 @@ public class AuthController : AppBaseController
     private readonly IOtpService _otpService;
     private readonly IEmailSender _emailSender;
     private readonly IMemoryCache _cache;
+    private readonly ITenantFeatureService _featureService;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
@@ -38,7 +39,8 @@ public class AuthController : AppBaseController
         ILogger<AuthController> logger,
         IOtpService otpService,
         IEmailSender emailSender,
-        IMemoryCache cache)
+        IMemoryCache cache,
+        ITenantFeatureService featureService)
     {
         _userManager = userManager;
         _db = db;
@@ -46,6 +48,7 @@ public class AuthController : AppBaseController
         _otpService = otpService;
         _emailSender = emailSender;
         _cache = cache;
+        _featureService = featureService;
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -154,6 +157,23 @@ public class AuthController : AppBaseController
             IsPersistent = model.RememberMe,
             ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
         });
+
+        // ── Proaktif Cache Yükleme ─────────────────────────────────────────
+        // Login anında tenant feature'larını önceden cache'e yükle.
+        // İlk sayfa açılışında cache miss yaşanmaz; DB sorgusu burada tamamlanır.
+        // await edilir: Scoped DbContext fire-and-forget'te dispose edilebilir.
+        // Hata olursa try-catch ile login akışı korunur.
+        try
+        {
+            await _featureService.GetFeaturesAsync(user.TenantId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "[AuthController] Feature cache warm-up başarısız. TenantId: {TenantId}",
+                user.TenantId);
+            // Cache yükleme hatası login'i engellememeli — devam et
+        }
 
         if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
             return Redirect(returnUrl);

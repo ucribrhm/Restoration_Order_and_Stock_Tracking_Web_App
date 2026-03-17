@@ -16,6 +16,7 @@
    ============================================================================ *@
 
 @using Microsoft.AspNetCore.Identity
+@using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared
 @inject UserManager<Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models.ApplicationUser> UserManager
 @inject SignInManager<Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models.ApplicationUser> SignInManager
 
@@ -43,6 +44,19 @@
     var _isImpersonation = User.FindFirst("IsImpersonation")?.Value == "true";
     var _impersonatedBy = User.FindFirst("ImpersonatedBy")?.Value ?? "";
     var _impTenantId = User.FindFirst("TenantId")?.Value ?? "";
+
+    // ── Plan tipi — sidebar "Yükselt" butonu için ────────────────────────
+    // TenantId claims'ten okunur; DB sorgusu yapmadan planı öğrenmek için
+    // ITenantFeatureService cache'inden yararlanılır.
+    var _layoutTenantId = User.FindFirst("TenantId")?.Value ?? "";
+    var _layoutFeatures = !string.IsNullOrEmpty(_layoutTenantId)
+        ? await Context.RequestServices
+              .GetRequiredService<Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services.ITenantFeatureService>()
+              .GetFeaturesAsync(_layoutTenantId)
+        : null;
+    var _currentPlanType = _layoutFeatures?.PlanType ?? "starter";
+    // "pro" planında "Yükselt" butonu gösterilmez
+    var _showUpgradeBtn = _currentPlanType != "pro" && User.IsInRole("Admin");
 }
 
 <!DOCTYPE html>
@@ -58,10 +72,10 @@
        Böylece sayfa yüklenirken beyaz/koyu flaş (FOUC) olmaz.
     ── *@
     <script>
-            (function () {
-                var t = localStorage.getItem('ros-theme') || 'dark';
-                document.documentElement.setAttribute('data-theme', t);
-            })();
+        (function () {
+            var t = localStorage.getItem('ros-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', t);
+        })();
     </script>
 
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
@@ -102,24 +116,24 @@
     {
         <div id="imp-banner"
              style="position: fixed;
-            top: 0; left: 0; right: 0;
-            height: 38px;
-            background: #7F1D1D;
-            color: #FCA5A5;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 0 20px;
-            font-size: 12.5px;
-            font-weight: 500;
-            border-bottom: 1px solid #991B1B;
-            z-index: 9999;
-            white-space: nowrap;">
+                        top: 0; left: 0; right: 0;
+                        height: 38px;
+                        background: #7F1D1D;
+                        color: #FCA5A5;
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        padding: 0 20px;
+                        font-size: 12.5px;
+                        font-weight: 500;
+                        border-bottom: 1px solid #991B1B;
+                        z-index: 9999;
+                        white-space: nowrap;">
 
             @* Yanıp sönen nokta *@
             <span style="width: 7px; height: 7px; border-radius: 50%;
-            background: #FCA5A5; flex-shrink: 0;
-            animation: imp-blink 1.2s ease-in-out infinite;"
+                        background: #FCA5A5; flex-shrink: 0;
+                        animation: imp-blink 1.2s ease-in-out infinite;"
                   aria-hidden="true"></span>
 
             @* Uyarı metni *@
@@ -140,14 +154,14 @@
                 @Html.AntiForgeryToken()
                 <button type="submit"
                         style="background: rgba(255,255,255,.15);
-                    color: #FEE2E2;
-                    border: 1px solid rgba(255,255,255,.25);
-                    border-radius: 6px;
-                    padding: 4px 13px;
-                    font-size: 12px;
-                    font-weight: 600;
-                    cursor: pointer;
-                    font-family: inherit;"
+                                color: #FEE2E2;
+                                border: 1px solid rgba(255,255,255,.25);
+                                border-radius: 6px;
+                                padding: 4px 13px;
+                                font-size: 12px;
+                                font-weight: 600;
+                                cursor: pointer;
+                                font-family: inherit;"
                         onmouseover="this.style.background='rgba(255,255,255,.28)'"
                         onmouseout="this.style.background='rgba(255,255,255,.15)'">
                     ← Admin Paneline Dön
@@ -156,15 +170,28 @@
         </div>
 
         <style>
-                @@keyframes imp-blink {
-                    0%, 100% { opacity: 1; }
-                    50%       { opacity: .25; }
+            @@keyframes imp-blink {
+                0%, 100% {
+                    opacity: 1;
                 }
-                /* Banner yüksekliği kadar aşağı it */
-                .sidebar { top: 38px !important; height: calc(100vh - 38px) !important; }
-                .main    { padding-top: 38px; }
-                /* Sidebar sol kenara ince kırmızı çizgi */
-                .sidebar { border-left: 3px solid #DC2626 !important; }
+
+                50% {
+                    opacity: .25;
+                }
+            }
+            /* Banner yüksekliği kadar aşağı it */
+            .sidebar {
+                top: 38px !important;
+                height: calc(100vh - 38px) !important;
+            }
+
+            .main {
+                padding-top: 38px;
+            }
+            /* Sidebar sol kenara ince kırmızı çizgi */
+            .sidebar {
+                border-left: 3px solid #DC2626 !important;
+            }
         </style>
     }
 
@@ -176,6 +203,21 @@
             <span class="logo-text">RestaurantOS</span>
         </div>
 
+        @* ── Planı Yükselt Butonu (Pro olmayan Admin'lere gösterilir) ── *@
+        @if (_showUpgradeBtn)
+        {
+            <a asp-area="App"
+               asp-controller="Subscription"
+               asp-action="Upgrade"
+               class="nav-upgrade-btn">
+                🚀 Planı Yükselt
+                @if (_currentPlanType == "trial")
+                {
+                    <span class="nav-upgrade-badge">TRIAL</span>
+                }
+            </a>
+        }
+
         <nav class="nav-section">
 
             @* ══════════════════════════════════════════════════════════════
@@ -186,13 +228,13 @@
                 <span class="nav-label">Ana Menü</span>
 
                 <a class="nav-item @(activeCtrl == "Home" ? "active" : "")"
-                       asp-area="App" asp-controller="Home" asp-action="Index">
+                   asp-area="App" asp-controller="Home" asp-action="Index">
                     <span class="nav-icon">📊</span>
                     <span class="nav-text">Dashboard</span>
                 </a>
 
                 <a class="nav-item @(activeCtrl == "Tables" ? "active" : "")"
-                       asp-area="App" asp-controller="Tables" asp-action="Index">
+                   asp-area="App" asp-controller="Tables" asp-action="Index">
                     <span class="nav-icon">🪑</span>
                     <span class="nav-text">Masalar</span>
                     @if (ViewData["OccupiedCount"] is int oc && oc > 0)
@@ -202,7 +244,7 @@
                 </a>
 
                 <a class="nav-item @(activeCtrl == "Orders" ? "active" : "")"
-                       asp-area="App" asp-controller="Orders" asp-action="Index">
+                   asp-area="App" asp-controller="Orders" asp-action="Index">
                     <span class="nav-icon">🧾</span>
                     <span class="nav-text">Siparişler</span>
                     @if (ViewData["ActiveOrderCount"] is int ao && ao > 0)
@@ -213,34 +255,38 @@
 
                 <span class="nav-label">Mutfak</span>
 
-                <a class="nav-item @(activeCtrl == "Kitchen" ? "active" : "")"
+                <feature name="@Features.KDS" locked="false">
+                    <a class="nav-item @(activeCtrl == "Kitchen" ? "active" : "")"
                        asp-area="App" asp-controller="Kitchen" asp-action="Display">
-                    <span class="nav-icon">🍳</span>
-                    <span class="nav-text">Mutfak Ekranı</span>
-                </a>
+                        <span class="nav-icon">🍳</span>
+                        <span class="nav-text">Mutfak Ekranı</span>
+                    </a>
+                </feature>
 
                 <span class="nav-label">Yönetim</span>
 
                 <a class="nav-item @(activeCtrl == "User" ? "active" : "")"
-                       asp-area="App" asp-controller="User" asp-action="Index">
+                   asp-area="App" asp-controller="User" asp-action="Index">
                     <span class="nav-icon">👥</span>
                     <span class="nav-text">Kullanıcılar</span>
                 </a>
 
+                
+
                 <a class="nav-item @(activeCtrl == "Menu" ? "active" : "")"
-                       asp-area="App" asp-controller="Menu" asp-action="Index">
+                   asp-area="App" asp-controller="Menu" asp-action="Index">
                     <span class="nav-icon">🍕</span>
                     <span class="nav-text">Menü</span>
                 </a>
 
                 <a class="nav-item @(activeCtrl == "Category" ? "active" : "")"
-                       asp-area="App" asp-controller="Category" asp-action="Index">
+                   asp-area="App" asp-controller="Category" asp-action="Index">
                     <span class="nav-icon">🏷️</span>
                     <span class="nav-text">Kategori</span>
                 </a>
 
                 <a class="nav-item @(activeCtrl == "Stock" ? "active" : "")"
-                       asp-area="App" asp-controller="Stock" asp-action="Index">
+                   asp-area="App" asp-controller="Stock" asp-action="Index">
                     <span class="nav-icon">📦</span>
                     <span class="nav-text">Stok</span>
                 </a>
@@ -248,13 +294,13 @@
                 <span class="nav-label">Raporlar</span>
 
                 <a class="nav-item @(activeCtrl == "Reports" ? "active" : "")"
-                       asp-area="App" asp-controller="Reports" asp-action="Index">
+                   asp-area="App" asp-controller="Reports" asp-action="Index">
                     <span class="nav-icon">📈</span>
                     <span class="nav-text">Raporlar</span>
                 </a>
 
                 <a class="nav-item @(activeCtrl == "Shift" ? "active" : "")"
-                       asp-area="App" asp-controller="Shift" asp-action="Index">
+                   asp-area="App" asp-controller="Shift" asp-action="Index">
                     <span class="nav-icon">⏱️</span>
                     <span class="nav-text">Z-Raporu</span>
                 </a>
@@ -262,7 +308,7 @@
                 <span class="nav-label">Sistem</span>
 
                 <a class="nav-item @(activeCtrl == "Settings" ? "active" : "")"
-                       asp-area="App" asp-controller="Settings" asp-action="Index">
+                   asp-area="App" asp-controller="Settings" asp-action="Index">
                     <span class="nav-icon">⚙️</span>
                     <span class="nav-text">Ayarlar</span>
                 </a>
@@ -276,7 +322,7 @@
                 <span class="nav-label">Mutfak</span>
 
                 <a class="nav-item @(activeCtrl == "Kitchen" ? "active" : "")"
-                       asp-area="App" asp-controller="Kitchen" asp-action="Display">
+                   asp-area="App" asp-controller="Kitchen" asp-action="Display">
                     <span class="nav-icon">🍳</span>
                     <span class="nav-text">Mutfak Ekranı</span>
                 </a>
@@ -290,7 +336,7 @@
                 <span class="nav-label">Ana Menü</span>
 
                 <a class="nav-item @(activeCtrl == "Tables" ? "active" : "")"
-                       asp-area="App" asp-controller="Tables" asp-action="Index">
+                   asp-area="App" asp-controller="Tables" asp-action="Index">
                     <span class="nav-icon">🪑</span>
                     <span class="nav-text">Masalar</span>
                     @if (ViewData["OccupiedCount"] is int oc2 && oc2 > 0)
@@ -300,7 +346,7 @@
                 </a>
 
                 <a class="nav-item @(activeCtrl == "Orders" ? "active" : "")"
-                       asp-area="App" asp-controller="Orders" asp-action="Index">
+                   asp-area="App" asp-controller="Orders" asp-action="Index">
                     <span class="nav-icon">🧾</span>
                     <span class="nav-text">Siparişler</span>
                     @if (ViewData["ActiveOrderCount"] is int ao2 && ao2 > 0)
@@ -318,7 +364,7 @@
                 <span class="nav-label">Ana Menü</span>
 
                 <a class="nav-item @(activeCtrl == "Tables" ? "active" : "")"
-                       asp-area="App" asp-controller="Tables" asp-action="Index">
+                   asp-area="App" asp-controller="Tables" asp-action="Index">
                     <span class="nav-icon">🪑</span>
                     <span class="nav-text">Masalar</span>
                     @if (ViewData["OccupiedCount"] is int oc3 && oc3 > 0)
@@ -385,46 +431,46 @@
 
     @* ── APP_URLS: Tüm controller action URL'leri merkezi tanım ──────────── *@
     <script>
-            // [v3] APP_TENANT_ID — Hub bağlantısı için TenantId, meta tag'den okunur.
-            // Tüm View JS dosyaları window.APP_TENANT_ID ile erişir.
-            window.APP_TENANT_ID = (document.querySelector('meta[name="ros-tenant-id"]')?.content ?? '').trim();
+        // [v3] APP_TENANT_ID — Hub bağlantısı için TenantId, meta tag'den okunur.
+        // Tüm View JS dosyaları window.APP_TENANT_ID ile erişir.
+        window.APP_TENANT_ID = (document.querySelector('meta[name="ros-tenant-id"]')?.content ?? '').trim();
 
-            window.APP_URLS = {
-                // ── Tables ───────────────────────────────────────────────────
-                tablesCreate:           '@Url.Action("Create", "Tables", new { area = "App" })',
-                tablesReserve:          '@Url.Action("Reserve", "Tables", new { area = "App" })',
-                tablesCancelReserve:    '@Url.Action("CancelReserve", "Tables", new { area = "App" })',
-                tablesDelete:           '@Url.Action("Delete", "Tables", new { area = "App" })',
-                tablesMergeOrder:       '@Url.Action("MergeOrder", "Tables", new { area = "App" })',
-                tablesServeReadyItems:  '@Url.Action("ServeReadyItems", "Tables", new { area = "App" })',
-                tablesDismissWaiter:    '@Url.Action("DismissWaiter", "Tables", new { area = "App" })',
-                // ── Orders ───────────────────────────────────────────────────
-                ordersCreate:           '@Url.Action("Create", "Orders", new { area = "App" })',
-                ordersUpdateItemStatus: '@Url.Action("UpdateItemStatus", "Orders", new { area = "App" })',
-                ordersAddItemBulk:      '@Url.Action("AddItemBulk", "Orders", new { area = "App" })',
-                ordersAddPayment:       '@Url.Action("AddPayment", "Orders", new { area = "App" })',
-                ordersCloseZero:        '@Url.Action("CloseZero", "Orders", new { area = "App" })',
-                ordersCancelItem:       '@Url.Action("CancelItem", "Orders", new { area = "App" })',
-                // ── Menu ─────────────────────────────────────────────────────
-                menuCreate:             '@Url.Action("Create", "Menu", new { area = "App" })',
-                menuEdit:               '@Url.Action("Edit", "Menu", new { area = "App" })',
-                menuDelete:             '@Url.Action("Delete", "Menu", new { area = "App" })',
-                menuGetById:            '@Url.Action("GetById", "Menu", new { area = "App" })',
-                menuIndex:              '@Url.Action("Index", "Menu", new { area = "App" })',
-                // ── Category ─────────────────────────────────────────────────
-                categoryCreate:         '@Url.Action("Create", "Category", new { area = "App" })',
-                categoryEdit:           '@Url.Action("Edit", "Category", new { area = "App" })',
-                categoryDelete:         '@Url.Action("Delete", "Category", new { area = "App" })',
-                categoryGetById:        '@Url.Action("GetById", "Category", new { area = "App" })',
-                categoryIndex:          '@Url.Action("Index", "Category", new { area = "App" })',
-                // ── Stock ─────────────────────────────────────────────────────
-                stockUpdateStock:       '@Url.Action("UpdateStock", "Stock", new { area = "App" })',
-                stockToggleTrack:       '@Url.Action("ToggleTrack", "Stock", new { area = "App" })',
-                stockGetHistory:        '@Url.Action("GetHistory", "Stock", new { area = "App" })',
-                stockPdfReport:         '@Url.Action("GenerateStockPdfReport", "Stock", new { area = "App" })',
-                // ── Auth ─────────────────────────────────────────────────────
-                authLogin:              '@Url.Action("Login", "Auth", new { area = "App" })',
-            };
+        window.APP_URLS = {
+            // ── Tables ───────────────────────────────────────────────────
+            tablesCreate:           '@Url.Action("Create", "Tables", new { area = "App" })',
+            tablesReserve:          '@Url.Action("Reserve", "Tables", new { area = "App" })',
+            tablesCancelReserve:    '@Url.Action("CancelReserve", "Tables", new { area = "App" })',
+            tablesDelete:           '@Url.Action("Delete", "Tables", new { area = "App" })',
+            tablesMergeOrder:       '@Url.Action("MergeOrder", "Tables", new { area = "App" })',
+            tablesServeReadyItems:  '@Url.Action("ServeReadyItems", "Tables", new { area = "App" })',
+            tablesDismissWaiter:    '@Url.Action("DismissWaiter", "Tables", new { area = "App" })',
+            // ── Orders ───────────────────────────────────────────────────
+            ordersCreate:           '@Url.Action("Create", "Orders", new { area = "App" })',
+            ordersUpdateItemStatus: '@Url.Action("UpdateItemStatus", "Orders", new { area = "App" })',
+            ordersAddItemBulk:      '@Url.Action("AddItemBulk", "Orders", new { area = "App" })',
+            ordersAddPayment:       '@Url.Action("AddPayment", "Orders", new { area = "App" })',
+            ordersCloseZero:        '@Url.Action("CloseZero", "Orders", new { area = "App" })',
+            ordersCancelItem:       '@Url.Action("CancelItem", "Orders", new { area = "App" })',
+            // ── Menu ─────────────────────────────────────────────────────
+            menuCreate:             '@Url.Action("Create", "Menu", new { area = "App" })',
+            menuEdit:               '@Url.Action("Edit", "Menu", new { area = "App" })',
+            menuDelete:             '@Url.Action("Delete", "Menu", new { area = "App" })',
+            menuGetById:            '@Url.Action("GetById", "Menu", new { area = "App" })',
+            menuIndex:              '@Url.Action("Index", "Menu", new { area = "App" })',
+            // ── Category ─────────────────────────────────────────────────
+            categoryCreate:         '@Url.Action("Create", "Category", new { area = "App" })',
+            categoryEdit:           '@Url.Action("Edit", "Category", new { area = "App" })',
+            categoryDelete:         '@Url.Action("Delete", "Category", new { area = "App" })',
+            categoryGetById:        '@Url.Action("GetById", "Category", new { area = "App" })',
+            categoryIndex:          '@Url.Action("Index", "Category", new { area = "App" })',
+            // ── Stock ─────────────────────────────────────────────────────
+            stockUpdateStock:       '@Url.Action("UpdateStock", "Stock", new { area = "App" })',
+            stockToggleTrack:       '@Url.Action("ToggleTrack", "Stock", new { area = "App" })',
+            stockGetHistory:        '@Url.Action("GetHistory", "Stock", new { area = "App" })',
+            stockPdfReport:         '@Url.Action("GenerateStockPdfReport", "Stock", new { area = "App" })',
+            // ── Auth ─────────────────────────────────────────────────────
+            authLogin:              '@Url.Action("Login", "Auth", new { area = "App" })',
+        };
     </script>
 
     <script src="~/js/site.js" asp-append-version="true"></script>

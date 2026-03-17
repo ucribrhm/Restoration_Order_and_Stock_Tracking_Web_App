@@ -1,0 +1,516 @@
+﻿@*
+    ════════════════════════════════════════════════════════════════════════
+    Areas/App/Views/Subscription/Upgrade.cshtml  —  Pro Paywall Sayfası
+    [SP3-1] RequireFeatureAttribute → kullanıcı kilitli özelliğe erişince buraya yönlenir.
+    ════════════════════════════════════════════════════════════════════════
+*@
+@{
+    ViewData["Title"] = "Pro'ya Geçin";
+    Layout = "_AppLayout";
+    var planType = ViewBag.PlanType as string ?? "trial";
+}
+
+@section Styles {
+    <style>
+        @@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+
+        /* ── Sayfa temeli ─────────────────────────────────────────────────── */
+        .up-wrap {
+            font-family: 'Outfit', var(--font-body), sans-serif;
+            min-height: calc(100vh - 64px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 56px 20px 80px;
+            background: radial-gradient(ellipse 90% 55% at 50% -5%, rgba(168,85,247,.14), transparent), radial-gradient(ellipse 60% 40% at 90% 80%, rgba(129,140,248,.08), transparent);
+        }
+
+        /* ── Üst başlık ───────────────────────────────────────────────────── */
+        .up-header {
+            text-align: center;
+            max-width: 580px;
+            margin-bottom: 52px;
+        }
+
+        .up-icon {
+            font-size: 52px;
+            display: block;
+            margin-bottom: 18px;
+            filter: drop-shadow(0 0 28px rgba(168,85,247,.6));
+            animation: up-pulse 2.6s ease-in-out infinite;
+        }
+
+        @@keyframes up-pulse {
+            0%, 100% {
+                transform: scale(1);
+                filter: drop-shadow(0 0 24px rgba(168,85,247,.5));
+            }
+
+            50% {
+                transform: scale(1.07);
+                filter: drop-shadow(0 0 44px rgba(168,85,247,.85));
+            }
+        }
+
+        .up-header h1 {
+            font-size: clamp(1.7rem, 4vw, 2.5rem);
+            font-weight: 900;
+            line-height: 1.2;
+            margin-bottom: 14px;
+            background: linear-gradient(135deg, #e9d5ff 15%, #a855f7 55%, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .up-header p {
+            font-size: 1.05rem;
+            color: var(--color-muted);
+            line-height: 1.65;
+        }
+
+        .up-plan-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(129,140,248,.12);
+            border: 1px solid rgba(129,140,248,.25);
+            color: var(--color-accent-lt, #c7d2fe);
+            font-size: .8rem;
+            font-weight: 700;
+            padding: 5px 14px;
+            border-radius: 99px;
+            margin-bottom: 22px;
+            letter-spacing: .5px;
+            text-transform: uppercase;
+        }
+
+        /* ── Karşılaştırma tablosu ────────────────────────────────────────── */
+        .up-table-wrap {
+            width: 100%;
+            max-width: 820px;
+            overflow-x: auto;
+            margin-bottom: 44px;
+            border-radius: 20px;
+            border: 1px solid rgba(129,140,248,.18);
+            box-shadow: 0 8px 40px rgba(0,0,0,.45);
+        }
+
+        .up-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .95rem;
+            background: rgba(255,255,255,.03);
+            backdrop-filter: blur(14px);
+        }
+
+            /* ── Tablo başlık satırı ──────────────────────────────────────────── */
+            .up-table thead tr {
+                border-bottom: 1px solid rgba(129,140,248,.15);
+            }
+
+            .up-table thead th {
+                padding: 22px 28px;
+                font-weight: 800;
+                font-size: 1rem;
+                text-align: center;
+                color: var(--color-text, #f1f5f9);
+            }
+
+                .up-table thead th:first-child {
+                    text-align: left;
+                    color: var(--color-muted, #94a3b8);
+                    font-weight: 600;
+                    font-size: .875rem;
+                }
+
+        .th-starter {
+            color: var(--color-muted, #94a3b8) !important;
+            font-size: .9rem !important;
+        }
+
+        .th-pro {
+            background: linear-gradient(135deg, rgba(168,85,247,.18), rgba(129,140,248,.10));
+            border-radius: 12px 12px 0 0;
+            color: #d8b4fe !important;
+            position: relative;
+        }
+
+            .th-pro::after {
+                content: 'ÖNERİLEN';
+                position: absolute;
+                top: -13px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: linear-gradient(90deg, #a855f7, #818cf8);
+                color: #fff;
+                font-size: .62rem;
+                font-weight: 800;
+                letter-spacing: .8px;
+                padding: 3px 12px;
+                border-radius: 99px;
+                white-space: nowrap;
+            }
+
+        /* ── Tablo gövde satırları ────────────────────────────────────────── */
+        .up-table tbody tr {
+            border-bottom: 1px solid rgba(255,255,255,.05);
+            transition: background .15s;
+        }
+
+            .up-table tbody tr:last-child {
+                border-bottom: none;
+            }
+
+            .up-table tbody tr:hover {
+                background: rgba(255,255,255,.03);
+            }
+
+        .up-table tbody td {
+            padding: 15px 28px;
+            text-align: center;
+            color: var(--color-text, #f1f5f9);
+            vertical-align: middle;
+        }
+
+            .up-table tbody td:first-child {
+                text-align: left;
+                color: var(--color-muted, #94a3b8);
+                font-weight: 500;
+            }
+
+            /* Pro sütunu hafif vurgu */
+            .up-table tbody td:last-child {
+                background: rgba(168,85,247,.04);
+            }
+
+        /* ── Simge hücreleri ─────────────────────────────────────────────── */
+        .ic-yes {
+            color: #4ade80;
+            font-size: 1.15rem;
+        }
+
+        .ic-no {
+            color: rgba(255,255,255,.18);
+            font-size: 1rem;
+        }
+
+        .ic-pro {
+            color: #c084fc;
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        /* ── Bölüm ayracı satırları ─────────────────────────────────────── */
+        .up-table .section-row td {
+            font-size: .75rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: rgba(168,85,247,.7) !important;
+            background: rgba(168,85,247,.05);
+            padding: 10px 28px 8px;
+        }
+
+        /* ── Fiyatlandırma alanı ─────────────────────────────────────────── */
+        .up-pricing {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 36px;
+            width: 100%;
+            max-width: 820px;
+        }
+
+        .up-price-card {
+            flex: 1;
+            min-width: 220px;
+            max-width: 380px;
+            border-radius: 18px;
+            padding: 28px 30px;
+            border: 1px solid rgba(255,255,255,.08);
+            background: rgba(255,255,255,.03);
+            text-align: center;
+            position: relative;
+            transition: border-color .2s, box-shadow .2s, transform .2s;
+        }
+
+            .up-price-card:hover {
+                transform: translateY(-4px);
+            }
+
+            .up-price-card.featured {
+                border-color: rgba(168,85,247,.4);
+                background: rgba(168,85,247,.06);
+                box-shadow: 0 0 40px rgba(168,85,247,.12);
+            }
+
+        .up-price-label {
+            font-size: .78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .7px;
+            color: var(--color-muted);
+            margin-bottom: 10px;
+        }
+
+        .up-price-amount {
+            font-size: 2.4rem;
+            font-weight: 900;
+            line-height: 1;
+            color: var(--color-text, #f1f5f9);
+            margin-bottom: 4px;
+        }
+
+            .up-price-amount sup {
+                font-size: 1rem;
+                vertical-align: super;
+                margin-right: 2px;
+            }
+
+            .up-price-amount sub {
+                font-size: .85rem;
+                color: var(--color-muted);
+                font-weight: 500;
+            }
+
+        .up-price-note {
+            font-size: .82rem;
+            color: var(--color-muted);
+            margin-top: 6px;
+        }
+
+        .up-price-save {
+            display: inline-block;
+            background: rgba(74,222,128,.12);
+            color: #4ade80;
+            border: 1px solid rgba(74,222,128,.25);
+            font-size: .72rem;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 99px;
+            margin-top: 8px;
+            letter-spacing: .4px;
+        }
+
+        /* ── CTA Butonu ──────────────────────────────────────────────────── */
+        .up-cta {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 16px 48px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #a855f7, #818cf8);
+            color: #fff;
+            font-size: 1.05rem;
+            font-weight: 800;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 24px rgba(168,85,247,.4);
+            transition: transform .18s, box-shadow .18s, filter .18s;
+            letter-spacing: .2px;
+        }
+
+            .up-cta:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 8px 36px rgba(168,85,247,.55);
+                filter: brightness(1.06);
+                color: #fff;
+                text-decoration: none;
+            }
+
+            .up-cta:active {
+                transform: scale(.97);
+            }
+
+        .up-cta-sub {
+            font-size: .82rem;
+            color: var(--color-muted);
+            margin-top: 14px;
+            text-align: center;
+        }
+
+        /* ── Mevcut plana dön linki ──────────────────────────────────────── */
+        .up-back {
+            margin-top: 28px;
+            font-size: .85rem;
+            color: var(--color-muted);
+        }
+
+            .up-back a {
+                color: var(--color-accent, #818cf8);
+                text-decoration: none;
+                font-weight: 600;
+            }
+
+                .up-back a:hover {
+                    text-decoration: underline;
+                }
+
+        @@media (max-width: 600px) {
+            .up-table tbody td, .up-table thead th {
+                padding: 12px 16px;
+            }
+
+            .up-pricing {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+}
+
+<div class="up-wrap">
+
+    @* Başlık *@
+    <div class="up-header">
+        <span class="up-icon">⚡</span>
+        <div class="up-plan-pill">
+            Mevcut Plan: @planType.ToUpperInvariant()
+        </div>
+        <h1>Pro ile Tüm Gücü<br>Açın</h1>
+        <p>
+            Bu özellik <strong>Pro</strong> planına dahildir.
+            Aşağıdaki tablodan planları karşılaştırın ve restoranınızı
+            bir üst seviyeye taşıyın.
+        </p>
+    </div>
+
+    @* Karşılaştırma Tablosu *@
+    <div class="up-table-wrap">
+        <table class="up-table">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th class="th-starter">Starter</th>
+                    <th class="th-pro">Pro</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                @* BÖLÜM: Temel *@
+                <tr class="section-row"><td colspan="3">Temel Özellikler</td></tr>
+                <tr>
+                    <td>Masa & Sipariş Yönetimi</td>
+                    <td><span class="ic-yes">✓</span></td>
+                    <td><span class="ic-yes">✓</span></td>
+                </tr>
+                <tr>
+                    <td>Menü & Kategori Yönetimi</td>
+                    <td><span class="ic-yes">✓</span></td>
+                    <td><span class="ic-yes">✓</span></td>
+                </tr>
+                <tr>
+                    <td>Stok Takibi</td>
+                    <td><span class="ic-yes">✓</span></td>
+                    <td><span class="ic-yes">✓</span></td>
+                </tr>
+                <tr>
+                    <td>Temel Raporlar</td>
+                    <td><span class="ic-yes">✓</span></td>
+                    <td><span class="ic-yes">✓</span></td>
+                </tr>
+
+                @* BÖLÜM: Pro Operasyonel *@
+                <tr class="section-row"><td colspan="3">Operasyonel Özellikler</td></tr>
+                <tr>
+                    <td>Mutfak Ekran Sistemi (KDS)</td>
+                    <td><span class="ic-no">—</span></td>
+                    <td><span class="ic-pro">⚡ PRO</span></td>
+                </tr>
+                <tr>
+                    <td>Masa Birleştirme</td>
+                    <td><span class="ic-no">—</span></td>
+                    <td><span class="ic-pro">⚡ PRO</span></td>
+                </tr>
+                <tr>
+                    <td>Hesap Bölme</td>
+                    <td><span class="ic-no">—</span></td>
+                    <td><span class="ic-pro">⚡ PRO</span></td>
+                </tr>
+                <tr>
+                    <td>QR Self-Order</td>
+                    <td><span class="ic-no">—</span></td>
+                    <td><span class="ic-pro">⚡ PRO</span></td>
+                </tr>
+                <tr>
+                    <td>Rezervasyon Modülü</td>
+                    <td><span class="ic-no">—</span></td>
+                    <td><span class="ic-pro">⚡ PRO</span></td>
+                </tr>
+                <tr>
+                    <td>İndirim Uygulama</td>
+                    <td><span class="ic-no">—</span></td>
+                    <td><span class="ic-pro">⚡ PRO</span></td>
+                </tr>
+
+                @* BÖLÜM: Analitik *@
+                <tr class="section-row"><td colspan="3">Analitik & Destek</td></tr>
+                <tr>
+                    <td>Gelişmiş Ciro & Ürün Raporları</td>
+                    <td><span class="ic-no">—</span></td>
+                    <td><span class="ic-pro">⚡ PRO</span></td>
+                </tr>
+                <tr>
+                    <td>Gerçek Zamanlı Dashboard</td>
+                    <td><span class="ic-no">—</span></td>
+                    <td><span class="ic-pro">⚡ PRO</span></td>
+                </tr>
+                <tr>
+                    <td>Öncelikli Destek</td>
+                    <td><span class="ic-no">—</span></td>
+                    <td><span class="ic-yes">✓</span></td>
+                </tr>
+                <tr>
+                    <td>Kullanıcı Sayısı Sınırı</td>
+                    <td>5 kullanıcı</td>
+                    <td>Sınırsız</td>
+                </tr>
+
+            </tbody>
+        </table>
+    </div>
+
+    @* Fiyatlandırma *@
+    <div class="up-pricing">
+        <div class="up-price-card">
+            <div class="up-price-label">Aylık</div>
+            <div class="up-price-amount">
+                <sup>₺</sup>999<sub>/ay</sub>
+            </div>
+            <div class="up-price-note">Aylık faturalandırılır</div>
+        </div>
+        <div class="up-price-card featured">
+            <div class="up-price-label">Yıllık</div>
+            <div class="up-price-amount">
+                <sup>₺</sup>799<sub>/ay</sub>
+            </div>
+            <div class="up-price-note">Yıllık ₺9.588 faturalandırılır</div>
+            <span class="up-price-save">🎉 2 ay ücretsiz</span>
+        </div>
+    </div>
+
+    @* CTA *@
+    <a asp-area="App"
+       asp-controller="Subscription"
+       asp-action="Checkout"
+       asp-route-plan="pro"
+       class="up-cta">
+        ⚡ Pro Pakete Geç
+    </a>
+
+    <p class="up-cta-sub">
+        Kredi kartı zorunlu değil · İstediğin zaman iptal et
+    </p>
+
+    <p class="up-back">
+        Şimdi değil?
+        <a asp-area="App" asp-controller="Tables" asp-action="Index">
+            Masalar sayfasına dön
+        </a>
+    </p>
+
+</div>

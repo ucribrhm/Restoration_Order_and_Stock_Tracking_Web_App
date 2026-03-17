@@ -1,15 +1,10 @@
 ﻿// ============================================================================
 //  Areas/App/Controllers/AppBaseController.cs
 //
-//  SPRINT C DEĞİŞİKLİKLERİ:
-//  [SC-7] OnActionExecutionAsync → Paywall (Trial bitiş) filtresi eklendi
-//         - Tenant.TrialEndsAt < DateTime.UtcNow → /App/Subscription/Index yönlendir
-//         - Sonsuz döngü koruması: SubscriptionController ve AuthController muaf
-//         - PlanType == "trial" olmayan (ücretli) tenant'lar bypass edilir
-//
-//  SPRINT 4 — [IMP-6] Impersonation Paywall Bypass
-//         - IsImpersonation=true ise tüm paywall/trial kontrolleri atlanır
-//         - SysAdmin pasif veya süresi dolmuş restoranları da yönetebilir
+//  Global Hard-Lock Sistemi:
+//  Trial planı + TrialEndsAt süresi dolmuşsa tüm sayfa isteklerini
+//  /App/Subscription/Upgrade sayfasına yönlendirir.
+//  Bypass: Subscription ve Auth controller'ları + Impersonation oturumları.
 // ============================================================================
 
 using Microsoft.AspNetCore.Authorization;
@@ -25,13 +20,12 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
     [Authorize(AuthenticationSchemes = "AppAuth")]
     public abstract class AppBaseController : Controller
     {
-        // [SC-7] Paywall filtresi
-        // OnActionExecutionAsync: her action çalışmadan önce tetiklenir.
         public override async Task OnActionExecutionAsync(
             ActionExecutingContext context,
             ActionExecutionDelegate next)
         {
             // ── Sonsuz döngü koruması ────────────────────────────────────────
+            // Subscription ve Auth controller'ları Hard-Lock'tan muaftır.
             var controllerName = context.RouteData.Values["controller"]?.ToString();
             if (controllerName is "Subscription" or "Auth")
             {
@@ -39,9 +33,8 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                 return;
             }
 
-            // ── [IMP-6] Impersonation Bypass ─────────────────────────────────
-            // SysAdmin impersonation ile girmiş → tenant'ın trial/aktif durumuna
-            // bakılmaz. SysAdmin pasif veya süresi dolmuş bir restorana da girebilmeli.
+            // ── Impersonation Bypass ─────────────────────────────────────────
+            // SysAdmin impersonation ile girmiş → trial/aktif durumuna bakılmaz.
             var isImpersonation = context.HttpContext.User
                 .FindFirstValue("IsImpersonation") == "true";
             if (isImpersonation)
@@ -50,7 +43,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                 return;
             }
 
-            // ── TenantId al ──────────────────────────────────────────────────
+            // ── TenantId ─────────────────────────────────────────────────────
             var tenantId = context.HttpContext.User.FindFirstValue("TenantId");
             if (string.IsNullOrEmpty(tenantId))
             {
@@ -58,9 +51,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                 return;
             }
 
-            // ── DB'den tenant'ı çek ve trial kontrolü yap ───────────────────
-            // IServiceProvider üzerinden DbContext alıyoruz; base constructor
-            // değiştirmeden DI çözümlemenin en temiz yolu budur.
+            // ── DB'den tenant çek ────────────────────────────────────────────
             var db = context.HttpContext.RequestServices
                 .GetRequiredService<RestaurantDbContext>();
 
@@ -69,31 +60,28 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                 .Select(t => new { t.TenantId, t.PlanType, t.TrialEndsAt, t.IsActive })
                 .FirstOrDefaultAsync(t => t.TenantId == tenantId);
 
-            // Tenant bulunamazsa veya pasifse normal auth akışına bırak
+            // Pasif tenant → auth akışına bırak
             if (tenant is null || !tenant.IsActive)
             {
                 await next();
                 return;
             }
 
-            // Ücretli plan → paywall muaf
-            if (tenant.PlanType != "trial")
+            // ── Hard-Lock: Trial + Süre Dolmuş ──────────────────────────────
+            // Sadece trial planı için kontrol yapılır.
+            // Starter ve Pro her zaman geçer.
+            if (tenant.PlanType == "trial" &&
+                tenant.TrialEndsAt.HasValue &&
+                tenant.TrialEndsAt.Value < DateTime.UtcNow)
             {
-                await next();
-                return;
-            }
-
-            // Trial plan + süre dolmuşsa → Subscription sayfasına yönlendir
-            if (tenant.TrialEndsAt.HasValue && tenant.TrialEndsAt.Value < DateTime.UtcNow)
-            {
-                context.Result = RedirectToAction(
-                    actionName: "Index",
+                // /App/Subscription/Upgrade → plan seçim ve ödeme sayfası
+                context.Result = new RedirectToActionResult(
+                    actionName: "Upgrade",
                     controllerName: "Subscription",
                     routeValues: new { area = "App" });
                 return;
             }
 
-            // Kontroller geçti → action'ı çalıştır
             await next();
         }
     }

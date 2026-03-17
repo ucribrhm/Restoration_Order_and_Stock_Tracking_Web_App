@@ -19,6 +19,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.ViewModels.Admin;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.Admin.Controllers;
@@ -27,6 +28,7 @@ public class HomeController : AdminBaseController
 {
     private readonly RestaurantDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ITenantFeatureService _tenantFeatureService;
 
     // Türkçe ay kısaltmaları — Chart.js etiketleri için
     private static readonly string[] TurkishMonths =
@@ -35,10 +37,12 @@ public class HomeController : AdminBaseController
 
     public HomeController(
         RestaurantDbContext db,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        ITenantFeatureService tenantFeatureService)
     {
         _db = db;
         _userManager = userManager;
+        _tenantFeatureService = tenantFeatureService;
     }
 
     // ── GET /Admin/Home/Index ────────────────────────────────────────────────
@@ -124,4 +128,68 @@ public class HomeController : AdminBaseController
 
         return View(vm);
     }
+
+    // ── POST /Admin/Home/ChangePlan ──────────────────────────────────────────
+    // Plan değişince DB güncellenir + feature cache temizlenir.
+    // TenantFeatureService artık TenantConfig bool'larını okumaz —
+    // yetki tamamen PlanType + TrialEndsAt'a göre hesaplanır.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ChangePlan([FromBody] ChangePlanDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.TenantId) ||
+            string.IsNullOrWhiteSpace(dto.NewPlanType))
+            return Json(new { success = false, message = "TenantId ve NewPlanType zorunludur." });
+
+        // Sadece 3 geçerli plan — enterprise yok
+        var validPlans = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { "trial", "starter", "pro" };
+
+        if (!validPlans.Contains(dto.NewPlanType))
+            return Json(new { success = false, message = $"Geçersiz plan tipi: '{dto.NewPlanType}'. Geçerliler: trial, starter, pro" });
+
+        var tenant = await _db.Tenants
+            .FirstOrDefaultAsync(t => t.TenantId == dto.TenantId);
+
+        if (tenant is null)
+            return Json(new { success = false, message = "Restoran bulunamadı." });
+
+        var plan = dto.NewPlanType.ToLowerInvariant();
+        tenant.PlanType = plan;
+
+        // ── TrialEndsAt mantığı ─────────────────────────────────────────────
+        // trial  → 15 gün ver (veya mevcut süreyi uzat)
+        // starter / pro → trial süresi yok
+        if (plan == "trial")
+        {
+            // Mevcut trial bitmişse yeni 15 gün ver, bitmemişse uzatma
+            if (!tenant.TrialEndsAt.HasValue || tenant.TrialEndsAt.Value < DateTime.UtcNow)
+                tenant.TrialEndsAt = DateTime.UtcNow.AddDays(15);
+            // Bitmemişse dokunma — kalan süre korunsun
+        }
+        else
+        {
+            tenant.TrialEndsAt = null; // Ücretli planlarda trial süresi yok
+        }
+
+        await _db.SaveChangesAsync();
+
+        // ── Feature cache'i temizle ──────────────────────────────────────────
+        // SaveChangesAsync'ten HEMEN SONRA cache temizlenir.
+        // Kullanıcı sayfayı yenileyince MapToDto yeni PlanType ile çalışır.
+        // Inject edilmiş field kullanılır — RequestServices scope riski yok.
+        _tenantFeatureService.InvalidateCache(dto.TenantId);
+
+        return Json(new
+        {
+            success = true,
+            message = $"'{tenant.Name}' planı '{plan.ToUpperInvariant()}' olarak güncellendi.",
+            newPlanType = plan
+        });
+    }
 }
+
+// ── DTO (iç sınıf — ayrı dosyaya taşınabilir) ───────────────────────────────
+// Dosya yolu: Areas/Admin/Controllers/HomeController.cs (iç sınıf olarak)
+// ya da ViewModels/Admin/ChangePlanDto.cs olarak ayrı bir dosyaya alınabilir.
+public sealed record ChangePlanDto(string TenantId, string NewPlanType);

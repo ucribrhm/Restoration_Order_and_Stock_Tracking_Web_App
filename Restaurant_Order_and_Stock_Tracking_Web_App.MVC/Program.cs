@@ -209,6 +209,14 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
             builder.Services.AddScoped<IDashboardService, DashboardService>();
             builder.Services.AddScoped<IStockService, StockService>();
 
+            // ── Tenant Feature Flag Servisi ────────────────────────────────
+            // Scoped: her HTTP isteğinde taze DbContext ile çalışır.
+            // IMemoryCache (AddMemoryCache yukarıda) üzerinde 5dk TTL ile cache'ler.
+            // Cache key: tenant_features:{tenantId}
+            builder.Services.AddScoped<
+                Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services.ITenantFeatureService,
+                Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services.TenantFeatureService>();
+
             // ── [IMP-2] Sprint 4 — Impersonation Audit Log Kimlik Servisi ──
             builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 

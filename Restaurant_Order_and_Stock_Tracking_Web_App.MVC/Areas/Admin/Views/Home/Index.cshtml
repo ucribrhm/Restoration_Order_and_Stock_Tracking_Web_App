@@ -22,7 +22,7 @@
 
     // Chart.js için JSON verisi — Razor → JS
     var labelsJson = System.Text.Json.JsonSerializer.Serialize(Model.GrowthLabels);
-    var dataJson   = System.Text.Json.JsonSerializer.Serialize(Model.GrowthData);
+    var dataJson = System.Text.Json.JsonSerializer.Serialize(Model.GrowthData);
 }
 
 @section Styles {
@@ -60,11 +60,15 @@
         }
 
         @@media (max-width: 900px) {
-            .stat-grid { grid-template-columns: repeat(2, 1fr); }
+            .stat-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
         }
 
         @@media (max-width: 500px) {
-            .stat-grid { grid-template-columns: 1fr; }
+            .stat-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
         .stat-card {
@@ -88,17 +92,30 @@
             .stat-card::before {
                 content: '';
                 position: absolute;
-                top: 0; left: 0; right: 0;
+                top: 0;
+                left: 0;
+                right: 0;
                 height: 2px;
                 background: var(--stat-accent, #F97316);
                 opacity: 0.6;
                 border-radius: 12px 12px 0 0;
             }
 
-            .stat-card.green  { --stat-accent: #22C55E; }
-            .stat-card.gray   { --stat-accent: #6B7280; }
-            .stat-card.blue   { --stat-accent: #3B82F6; }
-            .stat-card.orange { --stat-accent: #F97316; }
+            .stat-card.green {
+                --stat-accent: #22C55E;
+            }
+
+            .stat-card.gray {
+                --stat-accent: #6B7280;
+            }
+
+            .stat-card.blue {
+                --stat-accent: #3B82F6;
+            }
+
+            .stat-card.orange {
+                --stat-accent: #F97316;
+            }
 
         .stat-top {
             display: flex;
@@ -114,9 +131,23 @@
             letter-spacing: 0.05em;
         }
 
-        .stat-icon   { font-size: 20px; opacity: 0.8; }
-        .stat-value  { font-size: 34px; font-weight: 800; color: var(--stat-accent, #F97316); line-height: 1; letter-spacing: -1px; }
-        .stat-sub    { font-size: 12px; color: var(--text-muted, #6B7280); }
+        .stat-icon {
+            font-size: 20px;
+            opacity: 0.8;
+        }
+
+        .stat-value {
+            font-size: 34px;
+            font-weight: 800;
+            color: var(--stat-accent, #F97316);
+            line-height: 1;
+            letter-spacing: -1px;
+        }
+
+        .stat-sub {
+            font-size: 12px;
+            color: var(--text-muted, #6B7280);
+        }
 
         /* ── İki Sütun Orta Alan ─────────────────────────────────────────── */
         .mid-grid {
@@ -127,7 +158,9 @@
         }
 
         @@media (max-width: 800px) {
-            .mid-grid { grid-template-columns: 1fr; }
+            .mid-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
         /* ── Panel ───────────────────────────────────────────────────────── */
@@ -155,10 +188,15 @@
             gap: 8px;
         }
 
-        .panel-body { padding: 20px; }
+        .panel-body {
+            padding: 20px;
+        }
 
         /* ── Grafik ──────────────────────────────────────────────────────── */
-        .chart-container { position: relative; height: 240px; }
+        .chart-container {
+            position: relative;
+            height: 240px;
+        }
 
         /* ── Yeni Restoran Butonu ────────────────────────────────────────── */
         .btn-new {
@@ -211,10 +249,18 @@
                 vertical-align: middle;
             }
 
-            .tenant-table tr:last-child td { border-bottom: none; }
-            .tenant-table tbody tr:hover td { background: rgba(255,255,255,0.02); }
+            .tenant-table tr:last-child td {
+                border-bottom: none;
+            }
 
-        .tenant-name      { font-weight: 600; color: var(--text, #E8EAF0); }
+            .tenant-table tbody tr:hover td {
+                background: rgba(255,255,255,0.02);
+            }
+
+        .tenant-name {
+            font-weight: 600;
+            color: var(--text, #E8EAF0);
+        }
 
         .tenant-subdomain {
             font-family: 'Courier New', monospace;
@@ -234,9 +280,60 @@
             letter-spacing: 0.03em;
         }
 
-        .badge-active   { background: rgba(34,197,94,0.12);   color: #22C55E; border: 1px solid rgba(34,197,94,0.2); }
-        .badge-inactive { background: rgba(107,114,128,0.12); color: #9CA3AF; border: 1px solid rgba(107,114,128,0.2); }
-        .badge-plan     { background: rgba(59,130,246,0.1);   color: #60A5FA; border: 1px solid rgba(59,130,246,0.15); font-size: 11px; padding: 2px 7px; }
+        .badge-active {
+            background: rgba(34,197,94,0.12);
+            color: #22C55E;
+            border: 1px solid rgba(34,197,94,0.2);
+        }
+
+        .badge-inactive {
+            background: rgba(107,114,128,0.12);
+            color: #9CA3AF;
+            border: 1px solid rgba(107,114,128,0.2);
+        }
+
+        .badge-plan {
+            background: rgba(59,130,246,0.1);
+            color: #60A5FA;
+            border: 1px solid rgba(59,130,246,0.15);
+            font-size: 11px;
+            padding: 2px 7px;
+        }
+
+        /* ── [SP4-3] Plan seçici dropdown ── */
+        .plan-select {
+            appearance: none;
+            -webkit-appearance: none;
+            background: rgba(59,130,246,.08);
+            border: 1px solid rgba(59,130,246,.2);
+            color: #60A5FA;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .4px;
+            padding: 3px 22px 3px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            outline: none;
+            transition: border-color .15s, background .15s;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2360A5FA'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 6px center;
+        }
+
+            .plan-select:hover:not(:disabled) {
+                border-color: rgba(59,130,246,.45);
+                background-color: rgba(59,130,246,.14);
+            }
+
+            .plan-select:disabled {
+                opacity: .5;
+                cursor: wait;
+            }
+
+            .plan-select option {
+                background: #1E1B4B;
+                color: #F1F5F9;
+            }
 
         .empty-row td {
             text-align: center;
@@ -245,7 +342,10 @@
             font-size: 13px;
         }
 
-        .date-cell { color: var(--text-muted, #6B7280); font-size: 12.5px; }
+        .date-cell {
+            color: var(--text-muted, #6B7280);
+            font-size: 12.5px;
+        }
 
         /* ── [IMP-5] Impersonation Butonu ────────────────────────────────── */
         .btn-impersonate {
@@ -422,9 +522,25 @@
                                         <span class="tenant-subdomain">@t.Subdomain</span>
                                     </td>
                                     <td>
-                                        <span class="badge badge-plan">
-                                            @t.PlanType.ToUpperInvariant()
-                                        </span>
+                                        @*  ── [SP4-3] Plan Değiştirme Dropdown ──────────────────
+                                            SysAdmin, restoranın planını buradan değiştirebilir.
+                                            onchange → changePlan(this) → POST /Admin/Home/ChangePlan
+                                            data-original: hata durumunda eski değere dönmek için.
+                                        ── *@
+                                        <select class="plan-select"
+                                                data-tenant-id="@t.TenantId"
+                                                data-original="@t.PlanType"
+                                                onchange="changePlan(this)"
+                                                title="@t.Name için planı değiştir">
+                                            @*
+                                                selected="@(bool)" → HTML'e selected="True"/"False" yazar,
+                                                tarayıcı "False" string'ini de selected sayar — YANLIŞ.
+                                                Doğru Razor: bool true ise attribute render edilir, false ise atlanır.
+                                            *@
+                                            <option value="trial" selected="@(t.PlanType == "trial")">🕐 TRIAL</option>
+                                            <option value="starter" selected="@(t.PlanType == "starter")">🌱 STARTER</option>
+                                            <option value="pro" selected="@(t.PlanType == "pro")">⚡ PRO</option>
+                                        </select>
                                     </td>
                                     <td class="date-cell">
                                         @t.CreatedAt.ToString("dd.MM.yyyy")
@@ -474,7 +590,6 @@
 
 </div>
 <!-- / dash-wrap -->
-
 <!-- ── [IMP-5] Toast bildirimi ──────────────────────────────────────────── -->
 <div id="imp-toast"></div>
 
@@ -538,6 +653,54 @@
                 btn.disabled = false;
                 btn.classList.remove('loading');
                 btn.innerHTML = '🔑 Gir';
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  [SP4-3] ChangePlan — Plan Değiştirme
+        //
+        //  1. Dropdown değiştirilir → changePlan(select) tetiklenir
+        //  2. POST /Admin/Home/ChangePlan → { tenantId, newPlanType }
+        //  3. Başarıysa: data-original güncellenir + toast
+        //  4. Hata varsa: select eski değere döndürülür + toast
+        // ══════════════════════════════════════════════════════════════════════
+        async function changePlan(select) {
+            const tenantId    = select.dataset.tenantId;
+            const newPlanType = select.value;
+            const original    = select.dataset.original ?? newPlanType;
+
+            if (!tenantId) return;
+
+            // Çift tetiklenmeyi önle
+            select.disabled = true;
+
+            try {
+                const res = await fetch('@Url.Action("ChangePlan", "Home", new { area = "Admin" })', {
+                    method:  'POST',
+                    headers: {
+                        'Content-Type':              'application/json',
+                        'RequestVerificationToken':  _csrfToken,
+                        'X-Requested-With':          'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ tenantId, newPlanType })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok || !data.success) {
+                    throw new Error(data.message ?? 'Plan güncellenemedi.');
+                }
+
+                // Başarılı: data-original'i yeni değere güncelle
+                select.dataset.original = newPlanType;
+                showToast(`✅ ${data.message}`, 'success');
+
+            } catch (err) {
+                // Hata: dropdown'ı eski değerine döndür
+                select.value = original;
+                showToast(`❌ ${err.message}`, 'error');
+            } finally {
+                select.disabled = false;
             }
         }
 

@@ -27,9 +27,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Dtos.Orders;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Filters;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
@@ -265,7 +267,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
         {
             if (req == null || req.Items == null || !req.Items.Any())
                 return Json(new { success = false, message = "Eklenecek ürün bulunamadı." });
-
+            
             var result = await _orderService.AddItemBulkAsync(req);
             return Json(new { success = result.Success, message = result.Message });
         }

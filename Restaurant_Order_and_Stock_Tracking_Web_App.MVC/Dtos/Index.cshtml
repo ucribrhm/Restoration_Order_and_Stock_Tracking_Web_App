@@ -1,0 +1,110 @@
+@model List<Restaurant_Order_and_Stock_Tracking_Web_App.MVC.ViewModels.Users.UserListItemViewModel>
+@{
+    ViewData["Title"] = "Kullanıcı Yönetimi";
+}
+@section Styles {
+    <style>
+        .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+        .page-title { font-family: 'Syne', sans-serif; font-size: 1.4rem; font-weight: 700; color: var(--text); }
+        .btn-primary {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            padding: 0.55rem 1.2rem; background: var(--accent); color: #fff;
+            border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600;
+            cursor: pointer; text-decoration: none; transition: background 0.2s;
+        }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th { padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--border); text-align: left; }
+        .data-table td { padding: 0.85rem 1rem; font-size: 0.88rem; color: var(--text); border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; }
+        .data-table tr:last-child td { border-bottom: none; }
+        .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+        .badge-role {
+            display: inline-block; padding: 0.2rem 0.65rem;
+            border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+        }
+        .badge-admin { background: rgba(249,115,22,0.15); color: var(--accent); }
+        .badge-garson { background: rgba(99,102,241,0.15); color: #818cf8; }
+        .badge-other { background: rgba(255,255,255,0.07); color: var(--text-muted); }
+        .action-btns { display: flex; gap: 0.4rem; }
+        .btn-sm {
+            padding: 0.3rem 0.7rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500;
+            border: none; cursor: pointer; text-decoration: none; transition: background 0.15s;
+        }
+        .btn-edit { background: rgba(255,255,255,0.08); color: var(--text); }
+        .btn-edit:hover { background: rgba(255,255,255,0.14); }
+        .btn-danger { background: rgba(239,68,68,0.12); color: #f87171; }
+        .btn-danger:hover { background: rgba(239,68,68,0.22); }
+        .alert { padding: 0.75rem 1rem; border-radius: 10px; margin-bottom: 1rem; font-size: 0.88rem; }
+        .alert-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.25); color: #4ade80; }
+        .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
+        .text-muted { color: var(--text-muted); }
+    </style>
+}
+
+<div class="page-header">
+    <div class="page-title">👥 Kullanıcı Yönetimi</div>
+    <a asp-area ="App" asp-controller="User" asp-action="Create" class="btn-primary">+ Yeni Kullanıcı</a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success">✓ @TempData["Success"]</div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-error">✗ @TempData["Error"]</div>
+}
+
+<div class="table-card">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Ad Soyad</th>
+                <th>Kullanıcı Adı</th>
+                <th>Rol</th>
+                <th>E-posta</th>
+                <th>Telefon</th>
+                <th>Oluşturulma</th>
+                <th>Son Giriş</th>
+                <th>İşlemler</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in Model)
+            {
+                <tr>
+                    <td><strong>@user.FullName</strong></td>
+                    <td class="text-muted">@user.UserName</td>
+                    <td>
+                        @{
+                            var badgeClass = user.Role == "Admin" ? "badge-admin" : user.Role == "Garson" ? "badge-garson" : "badge-other";
+                            var roleLabel = user.Role == "Admin" ? "Yönetici" : user.Role == "Garson" ? "Garson" : user.Role;
+                        }
+                        <span class="badge-role @badgeClass">@roleLabel</span>
+                    </td>
+                    <td class="text-muted">@(user.Email ?? "—")</td>
+                    <td class="text-muted">@(user.PhoneNumber ?? "—")</td>
+                    <td class="text-muted">@user.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy")</td>
+                    <td class="text-muted">
+                        @(user.LastLoginAt.HasValue ? user.LastLoginAt.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm") : "—")
+                    </td>
+                    <td>
+                        <div class="action-btns">
+                            <a asp-area="App" asp-controller="User" asp-action="Edit" asp-route-id="@user.Id" class="btn-sm btn-edit">✏️ Düzenle</a>
+                            <form asp-area="App" asp-controller="User" asp-action="Delete" method="post" onsubmit="return confirm('@user.FullName kullanıcısını silmek istediğinize emin misiniz?')">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@user.Id" />
+                                <button type="submit" class="btn-sm btn-danger">🗑 Sil</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    @if (!Model.Any())
+    {
+        <div style="padding:2rem; text-align:center; color:var(--text-muted);">Henüz kullanıcı bulunmuyor.</div>
+    }
+</div>

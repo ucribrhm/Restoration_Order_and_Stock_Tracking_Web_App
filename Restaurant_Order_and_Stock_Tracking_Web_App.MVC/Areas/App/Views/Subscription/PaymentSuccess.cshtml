@@ -1,0 +1,121 @@
+﻿@*
+    Areas/App/Views/Subscription/PaymentSuccess.cshtml  —  Ödeme Onay Sayfası
+*@
+@{
+    ViewData["Title"] = "Ödeme Başarılı";
+    Layout = "_AppLayout";
+    var newPlan = ViewBag.NewPlan as string ?? "pro";
+    var planLabel = newPlan == "pro" ? "⚡ Pro" : "🌱 Starter";
+}
+
+@section Styles {
+    <style>
+        @@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap');
+
+        :root {
+            --bg: #0a0a0f;
+            --surface: #13131e;
+            --border: rgba(255,255,255,.07);
+            --green: #22c55e;
+            --green-lt: rgba(34,197,94,.12);
+            --accent: #f97316;
+            --text: #f0ece8;
+            --text2: #9994a8;
+            --font: 'Outfit',sans-serif;
+        }
+
+        .ps-wrap {
+            font-family: var(--font);
+            min-height: calc(100vh - 64px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 48px 20px;
+            text-align: center;
+            background: radial-gradient(ellipse 70% 50% at 50% 0%, rgba(34,197,94,.10), transparent);
+        }
+
+        .ps-icon {
+            font-size: 72px;
+            line-height: 1;
+            margin-bottom: 24px;
+            filter: drop-shadow(0 0 32px rgba(34,197,94,.6));
+            animation: pop .5s cubic-bezier(.34,1.56,.64,1);
+        }
+
+        @@keyframes pop {
+            from {
+                transform: scale(0);
+                opacity: 0
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1
+            }
+        }
+
+        .ps-wrap h1 {
+            font-size: clamp(1.6rem,4vw,2.2rem);
+            font-weight: 900;
+            color: var(--text);
+            margin-bottom: 12px;
+        }
+
+        .ps-wrap p {
+            font-size: 1rem;
+            color: var(--text2);
+            margin-bottom: 32px;
+            line-height: 1.7;
+        }
+
+        .ps-plan-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--green-lt);
+            border: 1px solid rgba(34,197,94,.25);
+            color: var(--green);
+            font-size: .9rem;
+            font-weight: 700;
+            padding: 8px 20px;
+            border-radius: 99px;
+            margin-bottom: 36px;
+        }
+
+        .ps-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 36px;
+            border-radius: 12px;
+            background: linear-gradient(135deg,#22c55e,#16a34a);
+            color: #fff;
+            font: 700 14px var(--font);
+            text-decoration: none;
+            box-shadow: 0 4px 20px rgba(34,197,94,.35);
+            transition: transform .15s,box-shadow .15s;
+        }
+
+            .ps-btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 28px rgba(34,197,94,.45);
+                color: #fff;
+                text-decoration: none;
+            }
+    </style>
+}
+
+<div class="ps-wrap">
+    <div class="ps-icon">🎉</div>
+    <h1>Ödeme Başarılı!</h1>
+    <p>
+        <strong>@planLabel</strong> paketiniz aktive edildi.<br>
+        Tüm özelliklere artık erişebilirsiniz.
+    </p>
+    <div class="ps-plan-pill">✓ @planLabel paketi aktif</div>
+    <a asp-area="App" asp-controller="Home" asp-action="Index" class="ps-btn">
+        🚀 Dashboard'a Git
+    </a>
+</div>

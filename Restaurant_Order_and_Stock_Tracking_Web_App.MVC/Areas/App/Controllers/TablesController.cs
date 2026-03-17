@@ -22,9 +22,11 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Dtos.Tables;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Filters;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Hubs;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;
+using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common;
 using System.Text.RegularExpressions;
 
@@ -255,6 +257,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
 
         // ── POST /App/Tables/MergeOrder ───────────────────────────────────────
         [HttpPost, ValidateAntiForgeryToken]
+
         public async Task<IActionResult> MergeOrder([FromBody] TableMergeOrderDto dto)
         {
             if (dto.SourceTableId == dto.TargetTableId)
