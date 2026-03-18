@@ -27,11 +27,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Data;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Dtos.Orders;
-using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Filters;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Models;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Modules.Orders;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;
-using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Shared.Common;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
@@ -60,7 +58,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
         // ─────────────────────────────────────────────────────────────────────
         // GET /App/Orders
         // ─────────────────────────────────────────────────────────────────────
-        // ── GET /App/Orders ───────────────────────────────────────────────────────
         public async Task<IActionResult> Index(string tab = "active", string? searchTable = null)
         {
             ViewData["Title"] = "Siparişler";
@@ -72,21 +69,15 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             var todayLocalStart = new DateTime(localNow.Year, localNow.Month, localNow.Day, 0, 0, 0, DateTimeKind.Local);
             var todayUtcStart = todayLocalStart.ToUniversalTime();
 
-            // [PERF] AsNoTracking: listeleme sayfası salt okunur, change tracker'a gerek yok.
-            // [PERF] AsSplitQuery: OrderItems (1:N) + MenuItem ThenInclude → 2 collection
-            //        AsSplitQuery olmadan EF Core tek JOIN üretir → satır sayısı N×M'e çıkar.
             var allActiveOrders = await _db.Orders
-                .AsNoTracking()
                 .Where(o => o.OrderStatus == OrderStatus.Open)
+                .AsNoTracking() // [PERF-01]
                 .Include(o => o.Table)
                 .Include(o => o.OrderItems).ThenInclude(oi => oi.MenuItem)
-                .AsSplitQuery()
                 .OrderBy(o => o.OrderOpenedAt)
                 .ToListAsync();
 
-            // KPI hesabı için hafif projeksiyon — Include gereksiz, AsNoTracking yeterli
             var allTodayPastOrders = await _db.Orders
-                .AsNoTracking()
                 .Where(o => (o.OrderStatus == OrderStatus.Paid || o.OrderStatus == OrderStatus.Cancelled)
                          && o.OrderOpenedAt >= todayUtcStart)
                 .ToListAsync();
@@ -96,18 +87,13 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                 .Where(o => o.OrderStatus == OrderStatus.Paid).Sum(o => o.OrderTotalAmount);
             ViewBag.AllTodayPaidCount = allTodayPastOrders.Count(o => o.OrderStatus == OrderStatus.Paid);
 
-            // [PERF] AsNoTracking + AsSplitQuery:
-            //        3 collection Include (Table, OrderItems→MenuItem, Payments)
-            //        Kartezyen çarpım: 50 sipariş × 10 kalem × 5 ödeme = 2500 satır
-            //        AsSplitQuery ile 3 ayrı SELECT → 50+500+250 = 800 satır
             var pastOrdersQuery = _db.Orders
-                .AsNoTracking()
                 .Where(o => (o.OrderStatus == OrderStatus.Paid || o.OrderStatus == OrderStatus.Cancelled)
                          && o.OrderOpenedAt >= todayUtcStart)
+                .AsNoTracking() // [PERF-01]
                 .Include(o => o.Table)
                 .Include(o => o.OrderItems).ThenInclude(oi => oi.MenuItem)
                 .Include(o => o.Payments)
-                .AsSplitQuery()
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(searchTable))
@@ -152,6 +138,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
 
             var categories = await _db.Categories
                 .Where(c => c.IsActive).OrderBy(c => c.CategorySortOrder)
+                .AsNoTracking() // [PERF-01]
                 .Include(c => c.MenuItems.Where(m =>
                     !m.IsDeleted && (m.IsAvailable || (m.TrackStock && m.StockQuantity <= 0))))
                 .ToListAsync();
@@ -201,34 +188,45 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             });
         }
 
-        // ── GET /App/Orders/Detail/{id} ───────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────────
+        // GET /App/Orders/Detail/42
+        //
         // [SA-3] İKİNCİ SAVUNMA HATTI — ID Manipulation Koruması
-        // Global Query Filter adisyonu zaten mevcut tenant'a filtreler.
-        // Ancak TenantId claim'i edge case'de null döndüğünde filtre devre dışı kalır.
-        // Bu nedenle sorgudan sonra açık bir sahiplik kontrolü yapılır.
+        //
+        // Global Query Filter (DbContext'te HasQueryFilter) adisyonu zaten
+        // mevcut tenant'a filtreler. Ancak TenantId claim'i herhangi bir
+        // edge case'de null döndüğünde (seed bağlamı, claim kaybı vb.)
+        // filtre devre dışı kalır ve tüm adisyonlar açık hale gelir.
+        //
+        // Bu nedenle sorgudan sonra açık bir sahiplik kontrolü yapılır:
+        //   order.TenantId != _tenantService.TenantId → NotFound()
+        //
+        // Bu kontrol bir Kasiyer'in URL'deki ?id=999 değerini değiştirerek
+        // başka bir restoranın adisyonuna erişmesini tamamen engeller.
+        // ─────────────────────────────────────────────────────────────────────
         public async Task<IActionResult> Detail(int id)
         {
-            // [PERF] AsNoTracking: Detail sayfası salt okunur, entity takibine gerek yok.
-            // [PERF] AsSplitQuery: OrderItems (1:N) + Payments (1:N) iki collection →
-            //        tek JOIN'de kartezyen çarpım → AsSplitQuery ile 3 ayrı SELECT.
             var order = await _db.Orders
-                .AsNoTracking()
+                .AsNoTracking() // [PERF-01]
                 .Include(o => o.Table)
                 .Include(o => o.OrderItems.OrderBy(i => i.OrderItemAddedAt)).ThenInclude(oi => oi.MenuItem)
                 .Include(o => o.Payments)
-                .AsSplitQuery()
                 .FirstOrDefaultAsync(o => o.OrderId == id);
 
             // [SA-3] Çift kontrol:
-            //   1. order == null  → GQF bu tenant'a ait olmayan kaydı gizledi.
-            //   2. order.TenantId != _tenantService.TenantId → filter bypass edge case.
+            //   1. order == null  → Global Query Filter zaten bu tenant'a ait olmayan
+            //                       kaydı gizledi (normal yol).
+            //   2. order.TenantId != _tenantService.TenantId  → Filter bypass edge case;
+            //                       yabancı tenant adisyonu sızdıysa burada durdurulur.
             if (order == null || order.TenantId != _tenantService.TenantId)
+            {
+                // NotFound() → bilgi sızdırmaz; kayıt yok ile yetki yok aynı görünür.
                 return NotFound();
+            }
 
-            // [PERF] AsNoTracking: kategoriler salt okunur, View'da değiştirilmiyor.
             var categories = await _db.Categories
-                .AsNoTracking()
                 .Where(c => c.IsActive).OrderBy(c => c.CategorySortOrder)
+                .AsNoTracking() // [PERF-01]
                 .Include(c => c.MenuItems.Where(m => m.IsAvailable && !m.IsDeleted))
                 .ToListAsync();
 
@@ -267,7 +265,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
         {
             if (req == null || req.Items == null || !req.Items.Any())
                 return Json(new { success = false, message = "Eklenecek ürün bulunamadı." });
-            
+
             var result = await _orderService.AddItemBulkAsync(req);
             return Json(new { success = result.Success, message = result.Message });
         }

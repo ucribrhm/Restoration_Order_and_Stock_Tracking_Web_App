@@ -81,6 +81,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services
 
             _cache.Set(cacheKey, vm, new MemoryCacheEntryOptions
             {
+                Size = 1,
                 AbsoluteExpirationRelativeToNow = CacheDuration,
                 Priority = CacheItemPriority.Normal
             });
@@ -103,6 +104,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services
 
             _cache.Set(cacheKey, result, new MemoryCacheEntryOptions
             {
+                Size = 1,
                 AbsoluteExpirationRelativeToNow = CacheDuration,
                 Priority = CacheItemPriority.Normal
             });

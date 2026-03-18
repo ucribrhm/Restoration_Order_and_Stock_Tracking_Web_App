@@ -99,7 +99,11 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services
             );
 
             _cache.Set(OtpKey(email, purpose), record,
-                new MemoryCacheEntryOptions { AbsoluteExpiration = DateTimeOffset.UtcNow.Add(OtpTtl) });
+                new MemoryCacheEntryOptions
+                {
+                    Size = 1,
+                    AbsoluteExpiration = DateTimeOffset.UtcNow.Add(OtpTtl)
+                });
 
             _logger.LogInformation("[OTP] Üretildi. Purpose: {Purpose} | Email: {Email}", purpose, email);
             return code;
@@ -134,7 +138,11 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services
                 {
                     // Lockout — 15 dakika bloke
                     _cache.Set(LockKey(email, purpose), "1",
-                        new MemoryCacheEntryOptions { AbsoluteExpiration = DateTimeOffset.UtcNow.Add(LockoutTtl) });
+                new MemoryCacheEntryOptions
+                {
+                    Size = 1,
+                    AbsoluteExpiration = DateTimeOffset.UtcNow.Add(LockoutTtl)
+                });
                     _cache.Remove(OtpKey(email, purpose));
 
                     _logger.LogWarning("[OTP] Lockout. Email: {Email} | Purpose: {Purpose}", email, purpose);
@@ -144,7 +152,11 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services
                 // Deneme sayacını artır
                 var updated = record with { AttemptCount = newCount };
                 _cache.Set(OtpKey(email, purpose), updated,
-                    new MemoryCacheEntryOptions { AbsoluteExpiration = new DateTimeOffset(record.ExpiresAt) });
+                new MemoryCacheEntryOptions
+                {
+                    Size = 1,
+                    AbsoluteExpiration = new DateTimeOffset(record.ExpiresAt)
+                });
 
                 _logger.LogWarning("[OTP] Yanlış kod. Email: {Email} | Deneme: {Count}/{Max}",
                     email, newCount, MaxAttempts);

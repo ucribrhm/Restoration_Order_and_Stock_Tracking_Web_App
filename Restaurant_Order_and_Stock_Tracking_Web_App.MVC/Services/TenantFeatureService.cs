@@ -62,6 +62,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services
 
             _cache.Set(key, dto, new MemoryCacheEntryOptions
             {
+                Size = 1,   // [WEEK1-2] SizeLimit = 1000 ile uyumlu
                 AbsoluteExpiration = DateTimeOffset.UtcNow.Add(CacheTtl)
             });
 
@@ -79,7 +80,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services
             {
                 Features.KDS => features.EnableKDS,
                 // Aşağıdakiler tüm planlarda ücretsiz — her zaman true
-              
+
                 _ => LogAndReturnFalse(tenantId, featureName)
             };
         }
@@ -115,7 +116,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services
             return new TenantFeaturesDto(
                 PlanType: plan,
                 EnableKDS: kdsEnabled
-               
+
             );
         }
 

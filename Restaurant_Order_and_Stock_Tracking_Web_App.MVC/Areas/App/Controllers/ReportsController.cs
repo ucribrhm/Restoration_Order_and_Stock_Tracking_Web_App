@@ -45,6 +45,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
 
             // Bugünkü kapatılmış (paid) adisyonlar — tek sorgu
             var todayPaidOrders = await _context.Orders
+                .AsNoTracking() // [PERF-05]
                 .Where(o => o.OrderStatus == OrderStatus.Paid
                          && o.OrderClosedAt >= fromUtc
                          && o.OrderClosedAt < toUtc)
@@ -61,11 +62,13 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
 
             // [P-03] Bugünkü tahsilat — ToListAsync+Sum yerine doğrudan SumAsync
             decimal todayNetCollected = await _context.Payments
+                .AsNoTracking() // [PERF-05]
                 .Where(p => p.PaymentsPaidAt >= fromUtc && p.PaymentsPaidAt < toUtc)
                 .SumAsync(p => p.PaymentsAmount);
 
             // [P-03] Bugünkü brüt satış — ToListAsync+Sum yerine doğrudan SumAsync
             decimal todayGrossSales = await _context.Orders
+                .AsNoTracking() // [PERF-05]
                 .Where(o => o.OrderStatus == OrderStatus.Paid
                          && o.OrderClosedAt >= fromUtc
                          && o.OrderClosedAt < toUtc)
@@ -73,6 +76,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
 
             // Bugünkü en çok satan ürün + top 5
             var todayItems = await _context.OrderItems
+                .AsNoTracking() // [PERF-05]
                 .Where(oi => todayOrderIds.Contains(oi.OrderId) && oi.CancelledQuantity < oi.OrderItemQuantity)
                 .Select(oi => new
                 {
@@ -99,6 +103,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
 
             // Bugünkü iptal tutarı
             var cancelledAmount = await _context.OrderItems
+                .AsNoTracking() // [PERF-05]
                 .Where(oi => oi.OrderItemAddedAt >= fromUtc
                           && oi.OrderItemAddedAt < toUtc
                           && oi.CancelledQuantity > 0)
@@ -111,12 +116,14 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             // Stok kaynaklı fire:    SourceType="StokKaynaklı",    Qty*UnitPrice
             // [F-02] SourceType string → MovementCategory enum filtresi
             var orderWasteAmountToday = await _context.StockLogs
+                .AsNoTracking() // [PERF-05]
                 .Where(sl => sl.MovementCategory == MovementCategory.OrderWaste   // [F-02]
                           && sl.CreatedAt >= fromUtc
                           && sl.CreatedAt < toUtc)
                 .SumAsync(sl => (decimal?)Math.Abs(sl.QuantityChange) * (sl.UnitPrice ?? sl.MenuItem.MenuItemPrice)) ?? 0m;
 
             var stockWasteAmountToday = await _context.StockLogs
+                .AsNoTracking() // [PERF-05]
                 .Where(sl => sl.MovementCategory == MovementCategory.StockWaste   // [F-02]
                           && sl.CreatedAt >= fromUtc
                           && sl.CreatedAt < toUtc)
@@ -127,6 +134,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
 
             // Kritik stok ürünleri
             var criticalItems = await _context.MenuItems
+                .AsNoTracking() // [PERF-05]
                 .Where(m => !m.IsDeleted
                          && m.TrackStock
                          // m.CriticalThreshold > 0 şartını >= 0 olarak değiştirdik
@@ -193,8 +201,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
         }
 
         // ── GET /Reports/CancelAndWaste ──────────────────────────────────────
-        // Areas/App/Controllers/ReportsController.cs
-        // ── GET /Reports/CancelAndWaste ──────────────────────────────────────────────
         public async Task<IActionResult> CancelAndWaste(
             string preset = "today",
             DateTime? from = null,
@@ -206,28 +212,47 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             var fromUtc = filter.FromUtc;
             var toUtc = filter.ToUtc;
 
-            // 1. Sipariş Kaynaklı Fire: CancelItem(IsWasted=true) → StockLog.SourceType="SiparişKaynaklı"
+            // ══════════════════════════════════════════════════════════
+            // BUG 1+4+5 DÜZELTMESİ — CancelAndWaste sorguları
+            //
+            // ESKI (hatalı):
+            //   OrderWastes = OrderItems WHERE IsWasted==true
+            //   → Quantity = OrderItemQty - CancelledQty = KALAN adet (0 oluyor!)
+            //   → TotalLoss = OrderItemLineTotal = KALAN tutar (0 oluyor!)
+            //   → Adisyon No bilgisi yok
+            //   → Stok kaynaklı ile tip ayrımı yok (tüm Çıkış'lar birleşiyor)
+            //
+            // YENİ (doğru):
+            //   Her iki kaynak StockLog.SourceType filtresiyle ayrışıyor.
+            //   Qty   = Math.Abs(QuantityChange) → iptal edilen gerçek miktar
+            //   Tutar = Qty * UnitPrice (OrderItem fiyatından kaydedildi)
+            //   OrderId → raporda adisyon no gösterimi için
+            // ══════════════════════════════════════════════════════════
+
+            // 1. Sipariş Kaynaklı Fire: CancelItem'da IsWasted=true ile yazılan StockLog'lar
             var orderWastes = await _context.StockLogs
+                .AsNoTracking() // [PERF-05]
                 .Where(sl => sl.SourceType == "SiparişKaynaklı"
                           && sl.CreatedAt >= fromUtc
                           && sl.CreatedAt < toUtc)
                 .Select(sl => new WasteItemDto
                 {
                     ProductName = sl.MenuItem.MenuItemName,
-                    Quantity = Math.Abs(sl.QuantityChange),
+                    Quantity = Math.Abs(sl.QuantityChange),          // iptal edilen gerçek miktar
                     UnitPrice = sl.UnitPrice ?? sl.MenuItem.MenuItemPrice,
                     CostPrice = sl.MenuItem.CostPrice,
                     TotalLoss = Math.Abs(sl.QuantityChange) * (sl.UnitPrice ?? sl.MenuItem.MenuItemPrice),
                     Date = sl.CreatedAt,
                     CancelReason = sl.Note ?? "",
                     SourceType = "SiparişKaynaklı",
-                    OrderId = sl.OrderId
+                    OrderId = sl.OrderId                             // adisyon no raporda görünür
                 })
                 .OrderByDescending(x => x.Date)
                 .ToListAsync();
 
-            // 2. Stok Kaynaklı Fire: UpdateStock fire modu → StockLog.SourceType="StokKaynaklı"
+            // 2. Stok Kaynaklı Fire: UpdateStock fire modundan gelen StockLog'lar
             var stockLogWastes = await _context.StockLogs
+                .AsNoTracking() // [PERF-05]
                 .Where(sl => sl.SourceType == "StokKaynaklı"
                           && sl.CreatedAt >= fromUtc
                           && sl.CreatedAt < toUtc)
@@ -241,49 +266,25 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                     Date = sl.CreatedAt,
                     Note = sl.Note ?? "",
                     SourceType = "StokKaynaklı",
-                    OrderId = null
+                    OrderId = null                                   // adisyon bağlantısı yok
                 })
                 .OrderByDescending(x => x.Date)
                 .ToListAsync();
 
-            // 3. Stoka İade Tutarı (IsWasted=false → iptal edildi ama zayi değil, stoka döndü)
+            // IsWasted=false → stoka iade (refund)
             var refundedToStock = await _context.OrderItems
+                .AsNoTracking() // [PERF-05]
                 .Where(oi => oi.IsWasted == false
                           && oi.OrderItemAddedAt >= fromUtc
                           && oi.OrderItemAddedAt < toUtc
                           && oi.CancelledQuantity > 0)
-                .SumAsync(oi => (decimal?)oi.CancelledQuantity * oi.OrderItemUnitPrice) ?? 0m;
-
-            // ────────────────────────────────────────────────────────────────────────
-            // FIX-COUNT-1: Zayi Adet — .Count() (satır sayısı) DEĞİL,
-            //              .Sum(x => x.Quantity) (gerçek ürün adedi) kullan.
-            //
-            // .Count() → kaç farklı iptal satırı var = yanlış
-            // .Sum(x => x.Quantity) → kaç adet ürün zayi edildi = doğru
-            //
-            // Örn: 1 satır "Kola ×5 zayi" → Count()=1, Sum()=5
-            // ────────────────────────────────────────────────────────────────────────
-            var allWasteItems = orderWastes.Concat(stockLogWastes).ToList();
-
-            var totalWasteCount = allWasteItems.Sum(x => x.Quantity); // ← .Sum(Qty), .Count() değil
-
-            // ────────────────────────────────────────────────────────────────────────
-            // FIX-COUNT-2: Stoka İade Adet — TotalRefundedToStock (decimal tutar) ile
-            //              karıştırma! Bu ayrı bir int sayım sorgusudur.
-            //
-            // ESKİ (yok): TotalReturnCount alanı ViewModel'de tanımlı değildi
-            // YENİ: CancelledQuantity toplamı → stoka kaç adet döndü
-            // ────────────────────────────────────────────────────────────────────────
-            var totalReturnCount = await _context.OrderItems
-                .Where(oi => oi.IsWasted == false
-                          && oi.OrderItemAddedAt >= fromUtc
-                          && oi.OrderItemAddedAt < toUtc
-                          && oi.CancelledQuantity > 0)
-                .SumAsync(oi => (int?)oi.CancelledQuantity) ?? 0; // ← .Sum(Qty), .Count() değil
+                .SumAsync(oi => oi.CancelledQuantity * oi.OrderItemUnitPrice);
 
             var orderWasteTotal = orderWastes.Sum(x => x.TotalLoss);
             var stockLogWasteTotal = stockLogWastes.Sum(x => x.TotalLoss);
 
+            // Top waste products (her iki kaynaktan birleştir)
+            var allWasteItems = orderWastes.Concat(stockLogWastes).ToList();
             var topWaste = allWasteItems
                 .GroupBy(x => x.ProductName)
                 .Select(g => new TopWasteProductDto
@@ -302,10 +303,9 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                 OrderWastes = orderWastes,
                 StockLogWastes = stockLogWastes,
                 TotalWasteLoss = orderWasteTotal + stockLogWasteTotal,
-                TotalWasteCount = totalWasteCount,    // FIX-COUNT-1: .Sum(Qty) ile hesaplandı
-                TotalReturnCount = totalReturnCount,   // FIX-COUNT-2: yeni alan, .Sum(Qty) ile
+                TotalWasteCount = allWasteItems.Sum(x => x.Quantity),
                 TopWasteProducts = topWaste,
-                TotalRefundedToStock = refundedToStock,  // tutar (ayrı, karıştırılmamalı)
+                TotalRefundedToStock = refundedToStock,
                 OrderWasteTotal = orderWasteTotal,
                 StockLogWasteTotal = stockLogWasteTotal
             };
@@ -329,6 +329,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             int days = Math.Max(1, (int)(filter.To - filter.From).TotalDays);
 
             var items = await _context.MenuItems
+                .AsNoTracking() // [PERF-05]
                 .Where(m => !m.IsDeleted && m.TrackStock)
                 .Include(m => m.Category)
                 .ToListAsync();
@@ -339,6 +340,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             if (timeBase == "stocklog")
             {
                 var logConsumption = await _context.StockLogs
+                    .AsNoTracking() // [PERF-05]
                     .Where(sl => sl.CreatedAt >= fromUtc && sl.CreatedAt < toUtc
                               && (sl.MovementType == MovementOut || sl.MovementType == MovementFix))
                     .GroupBy(sl => sl.MenuItemId)
@@ -359,6 +361,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             else
             {
                 var orderConsumption = await _context.OrderItems
+                    .AsNoTracking() // [PERF-05]
                     .Where(oi => oi.OrderItemAddedAt >= fromUtc && oi.OrderItemAddedAt < toUtc
                               && oi.OrderItemStatus != OrderItemStatus.Cancelled)
                     .GroupBy(oi => oi.MenuItemId)
@@ -405,6 +408,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             var toUtc = filter.ToUtc;
 
             var orders = await _context.Orders
+                .AsNoTracking() // [PERF-05]
                 .Where(o => o.OrderStatus == OrderStatus.Paid
                          && o.OrderClosedAt >= fromUtc
                          && o.OrderClosedAt < toUtc)
@@ -486,6 +490,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                 : new[] { OrderStatus.Paid };
 
             var orders = await _context.Orders
+                .AsNoTracking() // [PERF-05]
                 .Where(o => statuses.Contains(o.OrderStatus)
                          && o.OrderClosedAt >= fromUtc
                          && o.OrderClosedAt < toUtc)
@@ -493,6 +498,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                 .ToListAsync();
 
             var payments = await _context.Payments
+                .AsNoTracking() // [PERF-05]
                 .Where(p => p.PaymentsPaidAt >= fromUtc && p.PaymentsPaidAt < toUtc)
                 .Select(p => new { p.PaymentsAmount, p.PaymentsPaidAt })
                 .ToListAsync();
@@ -574,6 +580,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             var toUtc = filter.ToUtc;
 
             var payments = await _context.Payments
+                .AsNoTracking() // [PERF-05]
                 .Where(p => p.PaymentsPaidAt >= fromUtc && p.PaymentsPaidAt < toUtc)
                 .GroupBy(p => p.PaymentsMethod)
                 .Select(g => new { Method = g.Key, Total = g.Sum(p => p.PaymentsAmount), Count = g.Count() })
@@ -600,6 +607,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             var toUtc = filter.ToUtc;
 
             var result = await _context.OrderItems
+                .AsNoTracking() // [PERF-05]
                 .Where(oi => oi.OrderItemAddedAt >= fromUtc
                           && oi.OrderItemAddedAt < toUtc
                           && oi.OrderItemStatus != OrderItemStatus.Cancelled)
@@ -633,6 +641,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             var toUtc = filter.ToUtc;
 
             var result = await _context.OrderItems
+                .AsNoTracking() // [PERF-05]
                 .Where(oi => oi.OrderItemAddedAt >= fromUtc
                           && oi.OrderItemAddedAt < toUtc
                           && oi.OrderItemStatus != OrderItemStatus.Cancelled)
@@ -651,7 +660,6 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             });
         }
 
-        // Areas/App/Controllers/ReportsController.cs
         [HttpGet]
         public async Task<IActionResult> GetWasteChartData(
             string preset = "today",
@@ -662,19 +670,23 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             var fromUtc = filter.FromUtc;
             var toUtc = filter.ToUtc;
 
+            // BUG 3 DÜZELTMESİ — GetWasteChartData: SourceType bazlı sorgular
             var orderWasteTotal = await _context.StockLogs
+                .AsNoTracking() // [PERF-05]
                 .Where(sl => sl.SourceType == "SiparişKaynaklı"
                           && sl.CreatedAt >= fromUtc
                           && sl.CreatedAt < toUtc)
                 .SumAsync(sl => (decimal?)Math.Abs(sl.QuantityChange) * (sl.UnitPrice ?? sl.MenuItem.MenuItemPrice)) ?? 0m;
 
             var stockLogWasteTotal = await _context.StockLogs
+                .AsNoTracking() // [PERF-05]
                 .Where(sl => sl.SourceType == "StokKaynaklı"
                           && sl.CreatedAt >= fromUtc
                           && sl.CreatedAt < toUtc)
                 .SumAsync(sl => (decimal?)Math.Abs(sl.QuantityChange) * (sl.UnitPrice ?? sl.MenuItem.MenuItemPrice)) ?? 0m;
 
             var topProducts = await _context.StockLogs
+                .AsNoTracking() // [PERF-05]
                 .Where(sl => (sl.SourceType == "SiparişKaynaklı" || sl.SourceType == "StokKaynaklı")
                           && sl.CreatedAt >= fromUtc
                           && sl.CreatedAt < toUtc)
@@ -688,41 +700,17 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                 .Take(10)
                 .ToListAsync();
 
-            // ────────────────────────────────────────────────────────────────────────
-            // FIX-COUNT-3: AJAX response'a wasteCount + returnCount EKLENDİ.
-            //
-            // ESKİ JSON: { orderWasteTotal, stockLogWasteTotal, topProducts, totalWasteLoss }
-            //   → JS data.wasteCount  = undefined → || 0  → "0 kalem"
-            //   → JS data.returnCount = undefined → || 0  → "0 kalem"
-            //
-            // YENİ JSON: + wasteCount (int), + returnCount (int)
-            //   → JS data.wasteCount  = gerçek zayi adedi
-            //   → JS data.returnCount = gerçek iade adedi
-            //
-            // NOT: .SumAsync(Math.Abs(QuantityChange)) = gerçek ürün adedi
-            //      .CountAsync() = satır sayısı (yanlış)
-            // ────────────────────────────────────────────────────────────────────────
-            var wasteCount = await _context.StockLogs
-                .Where(sl => (sl.SourceType == "SiparişKaynaklı" || sl.SourceType == "StokKaynaklı")
-                          && sl.CreatedAt >= fromUtc
-                          && sl.CreatedAt < toUtc)
-                .SumAsync(sl => (int?)Math.Abs(sl.QuantityChange)) ?? 0; // ← .Sum(Qty), .Count() değil
-
-            var returnCount = await _context.OrderItems
-                .Where(oi => oi.IsWasted == false
-                          && oi.OrderItemAddedAt >= fromUtc
-                          && oi.OrderItemAddedAt < toUtc
-                          && oi.CancelledQuantity > 0)
-                .SumAsync(oi => (int?)oi.CancelledQuantity) ?? 0; // ← .Sum(Qty), .Count() değil
+            // FIX: Widget toplamları — filtre değiştiğinde 3 kart da AJAX ile güncellenir
+            var totalWasteLoss = orderWasteTotal + stockLogWasteTotal;
 
             return Json(new
             {
+                // Grafik dizileri (değişmedi)
                 orderWasteTotal,
                 stockLogWasteTotal,
-                totalWasteLoss = orderWasteTotal + stockLogWasteTotal,
                 topProducts = topProducts.Select(x => new { x.Name, x.Loss }).ToList(),
-                wasteCount,    // ← YENİ: Zayi Adet (int)
-                returnCount    // ← YENİ: Stoka İade Adet (int)
+                // Yeni: widget'lar için özet toplamlar
+                totalWasteLoss
             });
         }
 
@@ -732,6 +720,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             var fromUtc = DateTime.UtcNow.AddDays(-days);
 
             var logs = await _context.StockLogs
+                .AsNoTracking() // [PERF-05]
                 .Where(sl => sl.MenuItemId == menuItemId && sl.CreatedAt >= fromUtc)
                 .OrderBy(sl => sl.CreatedAt)
                 .Select(sl => new { sl.CreatedAt, sl.NewStock })
@@ -1002,6 +991,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                 : new[] { OrderStatus.Paid };
 
             var orders = await _context.Orders
+                .AsNoTracking() // [PERF-05]
                 .Where(o => statuses.Contains(o.OrderStatus)
                          && o.OrderClosedAt >= fromUtc
                          && o.OrderClosedAt < toUtc)
@@ -1011,6 +1001,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             var orderIds = orders.Select(o => o.OrderId).ToList();
 
             var payments = await _context.Payments
+                .AsNoTracking() // [PERF-05]
                 .Where(p => orderIds.Contains(p.OrderId))
                 .GroupBy(p => p.PaymentsMethod)
                 .Select(g => new { Method = g.Key, Total = g.Sum(p => p.PaymentsAmount), Count = g.Count() })
@@ -1019,6 +1010,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             var totalPayments = payments.Sum(p => p.Total);
 
             var topProducts = await _context.OrderItems
+                .AsNoTracking() // [PERF-05]
                 .Where(oi => orderIds.Contains(oi.OrderId) && oi.OrderItemStatus != OrderItemStatus.Cancelled)
                 .GroupBy(oi => new { oi.MenuItemId, oi.MenuItem.MenuItemName, oi.MenuItem.Category.CategoryName })
                 .Select(g => new TopProductDto
@@ -1033,6 +1025,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                 .ToListAsync();
 
             var catSales = await _context.OrderItems
+                .AsNoTracking() // [PERF-05]
                 .Where(oi => orderIds.Contains(oi.OrderId) && oi.OrderItemStatus != OrderItemStatus.Cancelled)
                 .GroupBy(oi => oi.MenuItem.Category.CategoryName)
                 .Select(g => new { Category = g.Key, Revenue = g.Sum(x => x.OrderItemLineTotal) })
@@ -1067,6 +1060,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             var toUtc = filter.ToUtc;
 
             var orders = await _context.Orders
+                .AsNoTracking() // [PERF-05]
                 .Where(o => (o.OrderStatus == OrderStatus.Paid || (filter.IncludeCancelled && o.OrderStatus == OrderStatus.Cancelled))
                          && o.OrderClosedAt >= fromUtc
                          && o.OrderClosedAt < toUtc)
@@ -1102,6 +1096,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
 
             // BUG 5 DÜZELTMESİ — Export: SourceType bazlı, doğru miktar/tutar
             var orderWaste = await _context.StockLogs
+                .AsNoTracking() // [PERF-05]
                 .Where(sl => sl.SourceType == "SiparişKaynaklı"
                           && sl.CreatedAt >= fromUtc && sl.CreatedAt < toUtc)
                 .Select(sl => new
@@ -1116,6 +1111,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                 .ToListAsync();
 
             var stockWaste = await _context.StockLogs
+                .AsNoTracking() // [PERF-05]
                 .Where(sl => sl.SourceType == "StokKaynaklı"
                           && sl.CreatedAt >= fromUtc && sl.CreatedAt < toUtc)
                 .Select(sl => new
@@ -1142,11 +1138,13 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             int days = Math.Max(1, (int)(filter.To - filter.From).TotalDays);
 
             var items = await _context.MenuItems
+                .AsNoTracking() // [PERF-05]
                 .Where(m => !m.IsDeleted && m.TrackStock)
                 .Include(m => m.Category)
                 .ToListAsync();
 
             var consumption = await _context.OrderItems
+                .AsNoTracking() // [PERF-05]
                 .Where(oi => oi.OrderItemAddedAt >= fromUtc && oi.OrderItemAddedAt < toUtc
                           && oi.OrderItemStatus != OrderItemStatus.Cancelled)
                 .GroupBy(oi => oi.MenuItemId)
@@ -1171,6 +1169,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             var toUtc = filter.ToUtc;
 
             var orders = await _context.Orders
+                .AsNoTracking() // [PERF-05]
                 .Where(o => o.OrderStatus == OrderStatus.Paid && o.OrderClosedAt >= fromUtc && o.OrderClosedAt < toUtc)
                 .Include(o => o.Table)
                 .Select(o => new { o.Table.TableName, o.OrderTotalAmount, o.OrderOpenedAt, o.OrderClosedAt })

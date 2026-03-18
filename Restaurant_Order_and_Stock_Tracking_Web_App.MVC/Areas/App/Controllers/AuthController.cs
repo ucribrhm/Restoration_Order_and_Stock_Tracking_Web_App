@@ -403,12 +403,13 @@ public class AuthController : AppBaseController
             // [FP-5] Tek kullanımlık reset grant — IMemoryCache, 5 dakika TTL
             var resetGuid = Guid.NewGuid().ToString("N");
             _cache.Set(
-                $"reset_grant:{resetGuid}",
+            $"reset_grant:{resetGuid}",
                 firmaKodu,
-                new Microsoft.Extensions.Caching.Memory.MemoryCacheEntryOptions
-                {
-                    AbsoluteExpiration = DateTimeOffset.UtcNow.AddMinutes(5)
-                });
+            new Microsoft.Extensions.Caching.Memory.MemoryCacheEntryOptions
+            {
+                Size = 1,
+                AbsoluteExpiration = DateTimeOffset.UtcNow.AddMinutes(5)
+            });
 
             TempData["ResetToken"] = resetGuid;
             TempData["ResetFirmaKodu"] = firmaKodu;

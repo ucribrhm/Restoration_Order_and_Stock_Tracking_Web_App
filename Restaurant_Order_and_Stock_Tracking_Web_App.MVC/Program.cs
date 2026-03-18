@@ -52,6 +52,9 @@
 //    }
 // ════════════════════════════════════════════════════════════════════════════
 
+using Microsoft.AspNetCore.ResponseCompression;
+using Serilog;
+using Serilog.Events;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
@@ -71,7 +74,42 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
         {
             QuestPDF.Settings.License = LicenseType.Community;
 
+            // ── [WEEK1-1] Serilog — Host logger'ı devre dışı bırak ──────
+            // Host startup logları (DotNetEnv yükleme dahil) da Serilog'a gider.
+            // CreateBuilder'dan ÖNCE çağrılmalı.
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Information()
+                .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+                .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Warning)
+                .Enrich.FromLogContext()
+                .WriteTo.Console(outputTemplate:
+                    "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext}{NewLine}{Message:lj}{NewLine}{Exception}")
+                .WriteTo.File(
+                    path: "Logs/log-.txt",
+                    rollingInterval: RollingInterval.Day,
+                    retainedFileCountLimit: 30,
+                    outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}")
+                .CreateBootstrapLogger();
+            // ─────────────────────────────────────────────────────────────
+
             var builder = WebApplication.CreateBuilder(args);
+
+            // ── [WEEK1-1] Serilog — ASP.NET Core pipeline'a entegre et ──
+            builder.Host.UseSerilog((ctx, services, cfg) => cfg
+                .MinimumLevel.Information()
+                .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+                .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Warning)
+                .ReadFrom.Configuration(ctx.Configuration)   // appsettings.json Serilog bölümüne izin ver
+                .ReadFrom.Services(services)
+                .Enrich.FromLogContext()
+                .WriteTo.Console(outputTemplate:
+                    "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext}{NewLine}{Message:lj}{NewLine}{Exception}")
+                .WriteTo.File(
+                    path: "Logs/log-.txt",
+                    rollingInterval: RollingInterval.Day,
+                    retainedFileCountLimit: 30,
+                    outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}"));
+            // ─────────────────────────────────────────────────────────────
 
             // ── .env dosyasını oku ────────────────────────────────────────
             // TraversePath(): mevcut dizinden başlayıp üst klasörleri tarar.
@@ -205,17 +243,32 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
             // ════════════════════════════════════════════════════════════════
             //  [S1-1/S1-2] Sprint 1 Refactoring — Servis Katmanı
             // ════════════════════════════════════════════════════════════════
-            builder.Services.AddMemoryCache();
+            // ── [WEEK1-2] IMemoryCache — Bellek tavanı ───────────────────
+            // SizeLimit = 1000: her cache girişi SetSize(1) ile sayılır.
+            // 100 tenant × TenantFeatures + Dashboard + OTP ≈ 300-400 giriş.
+            // OOM (Out of Memory) önlemi — LRU politikasıyla en eski atılır.
+            builder.Services.AddMemoryCache(opt =>
+            {
+                opt.SizeLimit = 1000;
+            });
+            // ─────────────────────────────────────────────────────────────
+
+            // ── [PERF-08] Response Compression ───────────────────────────
+            // Brotli (öncelikli) + Gzip. Tipik JSON ~5-10x küçülür.
+            // NOT: Production'da Nginx gzip açıksa bu katman gereksiz olur.
+            // Nginx'siz (doğrudan Kestrel) deploy'da aktif bırakın.
+            builder.Services.AddResponseCompression(opt =>
+            {
+                opt.EnableForHttps = true;
+                opt.Providers.Add<BrotliCompressionProvider>();
+                opt.Providers.Add<GzipCompressionProvider>();
+                opt.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(
+                    ["application/json", "text/html", "text/css", "application/javascript"]);
+            });
+            // ─────────────────────────────────────────────────────────────
             builder.Services.AddScoped<IDashboardService, DashboardService>();
             builder.Services.AddScoped<IStockService, StockService>();
-
-            // ── Tenant Feature Flag Servisi ────────────────────────────────
-            // Scoped: her HTTP isteğinde taze DbContext ile çalışır.
-            // IMemoryCache (AddMemoryCache yukarıda) üzerinde 5dk TTL ile cache'ler.
-            // Cache key: tenant_features:{tenantId}
-            builder.Services.AddScoped<
-                Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services.ITenantFeatureService,
-                Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services.TenantFeatureService>();
+            builder.Services.AddScoped<ITenantFeatureService, TenantFeatureService>(); // [SUB-1] Abonelik Feature Service
 
             // ── [IMP-2] Sprint 4 — Impersonation Audit Log Kimlik Servisi ──
             builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
@@ -362,6 +415,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
             if (!app.Environment.IsDevelopment())
                 app.UseHsts();
 
+            app.UseResponseCompression(); // [PERF-08] Routing'den önce
             app.UseHttpsRedirection();
 
             // ════════════════════════════════════════════════════════════════
@@ -527,6 +581,35 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC
                         await userManager.AddToRoleAsync(sysAdmin, "SysAdmin");
                 }
             }
+
+            // ── [WEEK1-3] Health Check Endpoint ──────────────────────────
+            // GET /health → UptimeRobot / uptime monitor için.
+            // DB bağlantısını CanConnectAsync() ile doğrular.
+            // Auth gerektirmez — IP kısıtlaması Nginx seviyesinde yapılabilir.
+            app.MapGet("/health", async (RestaurantDbContext db) =>
+            {
+                try
+                {
+                    var dbOk = await db.Database.CanConnectAsync();
+                    return dbOk
+                        ? Results.Ok(new
+                        {
+                            status = "healthy",
+                            database = "connected",
+                            timestamp = DateTime.UtcNow
+                        })
+                        : Results.Json(
+                            new { status = "degraded", database = "unreachable", timestamp = DateTime.UtcNow },
+                            statusCode: 503);
+                }
+                catch (Exception ex)
+                {
+                    return Results.Json(
+                        new { status = "unhealthy", error = ex.Message, timestamp = DateTime.UtcNow },
+                        statusCode: 503);
+                }
+            }).AllowAnonymous();
+            // ─────────────────────────────────────────────────────────────
 
             app.Run();
         }

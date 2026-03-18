@@ -30,15 +30,13 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
         }
 
         // ── GET: /Menu ──────────────────────────────────────────────────
-        // ── GET /App/Menu ─────────────────────────────────────────────────────────
-        // [PERF] AsNoTracking: menü listeleme sayfası salt okunur.
         public async Task<IActionResult> Index()
         {
             ViewData["Title"] = "Menü Ürünleri";
 
             var menuItems = await _context.MenuItems
-                .AsNoTracking()
                 .Where(m => !m.IsDeleted)
+                .AsNoTracking() // [PERF-02]
                 .Include(m => m.Category)
                 .OrderBy(m => m.Category.CategorySortOrder)
                 .ThenBy(m => m.DisplayOrder)
@@ -46,7 +44,7 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
                 .ToListAsync();
 
             ViewData["Categories"] = await _context.Categories
-                .AsNoTracking()
+                .AsNoTracking() // [PERF-02]
                 .Where(c => c.IsActive)
                 .OrderBy(c => c.CategorySortOrder)
                 .ThenBy(c => c.CategoryName)
@@ -58,21 +56,17 @@ namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
             return View(menuItems);
         }
 
-        // ── GET /App/Menu/Detail/{id} ─────────────────────────────────────────────
-        // [PERF] AsNoTracking: detay sayfası salt okunur.
+        // ── GET: /Menu/Detail/5 ─────────────────────────────────────────
         public async Task<IActionResult> Detail(int id)
         {
             var item = await _context.MenuItems
-                .AsNoTracking()
                 .Include(m => m.Category)
                 .FirstOrDefaultAsync(m => m.MenuItemId == id);
-
             if (item == null) return NotFound();
 
             ViewData["Title"] = $"{item.MenuItemName} — Detay";
             ViewData["HasLowStock"] = await _context.MenuItems
                 .AnyAsync(m => !m.IsDeleted && m.TrackStock && m.StockQuantity < 5);
-
             return View(item);
         }
 

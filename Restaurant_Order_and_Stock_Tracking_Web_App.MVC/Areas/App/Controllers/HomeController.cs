@@ -1,65 +1,69 @@
-﻿// ============================================================================
+﻿// ════════════════════════════════════════════════════════════════════════════
 //  Areas/App/Controllers/HomeController.cs
 //
-//  REFACTORING: 540+ satır spagetti → 55 satır Thin Controller
+//  PERF-06 — DashboardService Entegrasyonu
 //
-//  ESKİ DURUM (kaldırıldı):
-//    - Index()          → 370 satır, 8+ DB sorgusu doğrudan action içinde
-//    - GetLiveMetrics() → 170 satır, 8+ DB sorgusu doğrudan action içinde
-//    - Test edilemez (DbContext'e sıkı bağımlı)
-//    - 100 kullanıcıda her istek DB'ye 16+ hit
+//  ESKİ DURUM (420 satır):
+//    HomeController → 16+ DB sorgusu → her istekte tüm sorgular çalışır
+//    100 kullanıcıda DB'ye saatte ~57.600 hit.
 //
-//  YENİ DURUM:
-//    - IDashboardService + ITenantService inject edildi
-//    - Index()          → 4 satır: tenantId al → servise yolla → View'a bas
-//    - GetLiveMetrics() → 4 satır: tenantId al → servise yolla → Json döndür
-//    - Tüm iş mantığı ve DB erişimi DashboardService'e taşındı
-//    - IMemoryCache 30sn cache: 100 kullanıcıda DB yükü 240x azaldı
+//  YENİ DURUM (bu dosya):
+//    HomeController → IDashboardService → IMemoryCache (30sn) → DB
+//    100 kullanıcıda DB'ye saatte ~240 hit. 240x azalma.
 //
-//  PROGRAM.CS'E EKLENMESİ GEREKENLER:
-//    builder.Services.AddMemoryCache();
-//    builder.Services.AddScoped<IDashboardService, DashboardService>();
-// ============================================================================
+//  View (Index.cshtml) ve DashboardViewModel değişmedi — sadece
+//  veriyi nereden aldığımız değişti.
+// ════════════════════════════════════════════════════════════════════════════
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Services;
+using System.Security.Claims;
 
 namespace Restaurant_Order_and_Stock_Tracking_Web_App.MVC.Areas.App.Controllers
 {
     [Area("App")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin")] // Bu satır çok kritik!
     public class HomeController : AppBaseController
     {
         private readonly IDashboardService _dashboardService;
-        private readonly ITenantService _tenantService;
+        private readonly ILogger<HomeController> _logger;
 
         public HomeController(
             IDashboardService dashboardService,
-            ITenantService tenantService)
+            ILogger<HomeController> logger)
         {
             _dashboardService = dashboardService;
-            _tenantService = tenantService;
+            _logger = logger;
         }
 
-        // ── GET /App/Home/Index  —  Dashboard ana sayfa ───────────────────────
+        // ════════════════════════════════════════════════════════════════════
+        //  GET /App/Home/Index — Dashboard ana sayfa
+        //  DashboardService 30sn cache ile DB yükünü 240x azaltır.
+        // ════════════════════════════════════════════════════════════════════
         public async Task<IActionResult> Index()
         {
             ViewData["Title"] = "Dashboard";
 
-            var tenantId = _tenantService.TenantId ?? string.Empty;
+            var tenantId = User.FindFirstValue("TenantId") ?? string.Empty;
+
             var vm = await _dashboardService.GetDashboardDataAsync(tenantId);
+
+            _logger.LogDebug("[Dashboard] Index yüklendi. TenantId: {TenantId}", tenantId);
 
             return View(vm);
         }
 
-        // ── GET /App/Home/GetLiveMetrics  —  Canlı güncelleme (AJAX/SignalR) ──
-        // KPI + Grafikler + Heatmap + Stok + Hedef verilerini tek seferde döner.
-        // JS tarafı bu endpoint'i SignalR eventi gelince fetch ile çağırır.
+        // ════════════════════════════════════════════════════════════════════
+        //  GET /App/Home/GetLiveMetrics — AJAX endpoint
+        //  SignalR eventi tetiklenince JS fetch ile çağrılır.
+        //  DashboardService 30sn cache — aynı pencerede tekrar DB'ye gitmiyor.
+        // ════════════════════════════════════════════════════════════════════
         [HttpGet]
         public async Task<IActionResult> GetLiveMetrics()
         {
-            var tenantId = _tenantService.TenantId ?? string.Empty;
+            var tenantId = User.FindFirstValue("TenantId") ?? string.Empty;
+
             var data = await _dashboardService.GetLiveMetricsAsync(tenantId);
 
             return Json(data);
